@@ -91,7 +91,7 @@ app/
 tests/                       # pytest
 scripts/                     # CLI utilities (make_key, build, etc.)
 installer/                   # Inno Setup .iss
-docs/                        # uživatelská + admin dokumentace
+docs/                        # uživatelská dokumentace
 .github/workflows/           # CI: Windows build pipeline
 ```
 

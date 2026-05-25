@@ -58,6 +58,7 @@ flashdisk_balicek/HlasDoTextu-Setup-*.exe
 # Interní složky — nepatří do veřejného repa
 design/
 flashdisk_balicek/
+private_docs/
 
 # macOS metadata
 .DS_Store

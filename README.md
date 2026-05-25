@@ -63,16 +63,6 @@ python -m app                  # GUI
 pytest tests/                  # 46 testů
 ```
 
-## Pro správce (admin / distributor)
-
-Aplikace vyžaduje aktivační klíč. Generování klíčů je popsané v
-[docs/ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md).
-
-```bash
-python scripts/make_key.py --customer "Jana N."
-# → S4F1-AKLM-3X9P-7YT2-WQBV
-```
-
 ## Licence
 
 Aplikace je distribuovaná pod proprietary licencí (viz
