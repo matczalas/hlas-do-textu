@@ -34,18 +34,16 @@ LanguageDetectionMethod=uilanguage
 Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "Vytvořit zástupce na ploše"; GroupDescription: "Další možnosti:"
-
 [Files]
 ; Bere se výstup z PyInstaller --onedir
 Source: "..\dist\HlasDoTextu\HlasDoTextu.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\HlasDoTextu\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
+; Start menu + plocha + odinstalátor — všechny ikony se vytvoří vždy.
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\Odinstalovat {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Hlas do textu — přepis a body z přednášek"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Spustit Hlas do textu"; Flags: nowait postinstall skipifsilent

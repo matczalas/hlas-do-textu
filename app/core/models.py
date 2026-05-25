@@ -14,6 +14,13 @@ class SourceKind(StrEnum):
     PRESENTATION = "presentation"
 
 
+class JobMode(StrEnum):
+    """Režim zpracování — vybírá si uživatel v hlavním okně."""
+
+    TRANSCRIBE_ONLY = "transcribe_only"  # jen přepis do Wordu, bez AI a internetu
+    FULL = "full"                        # přepis + AI body + pojmy + příklady
+
+
 @dataclass(slots=True)
 class SourceFile:
     """Jeden importovaný soubor (audio/video nebo prezentace)."""
@@ -66,8 +73,9 @@ class JobConfig:
     """Vstup do pipeline z UI."""
 
     sources: list[SourceFile]
-    user_prompt: str                # slovní popis / instrukce pro AI
+    user_prompt: str                # slovní popis / instrukce pro AI (ignorováno v TRANSCRIBE_ONLY)
     output_dir: Path
+    mode: JobMode = JobMode.FULL
     whisper_model: str = "medium"
     language: str = "cs"
     ai_consent_gemini: bool = False  # uživatel souhlasil s odesláním textu do Gemini

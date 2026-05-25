@@ -22,6 +22,7 @@ from app.core.ai.router import AIRouter, generate_study_material
 from app.core.audio_extract import extract_to_wav, probe_duration_seconds
 from app.core.models import (
     JobConfig,
+    JobMode,
     SlideText,
     SourceKind,
     StudyMaterial,
@@ -50,8 +51,8 @@ class _Stage:
     weight: float  # podíl na celkovém progresu (sum = 1.0)
 
 
-# Váhy fází: transkripce dominuje
-_STAGES: list[_Stage] = [
+# Váhy fází pro režim FULL — transkripce dominuje
+_STAGES_FULL: list[_Stage] = [
     _Stage("Příprava", 0.02),
     _Stage("Extrakce audia", 0.05),
     _Stage("Přepis mluveného slova", 0.70),
@@ -59,6 +60,16 @@ _STAGES: list[_Stage] = [
     _Stage("Generování bodů přes AI", 0.18),
     _Stage("Export do Wordu", 0.02),
 ]
+
+# Váhy fází pro režim TRANSCRIBE_ONLY — bez AI, bez slidů
+_STAGES_TRANSCRIBE_ONLY: list[_Stage] = [
+    _Stage("Příprava", 0.02),
+    _Stage("Extrakce audia", 0.06),
+    _Stage("Přepis mluveného slova", 0.88),
+    _Stage("Export do Wordu", 0.04),
+]
+
+_STAGES = _STAGES_FULL  # backward compat pro místa která indexují _STAGES[2]
 
 
 class PipelineError(RuntimeError):
@@ -81,42 +92,51 @@ def run_pipeline(
     ensure_dirs()
     _check_disk_space()
 
-    router = _build_router(job, gemini_api_key)
+    transcribe_only = job.mode == JobMode.TRANSCRIBE_ONLY
+    stages = _STAGES_TRANSCRIBE_ONLY if transcribe_only else _STAGES_FULL
+    router = None if transcribe_only else _build_router(job, gemini_api_key)
 
     work_dir = Path(tempfile.mkdtemp(prefix="hdt_", dir=TEMP_DIR))
-    logger.info("Pipeline workspace: {}", work_dir)
+    logger.info("Pipeline workspace: {} (mode={})", work_dir, job.mode.value)
 
     try:
         cumulative = 0.0
         report = _make_reporter(progress_cb)
 
         # Stage: Příprava
-        cumulative = _begin_stage(report, _STAGES[0], cumulative)
+        cumulative = _begin_stage(report, stages[0], cumulative)
         audio_sources = [s for s in job.sources if s.kind == SourceKind.AUDIO_VIDEO]
         presentation_sources = [s for s in job.sources if s.kind == SourceKind.PRESENTATION]
         if not audio_sources and not presentation_sources:
             raise PipelineError("Nejsou nahrány žádné soubory")
+        if transcribe_only and not audio_sources:
+            raise PipelineError("Režim 'Jen přepis' potřebuje aspoň jednu nahrávku")
 
         # Stage: Extrakce audia
-        cumulative = _begin_stage(report, _STAGES[1], cumulative)
+        extract_stage = stages[1]
+        cumulative = _begin_stage(report, extract_stage, cumulative)
         wav_paths: list[tuple[Path, str, float]] = []  # (wav, label, duration_sec)
         for i, src in enumerate(audio_sources):
             _raise_if_cancelled(cancel_event)
             sub_fraction = (i + 1) / max(len(audio_sources), 1)
-            report(f"Extrahuji audio: {src.label}", cumulative - _STAGES[1].weight + _STAGES[1].weight * sub_fraction)
+            report(
+                f"Extrahuji audio: {src.label}",
+                cumulative - extract_stage.weight + extract_stage.weight * sub_fraction,
+            )
             wav = work_dir / f"audio_{i:02d}.wav"
             extract_to_wav(src.path, wav)
             duration = probe_duration_seconds(src.path) or 0.0
             wav_paths.append((wav, src.label, duration))
 
         # Stage: Transkripce
-        cumulative = _begin_stage(report, _STAGES[2], cumulative)
+        transcribe_stage = stages[2]
+        cumulative = _begin_stage(report, transcribe_stage, cumulative)
         transcripts: list[Transcript] = []
         total_duration = sum(d for _, _, d in wav_paths) or 1.0
         accumulated_duration = 0.0
         for wav, label, duration in wav_paths:
             _raise_if_cancelled(cancel_event)
-            stage_base = cumulative - _STAGES[2].weight
+            stage_base = cumulative - transcribe_stage.weight
             file_weight = (duration or 1.0) / total_duration
 
             def inner_cb(
@@ -126,8 +146,9 @@ def run_pipeline(
                 _weight=file_weight,
                 _stage_base=stage_base,
                 _total=total_duration,
+                _stage_weight=transcribe_stage.weight,
             ) -> None:
-                overall = _stage_base + _STAGES[2].weight * (_accum / _total + _weight * fraction)
+                overall = _stage_base + _stage_weight * (_accum / _total + _weight * fraction)
                 report(f"Přepis: {_label}", overall)
 
             def inner_text_cb(seconds: float, text: str, _label=label) -> None:
@@ -152,39 +173,52 @@ def run_pipeline(
             transcripts.append(tr)
             accumulated_duration += duration
 
-        # Stage: Slide extract
-        cumulative = _begin_stage(report, _STAGES[3], cumulative)
-        slides: list[SlideText] = []
-        for i, src in enumerate(presentation_sources):
-            _raise_if_cancelled(cancel_event)
-            sub_fraction = (i + 1) / max(len(presentation_sources), 1)
-            report(f"Čtu prezentaci: {src.label}", cumulative - _STAGES[3].weight + _STAGES[3].weight * sub_fraction)
-            if src.path.suffix.lower() == ".pdf":
-                slides.append(extract_pdf_text(src.path, src.label))
-            elif src.path.suffix.lower() == ".pptx":
-                slides.append(extract_pptx_text(src.path, src.label))
-
-        # Auto-save raw přepisu PŘED voláním AI — kdyby Gemini selhalo,
-        # uživatel má aspoň přepis jako .txt v output složce.
+        # Auto-save raw přepisu (vždy — i v TRANSCRIBE_ONLY je užitečný)
         backup_txt = _save_transcript_backup(transcripts, Path(job.output_dir))
         if backup_txt is not None:
             logger.info("Záloha přepisu: {}", backup_txt)
 
-        # Stage: AI
-        cumulative = _begin_stage(report, _STAGES[4], cumulative)
-        _raise_if_cancelled(cancel_event)
-        report("Generuji body přes AI…", cumulative - _STAGES[4].weight * 0.5)
-        material = generate_study_material(
-            router=router,
-            transcripts=transcripts,
-            slides=slides,
-            user_prompt=job.user_prompt,
-        )
+        if transcribe_only:
+            # Skip slide extract a AI; jdi rovnou na Word export jen s přepisem
+            material = StudyMaterial(title=_make_transcribe_only_title(transcripts))
+            slides: list[SlideText] = []
+            word_stage = stages[3]
+        else:
+            # Stage: Slide extract
+            slide_stage = stages[3]
+            cumulative = _begin_stage(report, slide_stage, cumulative)
+            slides = []
+            for i, src in enumerate(presentation_sources):
+                _raise_if_cancelled(cancel_event)
+                sub_fraction = (i + 1) / max(len(presentation_sources), 1)
+                report(
+                    f"Čtu prezentaci: {src.label}",
+                    cumulative - slide_stage.weight + slide_stage.weight * sub_fraction,
+                )
+                if src.path.suffix.lower() == ".pdf":
+                    slides.append(extract_pdf_text(src.path, src.label))
+                elif src.path.suffix.lower() == ".pptx":
+                    slides.append(extract_pptx_text(src.path, src.label))
+
+            # Stage: AI
+            ai_stage = stages[4]
+            cumulative = _begin_stage(report, ai_stage, cumulative)
+            _raise_if_cancelled(cancel_event)
+            report("Generuji body přes AI…", cumulative - ai_stage.weight * 0.5)
+            material = generate_study_material(
+                router=router,
+                transcripts=transcripts,
+                slides=slides,
+                user_prompt=job.user_prompt,
+            )
+            word_stage = stages[5]
 
         # Stage: Word export
-        cumulative = _begin_stage(report, _STAGES[5], cumulative)
+        cumulative = _begin_stage(report, word_stage, cumulative)
         _raise_if_cancelled(cancel_event)
         out_filename = suggested_output_filename(material)
+        if transcribe_only:
+            out_filename = "Prepis_" + out_filename.replace("Studijni-material_", "")
         out_path = Path(job.output_dir) / out_filename
         export_docx(
             output_path=out_path,
@@ -192,7 +226,7 @@ def run_pipeline(
             transcripts=transcripts,
             slides=slides,
             sources=job.sources,
-            user_prompt=job.user_prompt,
+            user_prompt=job.user_prompt if not transcribe_only else None,
         )
 
         report("Hotovo", 1.0)
@@ -203,6 +237,14 @@ def run_pipeline(
             shutil.rmtree(work_dir, ignore_errors=True)
         except OSError:
             logger.warning("Nepodařilo se smazat workspace {}", work_dir)
+
+
+def _make_transcribe_only_title(transcripts: list[Transcript]) -> str:
+    if not transcripts:
+        return "Přepis"
+    if len(transcripts) == 1:
+        return f"Přepis: {transcripts[0].source_label}"
+    return f"Přepis z {len(transcripts)} nahrávek"
 
 
 def _build_router(job: JobConfig, gemini_api_key: str | None) -> AIRouter:
@@ -302,6 +344,7 @@ def estimate_total_processing_seconds(
     *,
     whisper_model: str = "medium",
     has_ai: bool = True,
+    transcribe_only: bool = False,
 ) -> tuple[float, float]:
     """Odhad celkového času pipeline. Vrací (low, high) v sekundách.
 
@@ -313,11 +356,14 @@ def estimate_total_processing_seconds(
     transcribe_low = estimate_transcribe_seconds(total_audio, whisper_model) * 0.7
     transcribe_high = estimate_transcribe_seconds(total_audio, whisper_model) * 1.3
 
-    ai_seconds = 30.0 if has_ai else 0.0  # Gemini je rychlý, Ollama by byla výrazně víc
-    if total_audio > 1800:  # > 30 min → map-reduce, víc dotazů
-        ai_seconds = 60.0
+    if transcribe_only:
+        ai_seconds = 0.0
+    else:
+        ai_seconds = 30.0 if has_ai else 0.0
+        if total_audio > 1800:  # > 30 min → map-reduce, víc dotazů
+            ai_seconds = 60.0
 
-    overhead = 15.0  # FFmpeg + slide extract + Word export
+    overhead = 10.0 if transcribe_only else 15.0  # bez slide extract
     return (transcribe_low + ai_seconds + overhead, transcribe_high + ai_seconds + overhead)
 
 

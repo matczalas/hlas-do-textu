@@ -11,8 +11,8 @@ from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 _STEPS = [
     ("1️⃣", "Přidej nahrávku", "Klikni '+ Přidat nahrávku' nahoře nebo přetáhni mp3/mp4/wav přímo do okna."),
     ("2️⃣", "Přidej slidy (volitelné)", "Pokud máš PDF nebo PPTX z přednášky, přidej je — AI je propojí s přepisem."),
-    ("3️⃣", "Napiš popis", "Pár vět: co je to za přednášku, předmět, co od materiálu chceš (body ke zkoušce / souhrn / definice)."),
-    ("4️⃣", "Spusť zpracování", "Klikni dole '▶ Spustit zpracování'. Aplikace ti pošle notifikaci, až bude hotovo."),
+    ("3️⃣", "Napiš popis (pro režim s AI)", "Pár vět: co je to za přednášku, předmět, co od materiálu chceš (body ke zkoušce / souhrn / definice)."),
+    ("4️⃣", "Vyber režim a spusť", "📝 'Jen přepis' = rychlé, offline, jen přesný text mluveného slova. 🤖 'Přepis + body z AI' = strukturované poznámky pro učení (potřebuje internet)."),
 ]
 
 

@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 from app import __version__
 from app.core.audio_extract import probe_duration_seconds
 from app.core.model_downloader import model_is_cached
-from app.core.models import JobConfig, SourceFile, SourceKind
+from app.core.models import JobConfig, JobMode, SourceFile, SourceKind
 from app.core.pipeline import estimate_total_processing_seconds, format_duration_human
 from app.gui.widgets.empty_state import EmptyStateWidget
 from app.gui.widgets.file_drop_zone import FileDropZone
@@ -131,15 +131,43 @@ class MainWindow(QMainWindow):
         self._progress = ProgressPanel()
         root.addWidget(self._progress, 1)
 
-        # Akční tlačítka
+        # Akční tlačítka — dvě volby režimu
         action_row = QHBoxLayout()
-        action_row.setSpacing(8)
-        self._run_btn = QPushButton("▶ Spustit zpracování")
-        self._run_btn.setMinimumHeight(40)
-        self._run_btn.setStyleSheet("font-weight: 600;")
+        action_row.setSpacing(12)
+
+        self._run_transcribe_btn = QPushButton("📝 Jen přepis")
+        self._run_transcribe_btn.setMinimumHeight(48)
+        self._run_transcribe_btn.setToolTip(
+            "Rychlejší. Vytvoří Word dokument s plným přepisem mluveného slova "
+            "(bez AI bodů). Funguje i bez internetu."
+        )
+        self._run_transcribe_btn.setStyleSheet(
+            "QPushButton { background-color: #e8e8e8; border: 1px solid #aaa; "
+            "border-radius: 6px; padding: 10px 16px; font-size: 14px; }"
+            "QPushButton:hover { background-color: #d8d8d8; }"
+            "QPushButton:disabled { color: #aaa; background-color: #f5f5f5; }"
+        )
+
+        self._run_full_btn = QPushButton("🤖 Přepis + body z AI")
+        self._run_full_btn.setMinimumHeight(48)
+        self._run_full_btn.setToolTip(
+            "Vytvoří plný studijní materiál: hlavní body, klíčové pojmy, příklady "
+            "a doporučení k dalšímu studiu. Potřebuje Gemini klíč nebo Ollama."
+        )
+        self._run_full_btn.setStyleSheet(
+            "QPushButton { background-color: #205ca8; color: white; border: none; "
+            "border-radius: 6px; padding: 10px 16px; font-size: 14px; font-weight: 600; }"
+            "QPushButton:hover { background-color: #1a4d8f; }"
+            "QPushButton:disabled { color: #ddd; background-color: #8a9fb8; }"
+        )
+
         action_row.addStretch(1)
-        action_row.addWidget(self._run_btn)
+        action_row.addWidget(self._run_transcribe_btn)
+        action_row.addWidget(self._run_full_btn)
         root.addLayout(action_row)
+
+        # Kompatibilita: některý existující kód odkazuje na _run_btn
+        self._run_btn = self._run_full_btn
 
         # Menu bar (mac uvítá Cmd+,)
         self._build_menu()
@@ -175,7 +203,8 @@ class MainWindow(QMainWindow):
     def _wire_signals(self) -> None:
         self._drop_zone.sources_added.connect(self._on_sources_added)
         self._table.files_changed.connect(self._refresh_run_button)
-        self._run_btn.clicked.connect(self._run_pipeline)
+        self._run_full_btn.clicked.connect(lambda: self._run_pipeline(JobMode.FULL))
+        self._run_transcribe_btn.clicked.connect(lambda: self._run_pipeline(JobMode.TRANSCRIBE_ONLY))
         self._progress.cancel_button.clicked.connect(self._pipeline_worker.cancel)
 
         self._pipeline_worker.progress.connect(self._progress.update)
@@ -234,10 +263,18 @@ class MainWindow(QMainWindow):
         self._output_value.setText(self._settings.output_dir)
 
     def _refresh_run_button(self) -> None:
-        has_files = bool(self._table.sources())
-        self._run_btn.setEnabled(has_files and not self._pipeline_worker.is_running())
+        sources = self._table.sources()
+        has_audio = any(s.kind == SourceKind.AUDIO_VIDEO for s in sources)
+        has_any = bool(sources)
+        running = self._pipeline_worker.is_running() or self._regenerate_worker.is_running()
+
+        # 'Jen přepis' vyžaduje audio
+        self._run_transcribe_btn.setEnabled(has_audio and not running)
+        # 'Přepis + AI' funguje i s pouhými slidy (AI shrne slidy)
+        self._run_full_btn.setEnabled(has_any and not running)
+
         # Empty state / tabulka switch
-        self._source_stack.setCurrentIndex(1 if has_files else 0)
+        self._source_stack.setCurrentIndex(1 if has_any else 0)
 
     def _change_output_dir(self) -> None:
         from PySide6.QtWidgets import QFileDialog
@@ -261,7 +298,7 @@ class MainWindow(QMainWindow):
 
     # ------ Pipeline ------
 
-    def _run_pipeline(self) -> None:
+    def _run_pipeline(self, mode: JobMode = JobMode.FULL) -> None:
         if self._pipeline_worker.is_running():
             return
 
@@ -270,30 +307,43 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Žádné soubory", "Přidej alespoň jednu nahrávku nebo prezentaci.")
             return
 
-        # Validace AI providers
-        api_key = get_gemini_api_key()
-        if not self._settings.prefer_offline and not api_key:
-            answer = QMessageBox.question(
-                self,
-                "Chybí Gemini klíč",
-                "Nemáš nastavený Gemini API klíč. Zkusit pokračovat s lokální Ollama? "
-                "(Pokud Ollama neběží, zpracování selže.)",
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                self._open_settings()
+        # 'Jen přepis' vyžaduje aspoň 1 audio (slidy bez AI nedávají smysl)
+        if mode == JobMode.TRANSCRIBE_ONLY:
+            if not any(s.kind == SourceKind.AUDIO_VIDEO for s in sources):
+                QMessageBox.information(
+                    self,
+                    "Chybí nahrávka",
+                    "Pro 'Jen přepis' potřebuješ přidat alespoň jednu nahrávku (mp3/mp4/wav/m4a).",
+                )
                 return
 
-        if not self._settings.prefer_offline and api_key and not self._settings.ai_consent_gemini:
-            answer = QMessageBox.question(
-                self,
-                "Souhlas s odesláním do Gemini",
-                "Bez souhlasu nelze poslat data do Google Gemini. Otevřít Nastavení?",
-            )
-            if answer == QMessageBox.StandardButton.Yes:
-                self._open_settings()
-            return
+        # AI validace jen pro FULL režim — TRANSCRIBE_ONLY nepotřebuje internet/klíč
+        api_key = get_gemini_api_key() if mode == JobMode.FULL else None
+        if mode == JobMode.FULL:
+            if not self._settings.prefer_offline and not api_key:
+                answer = QMessageBox.question(
+                    self,
+                    "Chybí Gemini klíč",
+                    "Nemáš nastavený Gemini API klíč. Zkusit pokračovat s lokální Ollama? "
+                    "(Pokud Ollama neběží, zpracování selže.)\n\n"
+                    "Tip: pokud chceš jen přepis bez AI, zavři tento dialog a klikni "
+                    "tlačítko 'Jen přepis'.",
+                )
+                if answer != QMessageBox.StandardButton.Yes:
+                    self._open_settings()
+                    return
 
-        # Validace modelu
+            if not self._settings.prefer_offline and api_key and not self._settings.ai_consent_gemini:
+                answer = QMessageBox.question(
+                    self,
+                    "Souhlas s odesláním do Gemini",
+                    "Bez souhlasu nelze poslat data do Google Gemini. Otevřít Nastavení?",
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    self._open_settings()
+                return
+
+        # Validace modelu (potřeba pro oba režimy)
         if not model_is_cached(self._settings.whisper_model):
             answer = QMessageBox.question(
                 self,
@@ -306,7 +356,7 @@ class MainWindow(QMainWindow):
             return
 
         # Odhad času před startem — kamarádka ví do čeho jde
-        if not self._confirm_time_estimate(sources):
+        if not self._confirm_time_estimate(sources, mode):
             return
 
         # Spuštění
@@ -314,6 +364,7 @@ class MainWindow(QMainWindow):
             sources=sources,
             user_prompt=self._prompt_editor.text(),
             output_dir=Path(self._settings.output_dir),
+            mode=mode,
             whisper_model=self._settings.whisper_model,
             language=self._settings.language,
             ai_consent_gemini=self._settings.ai_consent_gemini,
@@ -444,7 +495,7 @@ class MainWindow(QMainWindow):
             self._run_btn.setEnabled(True)
             QMessageBox.critical(self, "Chyba", f"Nepodařilo se spustit regeneraci: {exc}")
 
-    def _confirm_time_estimate(self, sources: list[SourceFile]) -> bool:
+    def _confirm_time_estimate(self, sources: list[SourceFile], mode: JobMode = JobMode.FULL) -> bool:
         """Pre-start dialog s odhadem doby zpracování. Vrátí True pro pokračování."""
         durations: list[float] = []
         for src in sources:
@@ -457,10 +508,12 @@ class MainWindow(QMainWindow):
 
         total_audio = sum(durations)
         has_ai = not self._settings.prefer_offline
+        transcribe_only = mode == JobMode.TRANSCRIBE_ONLY
         low, high = estimate_total_processing_seconds(
             durations,
             whisper_model=self._settings.whisper_model,
             has_ai=has_ai,
+            transcribe_only=transcribe_only,
         )
         audio_label = format_duration_human(total_audio)
         run_label = (
@@ -469,15 +522,19 @@ class MainWindow(QMainWindow):
             else f"mezi {format_duration_human(low)} a {format_duration_human(high)}"
         )
 
+        mode_label = "Jen přepis" if transcribe_only else "Přepis + body z AI"
+
         msg = QMessageBox(self)
-        msg.setWindowTitle("Spustit zpracování?")
+        msg.setWindowTitle(f"Spustit: {mode_label}?")
         msg.setIcon(QMessageBox.Icon.Question)
         msg.setText(
-            f"Celková délka nahrávek: {audio_label}\n"
-            f"Odhadovaná doba zpracování: {run_label}\n\n"
-            f"Můžeš mezitím dělat něco jiného — aplikace ti pošle notifikaci, až bude hotovo.\n\n"
+            f"<b>Režim:</b> {mode_label}<br>"
+            f"<b>Celková délka nahrávek:</b> {audio_label}<br>"
+            f"<b>Odhadovaná doba zpracování:</b> {run_label}<br><br>"
+            "Můžeš mezitím dělat něco jiného — aplikace ti pošle notifikaci, až bude hotovo.<br><br>"
             "Spustit?"
         )
+        msg.setTextFormat(Qt.TextFormat.RichText)
         msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg.setDefaultButton(QMessageBox.StandardButton.Yes)
         return msg.exec() == QMessageBox.StandardButton.Yes
