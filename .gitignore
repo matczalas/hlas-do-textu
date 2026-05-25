@@ -50,6 +50,11 @@ keys_log.txt
 dist_windows/
 flashdisk_balicek/HlasDoTextu-Setup-*.exe
 
+# Tajemství pro lokální vývoj — nikdy do gitu
+.env
+.env.local
+.env.production
+
 # Test sample media (YouTube nahrávky, copyright)
 test_samples/*.mp3
 test_samples/*.wav
