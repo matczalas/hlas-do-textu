@@ -1,13 +1,16 @@
-"""První spuštění: krátký welcome dialog s API klíčem a souhlasy."""
+"""Welcome dialog — Ahoj, vlož klíč, souhlas, start. Konec.
+
+Veřejné API: __init__(settings, parent), accept()
+"""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QDialogButtonBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -16,76 +19,103 @@ from PySide6.QtWidgets import (
 )
 
 from app.config import GEMINI_API_KEY_URL
+from app.gui.widgets.icons import icon, icon_size, pixmap
 from app.settings import AppSettings, set_gemini_api_key
+
+ACCENT = "#205ca8"
 
 
 class FirstRunDialog(QDialog):
     def __init__(self, settings: AppSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Vítejte v Hlas do textu")
-        self.setMinimumWidth(560)
+        self.setWindowTitle("Vítej")
+        self.setMinimumWidth(480)
         self._settings = settings
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(32, 28, 32, 24)
+        root.setSpacing(14)
 
-        title = QLabel("Vítej! 🎓")
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        layout.addWidget(title)
-
-        intro = QLabel(
-            "Aplikace přepíše tvoji přednášku a vytvoří strukturované body pro učení.\n\n"
-            "Pro generování bodů využívá zdarma službu Google Gemini.\n"
-            "Pokud klíč ještě nemáš, klikni na tlačítko níže — otevře se ti stránka,\n"
-            "kde si ho během 2 minut vytvoříš (stačí Google účet)."
+        # Hero
+        hero = QHBoxLayout()
+        hero.setSpacing(14)
+        avatar = QLabel()
+        avatar.setPixmap(pixmap("graduation", size=28, color=ACCENT))
+        avatar.setFixedSize(52, 52)
+        avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        avatar.setStyleSheet(
+            "QLabel { background: rgba(32,92,168,0.10); border-radius: 13px; }"
         )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
+        hero.addWidget(avatar)
 
-        get_key_btn = QPushButton("🔗 Získat API klíč zdarma (otevře se v prohlížeči)")
-        get_key_btn.setMinimumHeight(36)
-        get_key_btn.setStyleSheet(
-            "QPushButton { background-color: #205ca8; color: white; border-radius: 4px; "
-            "padding: 8px 16px; font-weight: 600; }"
-            "QPushButton:hover { background-color: #1a4d8f; }"
-        )
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        title = QLabel("Ahoj 👋")
+        f = QFont()
+        f.setPointSize(18)
+        f.setWeight(QFont.Weight.DemiBold)
+        title.setFont(f)
+        col.addWidget(title)
+        sub = QLabel("Z přednášek uděláme studijní poznámky.")
+        sub.setStyleSheet("color: palette(placeholder-text); font-size: 13px;")
+        col.addWidget(sub)
+        hero.addLayout(col, 1)
+        root.addLayout(hero)
+
+        root.addSpacing(8)
+
+        # Klíč
+        explain = QLabel("Pro AI poznámky potřebuješ klíč od Googlu — zdarma, 2 minuty.")
+        explain.setWordWrap(True)
+        explain.setStyleSheet("font-size: 13px; color: palette(text);")
+        root.addWidget(explain)
+
+        get_key_btn = QPushButton("Získat klíč")
+        get_key_btn.setObjectName("Primary")
+        get_key_btn.setIcon(icon("external", size=15, color="#ffffff"))
+        get_key_btn.setIconSize(icon_size(15))
+        get_key_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         get_key_btn.clicked.connect(self._open_gemini_keys_page)
-        layout.addWidget(get_key_btn)
-
-        layout.addWidget(self._horiz_separator())
-
-        api_label = QLabel("Vlož Gemini API klíč (lze i později v Nastavení):")
-        layout.addWidget(api_label)
+        get_key_btn.setStyleSheet(
+            "QPushButton#Primary { background:" + ACCENT + "; color:white; "
+            "border:1px solid " + ACCENT + "; border-radius:8px; "
+            "padding:10px 18px; font-weight:600; }"
+            "QPushButton#Primary:hover { background:#1a4d8f; }"
+        )
+        root.addWidget(get_key_btn)
 
         self._api_edit = QLineEdit()
         self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_edit.setPlaceholderText("Vlož klíč z Google AI Studio (cca 40 znaků)")
-        layout.addWidget(self._api_edit)
+        self._api_edit.setPlaceholderText("Vlož klíč sem")
+        self._api_edit.setMinimumHeight(38)
+        root.addWidget(self._api_edit)
 
-        self._consent_cb = QCheckBox(
-            "Souhlasím s odesíláním textu přepisu do Google Gemini API.\n"
-            "Free tier používá data k tréninku modelů."
-        )
+        # Souhlas
+        self._consent_cb = QCheckBox("Souhlasím s odesíláním přepisu do Gemini.")
+        self._consent_cb.setObjectName("Consent")
         self._consent_cb.setStyleSheet(
-            "QCheckBox { padding: 10px; background-color: #fff8d8; color: #333; "
-            "border: 1px solid #d4c97a; border-radius: 4px; font-weight: 500; }"
-            "QCheckBox::indicator { width: 18px; height: 18px; }"
+            "QCheckBox#Consent { padding: 12px 14px; "
+            "background: rgba(243, 196, 60, 0.16); "
+            "border: 1px solid rgba(243, 196, 60, 0.55); "
+            "border-radius: 10px; color: palette(text); font-weight: 500; }"
+            "QCheckBox#Consent::indicator { width: 18px; height: 18px; }"
         )
-        layout.addWidget(self._consent_cb)
+        root.addWidget(self._consent_cb)
 
-        offline_note = QLabel(
-            "Pokud zatím nechceš zadávat klíč, můžeš použít lokální offline AI (Ollama). "
-            "V tom případě klikni Pokračovat bez zadání klíče a v Nastavení zaškrtni 'Vždy používat lokální Ollama'."
-        )
-        offline_note.setWordWrap(True)
-        offline_note.setStyleSheet("color: #666; font-size: 11px;")
-        layout.addWidget(offline_note)
+        # Skip note
+        skip = QLabel("Klíč můžeš přidat i později v Nastavení.")
+        skip.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
+        skip.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(skip)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("Pokračovat")
-        buttons.accepted.connect(self.accept)
-        layout.addWidget(buttons, alignment=Qt.AlignmentFlag.AlignRight)
+        # CTA
+        ok_btn = QPushButton("Začít")
+        ok_btn.setObjectName("Primary")
+        ok_btn.setMinimumHeight(40)
+        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.accept)
+        root.addWidget(ok_btn)
 
     def accept(self) -> None:  # type: ignore[override]
         key = self._api_edit.text().strip()
@@ -101,10 +131,3 @@ class FirstRunDialog(QDialog):
     @staticmethod
     def _open_gemini_keys_page() -> None:
         QDesktopServices.openUrl(QUrl(GEMINI_API_KEY_URL))
-
-    @staticmethod
-    def _horiz_separator() -> QWidget:
-        sep = QWidget()
-        sep.setFixedHeight(1)
-        sep.setStyleSheet("background-color: #ddd;")
-        return sep

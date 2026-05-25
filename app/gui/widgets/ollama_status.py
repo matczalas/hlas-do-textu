@@ -1,15 +1,17 @@
-"""Status řádek: Gemini + Ollama dostupnost."""
+"""Status řádek — dvě barevné tečky s minimálním labelem. Detail v tooltipu.
+
+Veřejné API: refresh(gemini_api_key)
+"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QThread, Signal
+from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 
 class _HealthWorker(QObject):
-    """Spustí health-checks na pozadí (síťové operace nesmí blokovat UI)."""
-
-    result_ready = Signal(bool, bool)  # gemini_ok, ollama_ok
+    result_ready = Signal(bool, bool)
 
     def __init__(self, gemini_api_key: str | None) -> None:
         super().__init__()
@@ -21,8 +23,6 @@ class _HealthWorker(QObject):
         gemini_ok = False
         if self._gemini_api_key:
             try:
-                # Health check Gemini = jen že klíč není prázdný a SDK je k dispozici;
-                # plný API call bychom dělali zbytečně často
                 from google import genai  # noqa: F401
 
                 gemini_ok = True
@@ -33,29 +33,84 @@ class _HealthWorker(QObject):
         self.result_ready.emit(gemini_ok, ollama_ok)
 
 
-class StatusBar(QWidget):
-    """Inline řádek s tečkami pro Gemini a Ollama."""
+class _Dot(QWidget):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._color = QColor("#bdbdbd")
+        self.setFixedSize(10, 10)
 
+    def set_color(self, color: str) -> None:
+        self._color = QColor(color)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        p.setPen(Qt.PenStyle.NoPen)
+        halo = QColor(self._color)
+        halo.setAlpha(60)
+        p.setBrush(halo)
+        p.drawEllipse(0, 0, 10, 10)
+        p.setBrush(self._color)
+        p.drawEllipse(2, 2, 6, 6)
+        p.end()
+
+
+class _Pill(QWidget):
+    def __init__(self, name: str) -> None:
+        super().__init__()
+        self.setObjectName("StatusPillWrap")
+        h = QHBoxLayout(self)
+        h.setContentsMargins(10, 5, 12, 5)
+        h.setSpacing(7)
+        self._dot = _Dot()
+        h.addWidget(self._dot)
+        self._label = QLabel(name)
+        self._label.setStyleSheet("font-size: 12px; color: palette(text); font-weight: 500;")
+        h.addWidget(self._label)
+        self.setStyleSheet(
+            "QWidget#StatusPillWrap { background: palette(alternate-base); "
+            "border: 1px solid palette(midlight); border-radius: 999px; }"
+        )
+
+    def set_state(self, name: str, ok: bool | None, ok_text: str, bad_text: str) -> None:
+        self._label.setText(name)
+        if ok is None:
+            self._dot.set_color("#bdbdbd")
+            self.setToolTip("Kontroluji…")
+        elif ok:
+            self._dot.set_color("#3ba55d")
+            self.setToolTip(ok_text)
+        else:
+            self._dot.set_color("#c97a2a")
+            self.setToolTip(bad_text)
+
+
+class StatusBar(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(20)
+        layout.setSpacing(6)
 
-        self._gemini_label = QLabel("Gemini: ⏳ kontroluji…")
-        self._ollama_label = QLabel("Ollama (offline AI): ⏳ kontroluji…")
-        layout.addWidget(self._gemini_label)
-        layout.addWidget(self._ollama_label)
+        self._gemini = _Pill("Gemini")
+        self._ollama = _Pill("Ollama")
+        self._gemini.set_state("Gemini", None, "", "")
+        self._ollama.set_state("Ollama", None, "", "")
+        layout.addWidget(self._gemini)
+        layout.addWidget(self._ollama)
         layout.addStretch(1)
 
         self._thread: QThread | None = None
         self._worker: _HealthWorker | None = None
 
     def refresh(self, gemini_api_key: str | None) -> None:
-        # Cancel previous run pokud probíhá
         if self._thread is not None and self._thread.isRunning():
             self._thread.quit()
             self._thread.wait(500)
+
+        self._gemini.set_state("Gemini", None, "", "")
+        self._ollama.set_state("Ollama", None, "", "")
 
         self._thread = QThread(self)
         self._worker = _HealthWorker(gemini_api_key)
@@ -66,7 +121,13 @@ class StatusBar(QWidget):
         self._thread.start()
 
     def _on_result(self, gemini_ok: bool, ollama_ok: bool) -> None:
-        self._gemini_label.setText("Gemini: ✅ klíč nastaven" if gemini_ok else "Gemini: ❌ nedostupný (chybí klíč nebo SDK)")
-        self._ollama_label.setText(
-            "Ollama (offline AI): ✅ běží" if ollama_ok else "Ollama (offline AI): ❌ neaktivní"
+        self._gemini.set_state(
+            "Gemini", gemini_ok,
+            "Klíč nastaven — AI body fungují.",
+            "Klíč chybí — můžeš použít jen Přepis nebo offline Ollamu.",
+        )
+        self._ollama.set_state(
+            "Ollama", ollama_ok,
+            "Offline AI běží.",
+            "Offline AI neaktivní — Gemini funguje sám.",
         )

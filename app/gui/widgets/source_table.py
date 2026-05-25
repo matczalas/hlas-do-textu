@@ -1,13 +1,21 @@
-"""Tabulka importovaných souborů s editovatelnými štítky."""
+"""Tabulka importovaných zdrojů — typed pills, file ikony, soft styling.
+
+Veřejné API:
+    files_changed = Signal()
+    add_sources(sources), sources() -> list, clear_all()
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -15,10 +23,64 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.models import SourceFile, SourceKind
+from app.gui.widgets.icons import icon, icon_size, pixmap
+
+ACCENT = "#205ca8"
+
+
+class _TypePill(QWidget):
+    """Pill s ikonou + textem ('Nahrávka' / 'Slidy')."""
+
+    def __init__(self, kind: SourceKind, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 3, 12, 3)
+        layout.setSpacing(6)
+
+        if kind == SourceKind.AUDIO_VIDEO:
+            ico_name = "audio"
+            text = "Nahrávka"
+            color = "#205ca8"
+            bg = "rgba(32,92,168,0.10)"
+        else:
+            ico_name = "document"
+            text = "Slidy"
+            color = "#8b5a2b"
+            bg = "rgba(139, 90, 43, 0.12)"
+
+        ico = QLabel()
+        ico.setPixmap(pixmap(ico_name, size=14, color=color))
+        ico.setFixedSize(16, 16)
+        layout.addWidget(ico)
+
+        lbl = QLabel(text)
+        lbl.setStyleSheet(f"color: {color}; font-size: 11.5px; font-weight: 600;")
+        layout.addWidget(lbl)
+
+        self.setStyleSheet(
+            f"QWidget {{ background: {bg}; border-radius: 999px; }}"
+        )
+        self.setFixedHeight(24)
+
+
+class _RemoveButton(QPushButton):
+    """Tichý X button — viditelný spíš při hover, ale klikatelný vždy."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setIcon(icon("trash", size=15, color="#9a9a9a"))
+        self.setIconSize(icon_size(15))
+        self.setFixedSize(28, 28)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Odebrat ze seznamu")
+        self.setStyleSheet(
+            "QPushButton { background: transparent; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background: rgba(216,70,70,0.10); }"
+        )
 
 
 class SourceTable(QTableWidget):
-    """Tabulka 4 sloupců: #, Soubor, Typ, Štítek + tlačítko Odebrat."""
+    """Tabulka 5 sloupců: #, Soubor, Typ, Štítek, Odebrat."""
 
     files_changed = Signal()
 
@@ -26,21 +88,35 @@ class SourceTable(QTableWidget):
         super().__init__(parent)
         self._sources: list[SourceFile] = []
         self.setColumnCount(5)
-        self.setHorizontalHeaderLabels(["#", "Soubor", "Typ", "Štítek (klikni pro úpravu)", ""])
+        self.setHorizontalHeaderLabels(["#", "SOUBOR", "TYP", "ŠTÍTEK", ""])
         self.verticalHeader().setVisible(False)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.SelectedClicked)
+        self.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.SelectedClicked
+        )
+        self.setShowGrid(False)
+        self.setAlternatingRowColors(False)
+        self.verticalHeader().setDefaultSectionSize(46)
+
         header = self.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        self.cellChanged.connect(self._on_cell_changed)
-        self.setMinimumHeight(160)
+        header.setFixedHeight(36)
 
-    # ------ Veřejné API ------
+        self.cellChanged.connect(self._on_cell_changed)
+        self.setMinimumHeight(180)
+
+        # Drobný hover hint na řádcích — barevný odstín
+        self.setStyleSheet(self.styleSheet() + (
+            "QTableWidget::item:hover { background: rgba(32,92,168,0.04); }"
+        ))
+
+    # ------ Public API ------
 
     def add_sources(self, sources: list[SourceFile]) -> None:
         if not sources:
@@ -61,7 +137,7 @@ class SourceTable(QTableWidget):
         self._rebuild()
         self.files_changed.emit()
 
-    # ------ Vnitřní ------
+    # ------ Internal ------
 
     def _rebuild(self) -> None:
         self.blockSignals(True)
@@ -73,29 +149,44 @@ class SourceTable(QTableWidget):
             self.blockSignals(False)
 
     def _fill_row(self, row: int, src: SourceFile) -> None:
+        # #
         idx_item = QTableWidgetItem(str(row + 1))
         idx_item.setFlags(idx_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         idx_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        idx_item.setForeground(QColor("#9a9a9a"))
         self.setItem(row, 0, idx_item)
 
-        name_item = QTableWidgetItem(src.path.name)
+        # Soubor
+        name_item = QTableWidgetItem("  " + src.path.name)
         name_item.setToolTip(str(src.path))
         name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         self.setItem(row, 1, name_item)
 
-        kind_label = "Nahrávka" if src.kind == SourceKind.AUDIO_VIDEO else "Slidy"
-        type_item = QTableWidgetItem(kind_label)
-        type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setItem(row, 2, type_item)
+        # Typ — pill widget
+        pill = _TypePill(src.kind)
+        pill_wrap = QWidget()
+        wl = QHBoxLayout(pill_wrap)
+        wl.setContentsMargins(8, 0, 8, 0)
+        wl.addWidget(pill)
+        wl.addStretch(1)
+        self.setCellWidget(row, 2, pill_wrap)
+        # Prázdná item kvůli selection
+        self.setItem(row, 2, QTableWidgetItem())
 
+        # Štítek — editable
         label_item = QTableWidgetItem(src.label)
+        label_item.setToolTip("Dvojklik pro úpravu štítku — používá se v poznámkách.")
         self.setItem(row, 3, label_item)
 
-        remove_btn = QPushButton("Odebrat")
-        remove_btn.setFlat(True)
+        # Remove
+        remove_btn = _RemoveButton()
         remove_btn.clicked.connect(lambda _checked=False, p=src.path: self._remove(p))
-        self.setCellWidget(row, 4, remove_btn)
+        wrap = QWidget()
+        wl2 = QHBoxLayout(wrap)
+        wl2.setContentsMargins(4, 0, 8, 0)
+        wl2.addStretch(1)
+        wl2.addWidget(remove_btn)
+        self.setCellWidget(row, 4, wrap)
 
     def _on_cell_changed(self, row: int, col: int) -> None:
         if col != 3:

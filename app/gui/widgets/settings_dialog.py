@@ -1,18 +1,21 @@
-"""Modální dialog pro Nastavení: API klíč, Whisper model, výstupní složka, GDPR souhlas."""
+"""Settings — tři sekce, bez hint textů pod každým polem.
+
+Veřejné API: __init__(settings, parent), accept()
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
-    QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -22,103 +25,152 @@ from PySide6.QtWidgets import (
 )
 
 from app.config import GEMINI_API_KEY_URL, WHISPER_MODEL_CHOICES
+from app.gui.widgets.icons import icon, icon_size
 from app.settings import AppSettings, get_gemini_api_key, set_gemini_api_key
+
+ACCENT = "#205ca8"
+
+
+def _field_label(text: str) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet("font-size: 12.5px; font-weight: 600; color: palette(text);")
+    return lbl
+
+
+def _divider() -> QWidget:
+    f = QFrame()
+    f.setFrameShape(QFrame.Shape.HLine)
+    f.setStyleSheet("background: palette(midlight); max-height: 1px; border: none;")
+    f.setFixedHeight(1)
+    return f
 
 
 class SettingsDialog(QDialog):
     def __init__(self, settings: AppSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Nastavení")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(540)
         self._settings = settings
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(28, 24, 28, 20)
+        root.setSpacing(12)
 
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        title = QLabel("Nastavení")
+        f = QFont()
+        f.setPointSize(17)
+        f.setWeight(QFont.Weight.DemiBold)
+        title.setFont(f)
+        root.addWidget(title)
 
-        # API klíč
+        root.addWidget(_divider())
+
+        # ----- Gemini -----
+        root.addWidget(_field_label("Gemini klíč"))
+
+        api_row = QHBoxLayout()
+        api_row.setSpacing(8)
         self._api_edit = QLineEdit(get_gemini_api_key() or "")
         self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_edit.setPlaceholderText("Vlož klíč z aistudio.google.com (zdarma)")
-        self._show_btn = QPushButton("👁")
-        self._show_btn.setCheckable(True)
-        self._show_btn.setFixedWidth(40)
-        self._show_btn.clicked.connect(self._toggle_api_visibility)
-        self._get_key_btn = QPushButton("Získat klíč…")
-        self._get_key_btn.setToolTip("Otevře v prohlížeči stránku Google AI Studio, kde si vytvoříš klíč zdarma")
-        self._get_key_btn.clicked.connect(self._open_gemini_keys_page)
-        api_row = QHBoxLayout()
+        self._api_edit.setPlaceholderText("Vlož klíč")
+        self._api_edit.setMinimumHeight(36)
         api_row.addWidget(self._api_edit, 1)
+
+        self._show_btn = QPushButton()
+        self._show_btn.setCheckable(True)
+        self._show_btn.setIcon(icon("eye", size=16, color="#7a7a7a"))
+        self._show_btn.setIconSize(icon_size(16))
+        self._show_btn.setFixedSize(36, 36)
+        self._show_btn.setToolTip("Zobrazit klíč")
+        self._show_btn.clicked.connect(self._toggle_api_visibility)
         api_row.addWidget(self._show_btn)
-        api_row.addWidget(self._get_key_btn)
-        api_wrap = QWidget()
-        api_wrap.setLayout(api_row)
-        form.addRow("Gemini API klíč:", api_wrap)
 
-        # Whisper model
-        self._model_combo = QComboBox()
-        for m in WHISPER_MODEL_CHOICES:
-            self._model_combo.addItem(self._whisper_label(m), userData=m)
-        current_idx = max(0, list(WHISPER_MODEL_CHOICES).index(settings.whisper_model) if settings.whisper_model in WHISPER_MODEL_CHOICES else 1)
-        self._model_combo.setCurrentIndex(current_idx)
-        form.addRow("Whisper model:", self._model_combo)
-
-        # Výstupní složka
-        self._output_edit = QLineEdit(settings.output_dir)
-        self._output_browse = QPushButton("Procházet…")
-        self._output_browse.clicked.connect(self._pick_output_dir)
-        out_row = QHBoxLayout()
-        out_row.addWidget(self._output_edit, 1)
-        out_row.addWidget(self._output_browse)
-        out_wrap = QWidget()
-        out_wrap.setLayout(out_row)
-        form.addRow("Výstupní složka:", out_wrap)
-
-        layout.addLayout(form)
-
-        # GDPR/data souhlas
-        self._consent_cb = QCheckBox(
-            "Souhlasím s odesíláním textu přepisu do Google Gemini API.\n"
-            "Free tier Gemini používá texty k tréninku modelů (viz ai.google.dev/gemini-api/terms)."
+        self._get_key_btn = QPushButton("Získat klíč")
+        self._get_key_btn.setIcon(icon("external", size=13, color=ACCENT))
+        self._get_key_btn.setIconSize(icon_size(13))
+        self._get_key_btn.setStyleSheet(
+            "QPushButton { padding: 8px 14px; font-weight: 600; "
+            "color: " + ACCENT + "; background: transparent; "
+            "border: 1px solid " + ACCENT + "; border-radius: 8px; }"
+            "QPushButton:hover { background: rgba(32,92,168,0.08); }"
         )
+        self._get_key_btn.clicked.connect(self._open_gemini_keys_page)
+        api_row.addWidget(self._get_key_btn)
+        root.addLayout(api_row)
+
+        self._consent_cb = QCheckBox("Souhlasím s odesíláním přepisu do Gemini.")
+        self._consent_cb.setObjectName("Consent")
         self._consent_cb.setChecked(settings.ai_consent_gemini)
         self._consent_cb.setStyleSheet(
-            "QCheckBox { padding: 10px; background-color: #fff8d8; color: #333; "
-            "border: 1px solid #d4c97a; border-radius: 4px; font-weight: 500; }"
-            "QCheckBox::indicator { width: 18px; height: 18px; }"
+            "QCheckBox#Consent { padding: 11px 14px; "
+            "background: rgba(243, 196, 60, 0.16); "
+            "border: 1px solid rgba(243, 196, 60, 0.55); "
+            "border-radius: 10px; color: palette(text); font-weight: 500; }"
+            "QCheckBox#Consent::indicator { width: 18px; height: 18px; }"
         )
-        self._consent_cb.setWordWrap(True) if hasattr(self._consent_cb, "setWordWrap") else None
-        layout.addWidget(self._consent_cb)
+        root.addWidget(self._consent_cb)
 
-        # Prefer offline
-        self._offline_cb = QCheckBox("Vždy používat lokální Ollama (přeskočit Gemini)")
+        self._offline_cb = QCheckBox("Používat offline Ollamu místo Gemini")
         self._offline_cb.setChecked(settings.prefer_offline)
-        layout.addWidget(self._offline_cb)
+        root.addWidget(self._offline_cb)
 
-        # Info label
-        info = QLabel(
-            "API klíč se ukládá bezpečně do Windows Credential Manager / macOS Keychain. "
-            "Není v žádném textovém souboru."
+        root.addWidget(_divider())
+
+        # ----- Whisper -----
+        root.addWidget(_field_label("Kvalita přepisu"))
+        self._model_combo = QComboBox()
+        self._model_combo.setMinimumHeight(36)
+        for m in WHISPER_MODEL_CHOICES:
+            self._model_combo.addItem(self._whisper_label(m), userData=m)
+        try:
+            current_idx = list(WHISPER_MODEL_CHOICES).index(settings.whisper_model)
+        except ValueError:
+            current_idx = 1
+        self._model_combo.setCurrentIndex(max(0, current_idx))
+        root.addWidget(self._model_combo)
+
+        root.addWidget(_divider())
+
+        # ----- Output -----
+        root.addWidget(_field_label("Výstupní složka"))
+        out_row = QHBoxLayout()
+        out_row.setSpacing(8)
+        self._output_edit = QLineEdit(settings.output_dir)
+        self._output_edit.setMinimumHeight(36)
+        out_row.addWidget(self._output_edit, 1)
+
+        self._output_browse = QPushButton("Procházet")
+        self._output_browse.setIcon(icon("folder", size=14, color="#7a7a7a"))
+        self._output_browse.setIconSize(icon_size(14))
+        self._output_browse.setMinimumHeight(36)
+        self._output_browse.clicked.connect(self._pick_output_dir)
+        out_row.addWidget(self._output_browse)
+        root.addLayout(out_row)
+
+        root.addStretch(1)
+
+        # ----- Buttons -----
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        info.setWordWrap(True)
-        info.setStyleSheet("color: #666; font-size: 11px;")
-        layout.addWidget(info)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok_btn.setText("Uložit")
+        ok_btn.setObjectName("Primary")
+        ok_btn.setMinimumHeight(38)
+        ok_btn.setMinimumWidth(110)
+        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_btn.setText("Zrušit")
+        cancel_btn.setMinimumHeight(38)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        root.addWidget(buttons)
 
     def accept(self) -> None:  # type: ignore[override]
-        # Uložit klíč přes keyring
         new_key = self._api_edit.text().strip()
         try:
             set_gemini_api_key(new_key)
         except Exception:
-            # I když keyring selže, neblokuj uživatele
             pass
 
         self._settings.whisper_model = self._model_combo.currentData()
@@ -128,8 +180,12 @@ class SettingsDialog(QDialog):
         super().accept()
 
     def _toggle_api_visibility(self) -> None:
-        mode = QLineEdit.EchoMode.Normal if self._show_btn.isChecked() else QLineEdit.EchoMode.Password
-        self._api_edit.setEchoMode(mode)
+        if self._show_btn.isChecked():
+            self._api_edit.setEchoMode(QLineEdit.EchoMode.Normal)
+            self._show_btn.setIcon(icon("eye-off", size=16, color=ACCENT))
+        else:
+            self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
+            self._show_btn.setIcon(icon("eye", size=16, color="#7a7a7a"))
 
     @staticmethod
     def _open_gemini_keys_page() -> None:
@@ -137,15 +193,14 @@ class SettingsDialog(QDialog):
 
     def _pick_output_dir(self) -> None:
         start = self._output_edit.text() or str(Path.home())
-        chosen = QFileDialog.getExistingDirectory(self, "Vyber výstupní složku", start)
+        chosen = QFileDialog.getExistingDirectory(self, "Vyber složku", start)
         if chosen:
             self._output_edit.setText(chosen)
 
     @staticmethod
     def _whisper_label(name: str) -> str:
-        descriptions = {
-            "small": "small — rychlejší, slabší čeština (~250 MB)",
-            "medium": "medium — doporučeno, dobrá čeština (~770 MB)",
-            "large-v3": "large-v3 — nejlepší kvalita, pomalé (~1.5 GB)",
-        }
-        return descriptions.get(name, name)
+        return {
+            "small": "Rychlá  ·  ~250 MB",
+            "medium": "Doporučená  ·  ~770 MB",
+            "large-v3": "Nejlepší  ·  ~1.5 GB",
+        }.get(name, name)

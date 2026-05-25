@@ -1,4 +1,10 @@
-"""Drag-drop oblast nad tabulkou souborů + dvě tlačítka pro file dialog."""
+"""Drop zóna — jedna věta a dvě tlačítka. Žádný subtitle.
+
+Veřejné API:
+    sources_added = Signal(list)
+    set_last_dir(path: str)
+    @property last_dir
+"""
 
 from __future__ import annotations
 
@@ -12,85 +18,96 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
     QWidget,
 )
 
 from app.config import AUDIO_VIDEO_EXTENSIONS, PRESENTATION_EXTENSIONS
 from app.core.models import SourceFile, SourceKind
+from app.gui.widgets.icons import icon, icon_size, pixmap
 
-_DROP_ZONE_STYLE_IDLE = (
-    "FileDropZone { border: 2px dashed palette(mid); border-radius: 8px; "
-    "background-color: palette(alternate-base); }"
-)
-_DROP_ZONE_STYLE_ACTIVE = (
-    "FileDropZone { border: 2px solid #205ca8; border-radius: 8px; "
-    "background-color: rgba(32, 92, 168, 40); }"
-)
+ACCENT = "#205ca8"
 
 
 class FileDropZone(QFrame):
-    """Drag-drop frame + tlačítka [Přidat nahrávku] [Přidat slidy]."""
+    """Tenká drop lišta nahoře okna."""
 
-    sources_added = Signal(list)  # list[SourceFile]
+    sources_added = Signal(list)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setObjectName("DropZone")
         self.setAcceptDrops(True)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet(_DROP_ZONE_STYLE_IDLE)
-        self.setMinimumHeight(110)
+        self.setProperty("active", False)
+        self.setMinimumHeight(76)
         self._last_dir: str = str(Path.home())
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(18, 12, 14, 12)
+        layout.setSpacing(14)
 
-        label = QLabel("Sem přetáhni nahrávky nebo prezentace — nebo použij tlačítka.")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("border: none; color: palette(text); font-size: 13px;")
-        layout.addWidget(label)
-
-        button_row = QHBoxLayout()
-        button_row.setSpacing(12)
-        button_style = (
-            "QPushButton { background-color: palette(button); color: palette(button-text); "
-            "border: 1px solid palette(mid); border-radius: 4px; padding: 8px 16px; "
-            "font-size: 13px; font-weight: 500; }"
-            "QPushButton:hover { background-color: palette(midlight); }"
-            "QPushButton:pressed { background-color: palette(mid); }"
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(pixmap("upload", size=22, color=ACCENT))
+        icon_lbl.setFixedSize(40, 40)
+        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_lbl.setStyleSheet(
+            "QLabel { background: rgba(32,92,168,0.10); border-radius: 10px; }"
         )
-        btn_audio = QPushButton("🎙  Přidat nahrávku")
-        btn_audio.setStyleSheet(button_style)
-        btn_audio.setMinimumHeight(36)
-        btn_audio.clicked.connect(self._pick_audio)
-        btn_slides = QPushButton("📄  Přidat slidy")
-        btn_slides.setStyleSheet(button_style)
-        btn_slides.setMinimumHeight(36)
-        btn_slides.clicked.connect(self._pick_slides)
-        button_row.addStretch(1)
-        button_row.addWidget(btn_audio)
-        button_row.addWidget(btn_slides)
-        button_row.addStretch(1)
-        layout.addLayout(button_row)
+        layout.addWidget(icon_lbl)
+
+        msg = QLabel("Přetáhni soubory sem")
+        msg.setStyleSheet(
+            "font-size: 14px; font-weight: 600; color: palette(text); border: none;"
+        )
+        layout.addWidget(msg)
+        layout.addStretch(1)
+
+        btn_audio = self._make_button("Nahrávka", "mic", self._pick_audio)
+        btn_slides = self._make_button("Slidy", "slides", self._pick_slides)
+        layout.addWidget(btn_audio)
+        layout.addWidget(btn_slides)
+
+    def _make_button(self, text: str, ico_name: str, handler) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setIcon(icon(ico_name, size=15, color=ACCENT))
+        btn.setIconSize(icon_size(15))
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setStyleSheet(
+            "QPushButton { padding: 8px 14px; font-weight: 600; color: palette(text); "
+            "border: 1px solid palette(mid); border-radius: 8px; background: palette(base); }"
+            "QPushButton:hover { background: palette(midlight); border-color: " + ACCENT + "; }"
+        )
+        btn.clicked.connect(handler)
+        return btn
+
+    # ------ API ------
 
     def set_last_dir(self, path: str) -> None:
         if path:
             self._last_dir = path
 
+    @property
+    def last_dir(self) -> str:
+        return self._last_dir
+
     # ------ Drag&drop ------
 
-    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+    def _set_active(self, active: bool) -> None:
+        self.setProperty("active", active)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802
         if event.mimeData().hasUrls():
-            self.setStyleSheet(_DROP_ZONE_STYLE_ACTIVE)
+            self._set_active(True)
             event.acceptProposedAction()
 
     def dragLeaveEvent(self, event) -> None:  # noqa: N802
-        self.setStyleSheet(_DROP_ZONE_STYLE_IDLE)
+        self._set_active(False)
         super().dragLeaveEvent(event)
 
-    def dropEvent(self, event: QDropEvent) -> None:
-        self.setStyleSheet(_DROP_ZONE_STYLE_IDLE)
+    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802
+        self._set_active(False)
         urls = event.mimeData().urls()
         paths = [Path(u.toLocalFile()) for u in urls if u.toLocalFile()]
         if not paths:
@@ -102,8 +119,13 @@ class FileDropZone(QFrame):
     # ------ File dialogy ------
 
     def _pick_audio(self) -> None:
-        filter_str = "Audio/video (" + " ".join(f"*{ext}" for ext in AUDIO_VIDEO_EXTENSIONS) + ");;Všechny soubory (*)"
-        paths, _ = QFileDialog.getOpenFileNames(self, "Vyber záznamy přednášky", self._last_dir, filter_str)
+        filter_str = (
+            "Audio/video (" + " ".join(f"*{ext}" for ext in AUDIO_VIDEO_EXTENSIONS)
+            + ");;Všechny soubory (*)"
+        )
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Vyber nahrávku", self._last_dir, filter_str
+        )
         if not paths:
             return
         self._last_dir = str(Path(paths[0]).parent)
@@ -112,8 +134,13 @@ class FileDropZone(QFrame):
             self.sources_added.emit(sources)
 
     def _pick_slides(self) -> None:
-        filter_str = "Prezentace (" + " ".join(f"*{ext}" for ext in PRESENTATION_EXTENSIONS) + ");;Všechny soubory (*)"
-        paths, _ = QFileDialog.getOpenFileNames(self, "Vyber prezentace", self._last_dir, filter_str)
+        filter_str = (
+            "Prezentace (" + " ".join(f"*{ext}" for ext in PRESENTATION_EXTENSIONS)
+            + ");;Všechny soubory (*)"
+        )
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Vyber prezentaci", self._last_dir, filter_str
+        )
         if not paths:
             return
         self._last_dir = str(Path(paths[0]).parent)
@@ -121,7 +148,8 @@ class FileDropZone(QFrame):
         if sources:
             self.sources_added.emit(sources)
 
-    def _classify_paths(self, paths: list[Path]) -> list[SourceFile]:
+    @staticmethod
+    def _classify_paths(paths: list[Path]) -> list[SourceFile]:
         out: list[SourceFile] = []
         for p in paths:
             ext = p.suffix.lower()
@@ -130,7 +158,3 @@ class FileDropZone(QFrame):
             elif ext in PRESENTATION_EXTENSIONS:
                 out.append(SourceFile(path=p, kind=SourceKind.PRESENTATION, label=p.stem))
         return out
-
-    @property
-    def last_dir(self) -> str:
-        return self._last_dir

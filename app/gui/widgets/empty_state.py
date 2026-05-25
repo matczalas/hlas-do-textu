@@ -1,79 +1,97 @@
-"""Empty state — zobrazí se v tabulce souborů, dokud uživatelka nic nepřidá.
+"""Empty state — jedna věta + tři piktogramy ukazující flow.
 
-Krátký 4-step tutoriál, který studentce ukáže celý workflow na první pohled.
+Žádný onboarding text. Šipka vzhůru do drop zóny.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-_STEPS = [
-    ("1", "Přidej nahrávku",
-     "Klikni nahoře na 'Přidat nahrávku' nebo přetáhni mp3 / mp4 / wav / m4a přímo do okna."),
-    ("2", "Přidej slidy (volitelné)",
-     "Pokud máš k přednášce PDF nebo PPTX, přidej je — AI je propojí s přepisem."),
-    ("3", "Napiš popis (jen pro režim s AI)",
-     "Pár vět: co je to za přednášku, předmět, co od materiálu chceš (body ke zkoušce / souhrn / definice)."),
-    ("4", "Vyber režim a spusť",
-     "Jen přepis = rychlé, offline, jen přesný text mluveného slova.\n"
-     "Přepis + body z AI = strukturované poznámky pro učení (potřebuje internet)."),
-]
+from app.gui.widgets.icons import pixmap
+
+ACCENT = "#205ca8"
 
 
 class EmptyStateWidget(QWidget):
-    """4-step tutoriál pro nového uživatele — v dark i light mode čitelný."""
+    """Maximálně tichý empty state — text rezervuju pro to, co fakt pomůže."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(60, 40, 60, 40)
-        layout.setSpacing(18)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        title = QLabel("Jak začít")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet("font-size: 24px; font-weight: 700; color: #4a8fde;")
-        layout.addWidget(title)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addStretch(2)
 
-        subtitle = QLabel("4 kroky k vygenerování studijního materiálu z přednášky")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("font-size: 13px; color: palette(text); padding-bottom: 8px;")
-        layout.addWidget(subtitle)
+        # Hlavní message — jedna věta
+        headline = QLabel("Přetáhni přednášku nahoru")
+        f = QFont()
+        f.setPointSize(18)
+        f.setWeight(QFont.Weight.DemiBold)
+        headline.setFont(f)
+        headline.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        headline.setStyleSheet("color: palette(text);")
+        outer.addWidget(headline)
 
-        for number, heading, body in _STEPS:
-            layout.addWidget(_make_step_row(number, heading, body))
+        sub = QLabel("MP3 · MP4 · WAV · M4A  —  případně i PDF nebo PPTX se slidy")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setStyleSheet("color: palette(placeholder-text); font-size: 12.5px;")
+        outer.addWidget(sub)
 
-        layout.addStretch(1)
+        outer.addSpacing(28)
+
+        # Flow piktogramy:  mic → sparkles → document
+        flow = QHBoxLayout()
+        flow.setSpacing(4)
+        flow.addStretch(1)
+        flow.addWidget(_FlowIcon("mic", "Nahrávka"))
+        flow.addWidget(_Arrow())
+        flow.addWidget(_FlowIcon("sparkles", "AI body"))
+        flow.addWidget(_Arrow())
+        flow.addWidget(_FlowIcon("document", "Word"))
+        flow.addStretch(1)
+        outer.addLayout(flow)
+
+        outer.addStretch(3)
 
 
-def _make_step_row(number: str, heading: str, body: str) -> QWidget:
-    row = QFrame()
-    row.setStyleSheet(
-        "QFrame { background-color: palette(alternate-base); border-radius: 8px; padding: 4px; }"
-    )
-    h = QHBoxLayout(row)
-    h.setContentsMargins(16, 14, 16, 14)
-    h.setSpacing(16)
+class _FlowIcon(QWidget):
+    def __init__(self, name: str, caption: str) -> None:
+        super().__init__()
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(8)
 
-    badge = QLabel(number)
-    badge.setFixedSize(40, 40)
-    badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    badge.setStyleSheet(
-        "QLabel { background-color: #205ca8; color: white; border-radius: 20px; "
-        "font-size: 18px; font-weight: 700; }"
-    )
-    h.addWidget(badge, alignment=Qt.AlignmentFlag.AlignTop)
+        bubble = QLabel()
+        bubble.setPixmap(pixmap(name, size=24, color=ACCENT))
+        bubble.setFixedSize(56, 56)
+        bubble.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        bubble.setStyleSheet(
+            "QLabel { background: rgba(32,92,168,0.10); border-radius: 14px; }"
+        )
+        v.addWidget(bubble, 0, Qt.AlignmentFlag.AlignHCenter)
 
-    text_box = QVBoxLayout()
-    text_box.setSpacing(4)
-    head_lbl = QLabel(heading)
-    head_lbl.setStyleSheet("font-size: 15px; font-weight: 600; color: palette(text);")
-    text_box.addWidget(head_lbl)
+        cap = QLabel(caption)
+        cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cap.setStyleSheet("color: palette(placeholder-text); font-size: 12px;")
+        v.addWidget(cap)
 
-    body_lbl = QLabel(body)
-    body_lbl.setWordWrap(True)
-    body_lbl.setStyleSheet("font-size: 13px; color: palette(text);")
-    text_box.addWidget(body_lbl)
 
-    h.addLayout(text_box, 1)
-    return row
+class _Arrow(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setFixedWidth(48)
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 22)  # zarovnání s bubble středy
+        lbl = QLabel("›")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setStyleSheet("color: palette(mid); font-size: 28px; font-weight: 300;")
+        v.addWidget(lbl)
