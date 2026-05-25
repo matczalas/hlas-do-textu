@@ -74,7 +74,7 @@ def main() -> int:
     return 0
 
 
-def _make_icns(img: "Image.Image", out_path: Path) -> None:
+def _make_icns(img: Image.Image, out_path: Path) -> None:
     """Vyrobí .icns pomocí macOS iconutil. Mimo macOS jen nahraje PNG jako fallback."""
     import platform as _plat
     import subprocess
