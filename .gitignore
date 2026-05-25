@@ -55,6 +55,16 @@ flashdisk_balicek/HlasDoTextu-Setup-*.exe
 .env.local
 .env.production
 
+# Interní složky — nepatří do veřejného repa
+design/
+flashdisk_balicek/
+
+# macOS metadata
+.DS_Store
+
+# Pip install -e build artifact
+*.egg-info/
+
 # Test sample media (YouTube nahrávky, copyright)
 test_samples/*.mp3
 test_samples/*.wav
