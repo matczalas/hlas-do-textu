@@ -114,6 +114,34 @@ class SettingsDialog(QDialog):
         self._offline_cb.setChecked(settings.prefer_offline)
         root.addWidget(self._offline_cb)
 
+        # .md export pro AI agenta
+        self._md_cb = QCheckBox("Po přepisu uložit také .md soubor (prompt pro AI)")
+        self._md_cb.setChecked(settings.create_md_export)
+        self._md_cb.setToolTip(
+            "Vyrobí Markdown soubor s přepisem připravený jako prompt pro ChatGPT/Claude/Gemini. "
+            "Otevři ho v AI a získej studijní materiál na míru."
+        )
+        root.addWidget(self._md_cb)
+
+        # AI služba pro custom prompts
+        ai_row = QHBoxLayout()
+        ai_row.setSpacing(8)
+        ai_row.addWidget(_field_label("AI služba"))
+        self._ai_service_combo = QComboBox()
+        self._ai_service_combo.setMinimumHeight(32)
+        self._ai_service_combo.addItem("Žádná", userData="none")
+        self._ai_service_combo.addItem("ChatGPT", userData="chatgpt")
+        self._ai_service_combo.addItem("Claude", userData="claude")
+        self._ai_service_combo.addItem("Gemini", userData="gemini")
+        self._ai_service_combo.addItem("Jiná", userData="other")
+        # Vybrat aktuální
+        for i in range(self._ai_service_combo.count()):
+            if self._ai_service_combo.itemData(i) == settings.user_ai_service:
+                self._ai_service_combo.setCurrentIndex(i)
+                break
+        ai_row.addWidget(self._ai_service_combo, 1)
+        root.addLayout(ai_row)
+
         root.addWidget(_divider())
 
         # ----- Whisper -----
@@ -206,6 +234,8 @@ class SettingsDialog(QDialog):
         self._settings.output_dir = self._output_edit.text().strip() or self._settings.output_dir
         self._settings.ai_consent_gemini = self._consent_cb.isChecked()
         self._settings.prefer_offline = self._offline_cb.isChecked()
+        self._settings.create_md_export = self._md_cb.isChecked()
+        self._settings.user_ai_service = self._ai_service_combo.currentData() or "none"
         super().accept()
 
     def _toggle_api_visibility(self) -> None:

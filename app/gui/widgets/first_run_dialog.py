@@ -102,6 +102,23 @@ class FirstRunDialog(QDialog):
         )
         root.addWidget(self._consent_cb)
 
+        # AI služba — pro custom .md prompts
+        from PySide6.QtWidgets import QComboBox
+
+        ai_label = QLabel("Máš předplatné AI služby? Připravím ti přepisy s prompty na míru.")
+        ai_label.setWordWrap(True)
+        ai_label.setStyleSheet("font-size: 12px; color: palette(text); padding-top: 4px;")
+        root.addWidget(ai_label)
+
+        self._ai_service_combo = QComboBox()
+        self._ai_service_combo.setMinimumHeight(36)
+        self._ai_service_combo.addItem("Žádné (přepis bez customizace)", userData="none")
+        self._ai_service_combo.addItem("ChatGPT Plus / Pro", userData="chatgpt")
+        self._ai_service_combo.addItem("Claude Pro / Max", userData="claude")
+        self._ai_service_combo.addItem("Gemini Advanced", userData="gemini")
+        self._ai_service_combo.addItem("Jiná AI služba", userData="other")
+        root.addWidget(self._ai_service_combo)
+
         # Skip note
         skip = QLabel("Klíč můžeš přidat i později v Nastavení.")
         skip.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
@@ -125,6 +142,13 @@ class FirstRunDialog(QDialog):
             except Exception:
                 pass
         self._settings.ai_consent_gemini = self._consent_cb.isChecked()
+        # User AI service — určuje custom .md prompts
+        ai_service = self._ai_service_combo.currentData()
+        if ai_service:
+            self._settings.user_ai_service = ai_service
+            # Pokud user vybral konkrétní službu, zapneme .md export defaultně
+            if ai_service != "none":
+                self._settings.create_md_export = True
         self._settings.first_run_done = True
         super().accept()
 

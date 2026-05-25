@@ -80,3 +80,5 @@ class JobConfig:
     language: str = "cs"
     ai_consent_gemini: bool = False  # uživatel souhlasil s odesláním textu do Gemini
     prefer_offline: bool = False     # použít rovnou Ollama, přeskočit Gemini
+    create_md_export: bool = False   # vytvořit .md prompt pro AI agenta
+    user_ai_service: str = "none"    # ChatGPT/Claude/Gemini → custom instrukce v .md

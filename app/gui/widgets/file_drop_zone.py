@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -29,7 +30,7 @@ ACCENT = "#205ca8"
 
 
 class FileDropZone(QFrame):
-    """Tenká drop lišta nahoře okna."""
+    """Velká drop zóna s jasným 'Drag or Find File' sdělením."""
 
     sources_added = Signal(list)
 
@@ -38,33 +39,49 @@ class FileDropZone(QFrame):
         self.setObjectName("DropZone")
         self.setAcceptDrops(True)
         self.setProperty("active", False)
-        self.setMinimumHeight(76)
+        self.setMinimumHeight(180)
         self._last_dir: str = str(Path.home())
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 12, 14, 12)
-        layout.setSpacing(14)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(24, 26, 24, 22)
+        outer.setSpacing(8)
 
+        # Velká ikona uploadu nahoře, centered
         icon_lbl = QLabel()
-        icon_lbl.setPixmap(pixmap("upload", size=22, color=ACCENT))
-        icon_lbl.setFixedSize(40, 40)
+        icon_lbl.setPixmap(pixmap("upload", size=44, color=ACCENT))
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet(
-            "QLabel { background: rgba(32,92,168,0.10); border-radius: 10px; }"
-        )
-        layout.addWidget(icon_lbl)
+        icon_lbl.setFixedHeight(60)
+        icon_lbl.setStyleSheet("border: none; background: transparent;")
+        outer.addWidget(icon_lbl)
 
-        msg = QLabel("Přetáhni soubory sem")
-        msg.setStyleSheet(
-            "font-size: 14px; font-weight: 600; color: palette(text); border: none;"
+        # Hlavní text "Přetáhni soubor nebo vyber..."
+        title = QLabel("Přetáhni soubor sem")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet(
+            f"font-size: 17px; font-weight: 600; color: {ACCENT}; "
+            "border: none; background: transparent;"
         )
-        layout.addWidget(msg)
-        layout.addStretch(1)
+        outer.addWidget(title)
 
-        btn_audio = self._make_button("Nahrávka", "mic", self._pick_audio)
-        btn_slides = self._make_button("Slidy", "slides", self._pick_slides)
-        layout.addWidget(btn_audio)
-        layout.addWidget(btn_slides)
+        # Subtitle "or"
+        subtitle = QLabel("nebo klikni na tlačítko níže")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet(
+            "font-size: 12px; color: palette(mid); "
+            "border: none; background: transparent;"
+        )
+        outer.addWidget(subtitle)
+
+        # Tlačítka pod tím, centered
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        btn_row.addStretch(1)
+        btn_audio = self._make_button("Vybrat nahrávku", "mic", self._pick_audio)
+        btn_slides = self._make_button("Vybrat slidy", "slides", self._pick_slides)
+        btn_row.addWidget(btn_audio)
+        btn_row.addWidget(btn_slides)
+        btn_row.addStretch(1)
+        outer.addLayout(btn_row)
 
     def _make_button(self, text: str, ico_name: str, handler) -> QPushButton:
         btn = QPushButton(text)

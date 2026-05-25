@@ -20,6 +20,7 @@ from app.core.ai.gemini import GeminiProvider
 from app.core.ai.ollama import OllamaProvider
 from app.core.ai.router import AIRouter, generate_study_material
 from app.core.audio_extract import extract_to_wav, probe_duration_seconds
+from app.core.md_export import export_markdown
 from app.core.models import (
     JobConfig,
     JobMode,
@@ -228,6 +229,22 @@ def run_pipeline(
             sources=job.sources,
             user_prompt=job.user_prompt if not transcribe_only else None,
         )
+
+        # Volitelný .md export pro AI agenta
+        if job.create_md_export and transcripts:
+            try:
+                md_path = out_path.with_suffix(".md")
+                export_markdown(
+                    output_path=md_path,
+                    transcripts=transcripts,
+                    slides=slides,
+                    user_prompt=job.user_prompt if not transcribe_only else None,
+                    ai_service=job.user_ai_service,
+                    whisper_model=job.whisper_model,
+                )
+                logger.info("Vyrobil jsem také .md prompt pro AI: {}", md_path)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(".md export selhal (ne-fatal): {}", exc)
 
         report("Hotovo", 1.0)
         return PipelineResult(output_path=out_path, material=material, transcripts=transcripts, slides=slides)

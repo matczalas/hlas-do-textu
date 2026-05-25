@@ -39,6 +39,11 @@ class AppSettings:
     prefer_offline: bool = False
     first_run_done: bool = False
     last_used_sources_dir: str = field(default_factory=lambda: str(Path.home()))
+    # Volitelná .md verze přepisu (prompt pro AI agenta jako ChatGPT/Claude)
+    create_md_export: bool = False
+    # Kterou AI student používá — určuje custom instrukce v .md exportu
+    # "none" | "chatgpt" | "claude" | "gemini" | "other"
+    user_ai_service: str = "none"
 
 
 def load_settings() -> AppSettings:

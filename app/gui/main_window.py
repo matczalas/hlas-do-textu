@@ -532,6 +532,8 @@ class MainWindow(QMainWindow):
             language=self._settings.language,
             ai_consent_gemini=self._settings.ai_consent_gemini,
             prefer_offline=self._settings.prefer_offline,
+            create_md_export=self._settings.create_md_export,
+            user_ai_service=self._settings.user_ai_service,
         )
 
         self._progress.reset()
