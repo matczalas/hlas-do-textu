@@ -18,13 +18,27 @@
 - **Dva režimy:** rychlý jen-přepis, nebo plný studijní materiál s AI
 - **Auto-update** přes GitHub Releases — nová verze sama naskočí
 
-## Instalace (Windows)
+## Instalace
+
+### Windows
 
 1. Stáhni `HlasDoTextu-Setup-X.Y.Z.exe` z [Releases](https://github.com/matczalas/hlas-do-textu/releases)
 2. Dvojklik. Při SmartScreen warning → *More info* → *Run anyway*
 3. Klikej *Next* / *Install* (~30 s)
 4. Spusť aplikaci, vlož aktivační klíč (formátu `S4F1-XXXX-XXXX-XXXX-XXXX`)
 5. V uvítacím dialogu klikni *"Získat API klíč zdarma"* a vlož ho
+
+### macOS
+
+1. Stáhni `HlasDoTextu-X.Y.Z.dmg` z [Releases](https://github.com/matczalas/hlas-do-textu/releases)
+2. Otevři DMG → přetáhni **Hlas do textu** do složky **Aplikace**
+3. Při prvním spuštění: pravým klikem na ikonu → **Open** → **Open** (kvůli Gatekeeper warning, aplikace není notarizovaná)
+4. Vlož aktivační klíč
+
+Pokud Gatekeeper zablokuje: v Terminálu spusť
+```bash
+xattr -d com.apple.quarantine /Applications/HlasDoTextu.app
+```
 
 Detailní návod: [docs/PRVNI_SPUSTENI.md](docs/PRVNI_SPUSTENI.md)
 
