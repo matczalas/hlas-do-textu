@@ -1,0 +1,73 @@
+============================================================
+  HLAS DO TEXTU — INSTALACE
+
+  Z prednasky vyrobi Word s body pro uceni.
+============================================================
+
+
+INSTALACE
+=========
+
+1. Dvojklik na  HlasDoTextu-Setup-0.1.0.exe
+
+2. Pokud naskoci "Windows protected your PC":
+       -> More info
+       -> Run anyway
+
+3. Klikej Next / Install -> hotovo (~30 sekund)
+
+4. Na plose se objevi ikona "Hlas do textu" — spust ji
+
+
+
+PRVNI SPUSTENI
+==============
+
+1. Otevre se uvitaci okno.
+
+2. Klikni MODRE tlacitko  "Ziskat klic"
+       -> v prohlizeci se otevre Google AI Studio
+       -> prihlas se Google uctem
+       -> "Create API key"
+       -> zkopiruj klic (zacina "AIza...")
+
+3. Vrat se do aplikace -> vloz klic -> zaskrtni souhlas -> "Zacit"
+
+4. Aplikace nabidne stazeni modelu pro prepis (~770 MB) — klikni Ano,
+   stahne se jen jednou (~5 min).
+
+
+
+JAK POUZIVAT
+============
+
+1. Pretahni nahravku (mp3 / mp4 / wav / m4a) do okna aplikace
+2. Volitelne pridej slidy (PDF nebo PPTX)
+3. Klikni jedno ze dvou tlacitek vpravo dole:
+
+   ZELENE  "Prepis"           = jen prepis do Wordu, rychlejsi, offline
+   MODRE   "Prepis + AI body" = plne body pro uceni, potreba internet
+
+4. Pockej. Hodina prednasky = 60–90 minut zpracovani.
+   Muzes mezitim delat jine veci — aplikace ti posle notifikaci.
+
+
+
+VYSTUP
+======
+
+Vsechny Word dokumenty se ukladaji do:
+
+    Dokumenty\HlasDoTextu\
+
+
+
+ODINSTALACE
+===========
+
+Start menu -> "Hlas do textu" -> "Odinstalovat"
+
+Pri odinstalaci se zepta zda smazat modely a nastaveni — klikni Ano,
+uvolni se ~1 GB.
+
+============================================================

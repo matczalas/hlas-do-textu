@@ -10,16 +10,22 @@ from app.config import LOGS_DIR, ensure_dirs
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Idempotentní setup loggeru — bezpečné volat víckrát."""
+    """Idempotentní setup loggeru — bezpečné volat víckrát.
+
+    V PyInstaller `--windowed` buildu nemá aplikace připojenou konzoli,
+    takže `sys.stderr` (a stdout) je None. Loguru by selhal v `logger.add(None, ...)`.
+    Proto stderr/stdout přidáváme jen pokud existují.
+    """
     ensure_dirs()
     logger.remove()
 
     console_level = "DEBUG" if verbose else "INFO"
-    logger.add(
-        sys.stderr,
-        level=console_level,
-        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> | {message}",
-    )
+    if sys.stderr is not None:
+        logger.add(
+            sys.stderr,
+            level=console_level,
+            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> | {message}",
+        )
 
     log_file = LOGS_DIR / "app.log"
     logger.add(
