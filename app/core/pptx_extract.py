@@ -1,0 +1,59 @@
+"""Extrakce textu z PPTX prezentací přes python-pptx.
+
+Čte všechny shape.text_frame textury. SmartArt / WordArt nečte (limit knihovny)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from loguru import logger
+
+from app.core.models import SlideText
+
+
+class PptxExtractError(RuntimeError):
+    pass
+
+
+def extract_pptx_text(pptx_path: Path, source_label: str) -> SlideText:
+    from pptx import Presentation  # lazy import
+
+    pptx_path = Path(pptx_path)
+    if not pptx_path.is_file():
+        raise PptxExtractError(f"PPTX nenalezen: {pptx_path}")
+
+    parts: list[str] = []
+    try:
+        prs = Presentation(str(pptx_path))
+    except Exception as exc:
+        raise PptxExtractError(f"Chyba při otevření PPTX {pptx_path.name}: {exc}") from exc
+
+    slide_count = 0
+    for idx, slide in enumerate(prs.slides, start=1):
+        slide_count = idx
+        slide_chunks: list[str] = []
+        for shape in slide.shapes:
+            if not shape.has_text_frame:
+                continue
+            for paragraph in shape.text_frame.paragraphs:
+                line = "".join(run.text for run in paragraph.runs).strip()
+                if line:
+                    slide_chunks.append(line)
+
+        # Notes (speaker notes)
+        if slide.has_notes_slide and slide.notes_slide.notes_text_frame is not None:
+            notes = slide.notes_slide.notes_text_frame.text.strip()
+            if notes:
+                slide_chunks.append(f"[Poznámky:] {notes}")
+
+        if slide_chunks:
+            body = "\n".join(slide_chunks)
+            parts.append(f"[Slide {idx}]\n{body}")
+
+    text = "\n\n".join(parts)
+    if not text:
+        logger.warning("PPTX {} neobsahuje extrahovatelný text", pptx_path.name)
+    else:
+        logger.info("PPTX {}: {} slidů, {} znaků", pptx_path.name, slide_count, len(text))
+
+    return SlideText(source_label=source_label, text=text, slide_count=slide_count)

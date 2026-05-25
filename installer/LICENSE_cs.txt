@@ -1,0 +1,24 @@
+Licenční podmínky — Hlas do textu
+
+Copyright (c) 2026 Safe4Future z. ú.
+
+Tímto se udílí bezplatné povolení komukoli, kdo získá kopii tohoto softwaru
+a souvisejících dokumentačních souborů, používat tento software bez omezení,
+včetně práv na užívání, kopírování, úpravu, slučování, publikování, distribuci,
+sublicencování a/nebo prodej kopií tohoto softwaru.
+
+Tento software je poskytován "tak, jak je", bez jakékoli záruky.
+
+Autoři nenesou odpovědnost za jakékoli škody vzniklé v souvislosti s tímto softwarem.
+
+Aplikace využívá tyto open-source komponenty:
+- Faster-Whisper (MIT)
+- FFmpeg (LGPL/GPL)
+- PySide6 (LGPL)
+- python-docx (MIT)
+- pdfplumber (MIT)
+- python-pptx (MIT)
+- Google GenAI SDK (Apache 2.0)
+
+Při použití Google Gemini API platí podmínky služby Google.
+Pro free tier Gemini Google používá texty dotazů k tréninku modelů.

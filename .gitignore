@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.spec
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# OS
+Thumbs.db
+
+# App-specific
+app/vendor/ffmpeg/win64/ffmpeg.exe
+app/vendor/ffmpeg/win64/*.exe
+output/
+*.log
+.cache/
+
+# Models (lazy-downloaded into LOCALAPPDATA, but keep gitignore for any local cache)
+models/
+*.bin
+*.pt
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Build outputs
+*.exe
+HlasDoTextu-Setup-*.exe
+installer/Output/
+
+# Test sample media (YouTube nahrávky, copyright)
+test_samples/*.mp3
+test_samples/*.wav
+test_samples/*.mp4
+test_samples/*.m4a
+test_samples/*.webm
+test_samples/*.vtt
+test_samples/*.srt
+test_samples/whisper_output.txt
+test_samples/ground_truth_*.txt

@@ -1,0 +1,84 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Cache vendored FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: app/vendor/ffmpeg/win64
+          key: ffmpeg-win64-v1
+
+      - name: Download FFmpeg static build
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: python scripts/download_ffmpeg_windows.py
+
+      - name: Generate placeholder icon
+        run: python scripts/generate_icon.py
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --noconfirm --clean ^
+            --onedir --windowed ^
+            --name HlasDoTextu ^
+            --icon app/resources/icon.ico ^
+            --add-data "app/vendor/ffmpeg/win64;vendor/ffmpeg/win64" ^
+            --add-data "app/resources;resources" ^
+            --collect-all ctranslate2 ^
+            --collect-all faster_whisper ^
+            --collect-data certifi ^
+            --collect-data tiktoken ^
+            app/__main__.py
+        shell: cmd
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Compile installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\HlasDoTextu.iss
+        shell: pwsh
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HlasDoTextu-Windows-Installer
+          path: installer/Output/*.exe
+
+      - name: Create GitHub Release (tagged builds)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/Output/*.exe
+          generate_release_notes: true
