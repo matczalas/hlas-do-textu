@@ -131,3 +131,16 @@ class StatusBar(QWidget):
             "Offline AI běží.",
             "Offline AI neaktivní — Gemini funguje sám.",
         )
+
+    def stop_and_wait(self, timeout_ms: int = 2000) -> None:
+        """Čistě ukončí background health-check thread (volat z closeEvent)."""
+        if self._thread is None:
+            return
+        try:
+            if self._thread.isRunning():
+                self._thread.quit()
+                if not self._thread.wait(timeout_ms):
+                    self._thread.terminate()
+                    self._thread.wait(500)
+        except RuntimeError:
+            pass

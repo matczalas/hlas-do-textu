@@ -381,11 +381,37 @@ class MainWindow(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-            self._pipeline_worker.stop_and_wait()
+
+        # Zastavit VŠECHNY background workery — jinak Qt vyhodí fatal abort při
+        # destrukci QMainWindow pokud nějaký QThread ještě běží.
+        self._stop_all_workers()
 
         self._settings.last_used_sources_dir = self._drop_zone.last_dir
         save_settings(self._settings)
         event.accept()
+
+    def _stop_all_workers(self) -> None:
+        """Bezpečně ukončí všechny QThread workery v aplikaci."""
+        for worker_attr in (
+            "_pipeline_worker",
+            "_model_worker",
+            "_regenerate_worker",
+            "_update_check",
+            "_update_download",
+        ):
+            w = getattr(self, worker_attr, None)
+            if w is not None and hasattr(w, "stop_and_wait"):
+                try:
+                    w.stop_and_wait()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("stop_and_wait({}) selhalo: {}", worker_attr, exc)
+
+        # Status bar má vlastní QThread
+        try:
+            if hasattr(self, "_status_bar") and hasattr(self._status_bar, "stop_and_wait"):
+                self._status_bar.stop_and_wait()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("status_bar stop selhalo: {}", exc)
 
     # ------ Handlers ------
 

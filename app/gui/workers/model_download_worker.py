@@ -53,3 +53,15 @@ class ModelDownloadWorker(QObject):
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.isRunning()
+
+    def stop_and_wait(self, timeout_ms: int = 3000) -> None:
+        if self._thread is None:
+            return
+        try:
+            if self._thread.isRunning():
+                self._thread.quit()
+                if not self._thread.wait(timeout_ms):
+                    self._thread.terminate()
+                    self._thread.wait(500)
+        except RuntimeError:
+            pass
