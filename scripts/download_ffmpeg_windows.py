@@ -25,20 +25,20 @@ def main() -> int:
         return 0
 
     TARGET_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Stahuji {FFMPEG_ZIP_URL}…")
+    print(f"Stahuji {FFMPEG_ZIP_URL}...")
 
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
         urllib.request.urlretrieve(FFMPEG_ZIP_URL, tmp.name)
         zip_path = Path(tmp.name)
 
-    print("Rozbaluji…")
+    print("Rozbaluji...")
     with zipfile.ZipFile(zip_path) as zf:
         for member in zf.namelist():
             name = Path(member).name
             if name in ("ffmpeg.exe", "ffprobe.exe"):
                 with zf.open(member) as src, (TARGET_DIR / name).open("wb") as dst:
                     shutil.copyfileobj(src, dst)
-                print(f"  → {TARGET_DIR / name}")
+                print(f"  -> {TARGET_DIR / name}")
 
     zip_path.unlink(missing_ok=True)
 
