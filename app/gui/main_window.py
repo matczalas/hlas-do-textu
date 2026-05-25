@@ -83,6 +83,16 @@ class MainWindow(QMainWindow):
         self._pipeline_worker = PipelineWorker(self)
         self._model_worker = ModelDownloadWorker(self)
         self._regenerate_worker = RegenerateWorker(self)
+
+        from app.gui.workers.update_worker import (
+            UpdateCheckWorker,
+            UpdateDownloadWorker,
+        )
+        self._update_check = UpdateCheckWorker(self)
+        self._update_download = UpdateDownloadWorker(self)
+        self._available_update = None  # UpdateInfo | None
+        self._update_installer_path = None  # Path | None
+
         self._tray = self._init_tray()
 
         self._load_stylesheet()
@@ -138,6 +148,14 @@ class MainWindow(QMainWindow):
 
         # ---- Header bar -----------------------------------------------
         root.addLayout(self._build_header())
+
+        # ---- Update banner (default skrytý) ---------------------------
+        from app.gui.widgets.update_banner import UpdateBanner
+
+        self._update_banner = UpdateBanner()
+        self._update_banner.update_requested.connect(self._on_update_requested)
+        self._update_banner.restart_requested.connect(self._on_update_restart)
+        root.addWidget(self._update_banner)
 
         # ---- Drop zone (vždy nahoře) ----------------------------------
         self._drop_zone = FileDropZone()
@@ -319,6 +337,11 @@ class MainWindow(QMainWindow):
         self._model_worker.finished_ok.connect(self._on_model_ready)
         self._model_worker.finished_error.connect(self._on_model_error)
 
+        self._update_check.finished.connect(self._on_update_check_finished)
+        self._update_download.progress.connect(self._on_update_progress)
+        self._update_download.finished_ok.connect(self._on_update_downloaded)
+        self._update_download.finished_error.connect(self._on_update_download_error)
+
         self._regenerate_worker.progress.connect(self._progress.update)
         self._regenerate_worker.finished_ok.connect(self._on_pipeline_ok)
         self._regenerate_worker.finished_error.connect(
@@ -337,6 +360,16 @@ class MainWindow(QMainWindow):
 
         self._maybe_offer_model_download()
         self._status_bar.refresh(get_gemini_api_key())
+
+        # Tichá kontrola aktualizace po 5 s — nezdržuje startup ani s pomalou sítí
+        QTimer.singleShot(5000, self._silent_update_check)
+
+    def _silent_update_check(self) -> None:
+        """Spustí tichou kontrolu update přes GitHub API. Neukáže nic pokud není update."""
+        if self._update_check.is_running() or self._update_download.is_running():
+            return
+        logger.info("Spouštím tichou kontrolu aktualizace…")
+        self._update_check.start()
 
     def closeEvent(self, event) -> None:  # noqa: N802
         if self._pipeline_worker.is_running():
@@ -732,3 +765,70 @@ class MainWindow(QMainWindow):
             "medium": "770 MB",
             "large-v3": "1.5 GB",
         }.get(name, "neznámá velikost")
+
+    # ====================================================================
+    # Auto-updater handlery
+    # ====================================================================
+
+    def _on_update_check_finished(self, info) -> None:
+        """Výsledek z UpdateCheckWorker. info = UpdateInfo | None."""
+        if info is None:
+            logger.info("Update check: žádný update")
+            return
+        if not info.is_newer_than_current:
+            logger.info("Update check: lokální verze je aktuální ({})", info.version)
+            return
+        logger.info("Update check: dostupná novější verze {}", info.version)
+        self._available_update = info
+        self._update_banner.show_available(info.version)
+
+    def _on_update_requested(self) -> None:
+        """User klikl 'Aktualizovat' v banneru → začneme stahovat."""
+        if self._available_update is None:
+            return
+        if self._update_download.is_running():
+            return
+        self._update_banner.show_downloading()
+        self._update_download.start(self._available_update)
+
+    def _on_update_progress(self, downloaded: int, total: int) -> None:
+        self._update_banner.update_progress(downloaded, total)
+
+    def _on_update_downloaded(self, path) -> None:
+        from pathlib import Path
+
+        self._update_installer_path = Path(str(path))
+        logger.info("Update stažen, čekám na restart: {}", self._update_installer_path)
+        self._update_banner.show_ready()
+        self._notify(
+            "Aktualizace připravena",
+            f"Verze {self._available_update.version} je stažená — klikni 'Restartovat'.",
+        )
+
+    def _on_update_download_error(self, message: str) -> None:
+        logger.error("Update download chyba: {}", message)
+        self._update_banner.show_error(message)
+
+    def _on_update_restart(self) -> None:
+        """User klikl 'Restartovat a aktualizovat' → spustíme installer + ukončíme app."""
+        if self._update_installer_path is None or not self._update_installer_path.is_file():
+            self._update_banner.show_error("Soubor instalátoru zmizel — zkus znovu.")
+            return
+
+        if self._pipeline_worker.is_running() or self._regenerate_worker.is_running():
+            answer = QMessageBox.question(
+                self,
+                "Zpracování běží",
+                "Probíhá zpracování. Pokud aplikaci teď ukončíš, postup se ztratí. Pokračovat?",
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            self._pipeline_worker.stop_and_wait()
+
+        from app.updater import apply_update
+
+        try:
+            apply_update(self._update_installer_path)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("apply_update selhalo: {}", exc)
+            self._update_banner.show_error(str(exc))

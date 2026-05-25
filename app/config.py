@@ -117,3 +117,16 @@ MIN_FREE_DISK_BYTES: int = 2 * 1024 * 1024 * 1024  # 2 GB
 
 GEMINI_API_KEY_URL: str = "https://aistudio.google.com/api-keys"
 OLLAMA_DOWNLOAD_URL: str = "https://ollama.com/download/windows"
+
+# ---------------------------------------------------------------------------
+# Auto-updater — GitHub Releases
+# ---------------------------------------------------------------------------
+
+GITHUB_OWNER: str = "matczalas"
+GITHUB_REPO: str = "hlas-do-textu"
+
+# Interval mezi tichými kontrolami aktualizace (sekundy). 24h = 86400.
+UPDATE_CHECK_INTERVAL_SEC: int = 86_400
+
+# Klíč v settings.json — kdy jsme naposled kontrolovali
+UPDATE_LAST_CHECK_KEY: str = "update_last_check_iso"
