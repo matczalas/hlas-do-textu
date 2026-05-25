@@ -114,6 +114,19 @@ def main() -> int:
     app.setApplicationName("Hlas do textu")
     app.setOrganizationName("Safe4Future z. ú.")
 
+    # License gate — bez platného klíče se nikam nedostaneme
+    from app.licensing import is_activated
+
+    if not is_activated():
+        from app.gui.widgets.activation_dialog import ActivationDialog
+
+        logger.info("Aplikace není aktivovaná, zobrazuji ActivationDialog")
+        activation = ActivationDialog()
+        if activation.exec() != activation.DialogCode.Accepted:
+            logger.info("Aktivace zamítnuta uživatelem, končím")
+            return 0
+        logger.info("Aktivace úspěšná")
+
     try:
         window = MainWindow()
         window.show()

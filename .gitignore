@@ -45,6 +45,11 @@ htmlcov/
 HlasDoTextu-Setup-*.exe
 installer/Output/
 
+# License keys log — SOUKROMÉ, nikdy do gitu
+keys_log.txt
+dist_windows/
+flashdisk_balicek/HlasDoTextu-Setup-*.exe
+
 # Test sample media (YouTube nahrávky, copyright)
 test_samples/*.mp3
 test_samples/*.wav
