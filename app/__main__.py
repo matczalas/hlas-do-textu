@@ -53,8 +53,12 @@ def _install_crash_handler() -> None:
         except Exception:
             pass
 
-        # Pro jistotu i do stderr (vidět při spuštění z terminálu)
-        print(formatted, file=sys.stderr)
+        # Pro jistotu i do stderr (vidět při spuštění z terminálu) — ale jen pokud existuje
+        if sys.stderr is not None:
+            try:
+                print(formatted, file=sys.stderr)
+            except Exception:
+                pass
 
     sys.excepthook = _excepthook
 
@@ -76,13 +80,20 @@ def main() -> int:
     except Exception as exc:
         # Předčasná chyba (chybí dependency) — zkus alespoň napsat do souboru
         crash_path = Path.home() / "HlasDoTextu-crash.txt"
-        crash_path.write_text(
-            f"Při startu se nepodařilo načíst závislosti:\n{type(exc).__name__}: {exc}\n\n"
-            + traceback.format_exc(),
-            encoding="utf-8",
-        )
-        print(f"FATAL: {exc}", file=sys.stderr)
-        print(f"Detail uložen do: {crash_path}", file=sys.stderr)
+        try:
+            crash_path.write_text(
+                f"Při startu se nepodařilo načíst závislosti:\n{type(exc).__name__}: {exc}\n\n"
+                + traceback.format_exc(),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
+        if sys.stderr is not None:
+            try:
+                print(f"FATAL: {exc}", file=sys.stderr)
+                print(f"Detail uložen do: {crash_path}", file=sys.stderr)
+            except Exception:
+                pass
         return 2
 
     setup_logging(verbose=os.environ.get("HDT_DEBUG") == "1")

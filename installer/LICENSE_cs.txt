@@ -1,24 +1,197 @@
-Licenční podmínky — Hlas do textu
+================================================================
+  LICENČNÍ A UŽIVATELSKÉ PODMÍNKY APLIKACE „HLAS DO TEXTU"
 
-Copyright (c) 2026 Safe4Future z. ú.
+  Verze 0.1.0
+  Účinné ode dne instalace
+================================================================
 
-Tímto se udílí bezplatné povolení komukoli, kdo získá kopii tohoto softwaru
-a souvisejících dokumentačních souborů, používat tento software bez omezení,
-včetně práv na užívání, kopírování, úpravu, slučování, publikování, distribuci,
-sublicencování a/nebo prodej kopií tohoto softwaru.
+PŘED POUŽITÍM APLIKACE SI POZORNĚ PŘEČTĚTE TYTO PODMÍNKY.
+INSTALACÍ NEBO POUŽITÍM APLIKACE VYJADŘUJETE SVŮJ NEODVOLATELNÝ
+SOUHLAS SE VŠEMI USTANOVENÍMI UVEDENÝMI NÍŽE. POKUD S PODMÍNKAMI
+NESOUHLASÍTE, APLIKACI NEINSTALUJTE A NEPOUŽÍVEJTE.
 
-Tento software je poskytován "tak, jak je", bez jakékoli záruky.
+----------------------------------------------------------------
 
-Autoři nenesou odpovědnost za jakékoli škody vzniklé v souvislosti s tímto softwarem.
+1. POSKYTOVATEL A SOFTWARE
 
-Aplikace využívá tyto open-source komponenty:
-- Faster-Whisper (MIT)
-- FFmpeg (LGPL/GPL)
-- PySide6 (LGPL)
-- python-docx (MIT)
-- pdfplumber (MIT)
-- python-pptx (MIT)
-- Google GenAI SDK (Apache 2.0)
+Software „Hlas do textu" (dále jen „Software") je poskytován
+„TAK, JAK JE" („AS IS") bez jakékoli záruky, výslovné nebo
+implikované. Veškerá práva, která nejsou výslovně udělena,
+jsou poskytovatelem výslovně vyhrazena.
 
-Při použití Google Gemini API platí podmínky služby Google.
-Pro free tier Gemini Google používá texty dotazů k tréninku modelů.
+
+2. UDĚLENÍ LICENCE
+
+2.1  Uživateli se uděluje OMEZENÁ, NEVÝHRADNÍ, NEPŘENOSITELNÁ,
+     ODVOLATELNÁ a OSOBNÍ licence k používání Softwaru výhradně
+     pro vlastní nekomerční účely.
+
+2.2  Uživatel NESMÍ:
+     a) prodávat, pronajímat, distribuovat ani jinak komerčně
+        využívat Software ani jeho části;
+     b) provádět zpětnou analýzu (reverse engineering),
+        dekompilaci, disassembling, modifikaci ani vytváření
+        odvozených děl ze Softwaru;
+     c) odstraňovat ani měnit jakákoli upozornění o autorských
+        právech, ochranných známkách nebo licenci;
+     d) přenechávat licenci třetím osobám ani umožňovat třetím
+        osobám používání Softwaru pod svým účtem;
+     e) používat Software k jakékoli nelegální činnosti
+        nebo v rozporu s platnými právními předpisy.
+
+2.3  Porušení kteréhokoli z bodů odstavce 2.2 znamená OKAMŽITÉ
+     a AUTOMATICKÉ ukončení licence bez nároku na vrácení
+     jakýchkoli plateb nebo náhrad.
+
+
+3. VYLOUČENÍ ZÁRUK
+
+3.1  POSKYTOVATEL VÝSLOVNĚ ODMÍTÁ veškeré záruky, ať již
+     výslovné, implikované nebo zákonné, zejména záruky:
+     a) prodejnosti;
+     b) vhodnosti pro určitý účel;
+     c) nerušeného užívání;
+     d) bezvadnosti, bezchybnosti nebo nepřerušovaného provozu;
+     e) přesnosti, úplnosti nebo aktuálnosti přepisů a
+        výstupů generovaných umělou inteligencí;
+     f) souladu s jakýmkoli zákonem či regulací.
+
+3.2  Uživatel BERE NA VĚDOMÍ, že:
+     a) automatické přepisy mluveného slova MOHOU obsahovat
+        chyby, vynechávky nebo nesprávné výrazy;
+     b) studijní body generované umělou inteligencí MOHOU
+        obsahovat faktické nepřesnosti, halucinace nebo
+        zavádějící tvrzení;
+     c) výstup Softwaru NENÍ a NESMÍ být považován za
+        odborný, právní, lékařský, finanční ani jakýkoli
+        jiný kvalifikovaný posudek nebo poradenství;
+     d) jakékoli rozhodnutí učiněné na základě výstupu
+        Softwaru činí Uživatel VÝHRADNĚ NA SVOU
+        ODPOVĚDNOST a RIZIKO.
+
+
+4. OMEZENÍ ODPOVĚDNOSTI
+
+4.1  V MAXIMÁLNÍM ROZSAHU POVOLENÉM PRÁVNÍM ŘÁDEM Poskytovatel
+     ani jeho zaměstnanci, spolupracovníci nebo dodavatelé
+     NENESOU ŽÁDNOU ODPOVĚDNOST za:
+     a) jakékoli přímé, nepřímé, vedlejší, zvláštní, sankční
+        nebo následné škody;
+     b) ušlý zisk, ušlou příležitost, ztrátu dat nebo
+        ztrátu obchodního dobrého jména;
+     c) škody vyplývající z chybného přepisu nebo nesprávně
+        vygenerovaných studijních materiálů;
+     d) škody způsobené třetími stranami, zejména
+        poskytovateli cloudových AI služeb (Google,
+        Anthropic apod.);
+     e) přerušení provozu Softwaru, nedostupnost cloudových
+        služeb nebo ztrátu lokálních dat;
+     f) škody způsobené nekompatibilitou s operačním
+        systémem, hardwarem nebo jiným softwarem.
+
+4.2  Celková souhrnná odpovědnost Poskytovatele je v každém
+     případě OMEZENA na částku skutečně zaplacenou
+     Uživatelem za Software, NEJVÝŠE však na 0 (slovy: nula)
+     Kč v případě, kdy Uživatel za Software nic neplatil.
+
+
+5. ZPRACOVÁNÍ A OCHRANA DAT
+
+5.1  Software zpracovává audio nahrávky, dokumenty (PDF, PPTX),
+     přepisy a textové prompty LOKÁLNĚ v zařízení Uživatele.
+
+5.2  Pokud Uživatel aktivuje a souhlasí s použitím cloudových
+     AI služeb (Google Gemini API, případně jiných), Software
+     odesílá TEXTOVÉ PŘEPISY a TEXTY Z PREZENTACÍ na servery
+     příslušného poskytovatele cloudové služby. AUDIO SE
+     NEODESÍLÁ.
+
+5.3  Použití cloudových AI služeb se řídí PODMÍNKAMI
+     POSKYTOVATELE TĚCHTO SLUŽEB. Uživatel je výhradně
+     zodpovědný za jejich přečtení a dodržování. Pro Google
+     Gemini API zejména: https://ai.google.dev/gemini-api/terms
+
+5.4  Free tier některých cloudových služeb MŮŽE POUŽÍVAT
+     odeslaná data K TRÉNINKU AI MODELŮ. Uživatel BERE NA
+     VĚDOMÍ a SOUHLASÍ s tímto rizikem před zaškrtnutím
+     příslušného souhlasu v aplikaci.
+
+5.5  Uživatel NESMÍ do Softwaru vkládat materiály obsahující
+     osobní údaje třetích osob (zejména citlivé osobní údaje
+     dle nařízení GDPR) bez příslušného právního titulu.
+     Veškerá odpovědnost za zpracování takových dat leží
+     výhradně na Uživateli.
+
+
+6. POUŽITÍ OBSAHU TŘETÍCH STRAN
+
+6.1  Uživatel PROHLAŠUJE a ZARUČUJE, že má veškerá práva
+     k materiálům (audio, video, prezentace), které do
+     Softwaru vkládá, zejména že nedochází k porušení
+     autorských práv, práv k ochranné známce, práv
+     na ochranu osobnosti nebo soukromí.
+
+6.2  Veškerá odpovědnost za případné porušení autorských
+     nebo jiných práv třetích osob leží VÝHRADNĚ na
+     Uživateli. Poskytovatel se výslovně zbavuje veškeré
+     odpovědnosti v této věci.
+
+
+7. UKONČENÍ LICENCE
+
+7.1  Licence pozbývá platnosti:
+     a) okamžitě v případě porušení kterékoli povinnosti
+        uvedené v těchto podmínkách;
+     b) odinstalováním Softwaru ze zařízení Uživatele;
+     c) jednostranným rozhodnutím Poskytovatele bez
+        uvedení důvodu.
+
+7.2  Po ukončení licence je Uživatel povinen Software
+     bezodkladně odstranit ze všech svých zařízení.
+
+
+8. ROZHODNÉ PRÁVO A PŘÍSLUŠNOST
+
+8.1  Tyto podmínky se řídí právním řádem České republiky
+     s vyloučením kolizních norem.
+
+8.2  Veškeré spory vzniklé z těchto podmínek nebo v
+     souvislosti s nimi budou řešeny výhradně věcně a
+     místně příslušnými soudy České republiky.
+
+8.3  V případě, že některé ustanovení těchto podmínek
+     bude shledáno neplatným nebo nevymahatelným, ostatní
+     ustanovení zůstávají v plné platnosti a účinnosti.
+
+
+9. ZMĚNY PODMÍNEK
+
+Poskytovatel si vyhrazuje právo tyto podmínky kdykoli
+jednostranně změnit. Pokračování v používání Softwaru
+po zveřejnění změn znamená souhlas s novým zněním
+podmínek.
+
+
+10. OPEN-SOURCE KOMPONENTY
+
+Software využívá následující open-source komponenty.
+Jejich licenční podmínky se vztahují pouze na tyto
+komponenty, nikoli na Software jako celek:
+
+  - Faster-Whisper (MIT)
+  - FFmpeg (LGPL/GPL)
+  - PySide6 / Qt (LGPL)
+  - python-docx (MIT)
+  - pdfplumber (MIT)
+  - python-pptx (MIT)
+  - Google GenAI SDK (Apache 2.0)
+  - Ollama HTTP client / httpx (BSD)
+
+
+================================================================
+
+KLIKNUTÍM NA „SOUHLASÍM" V INSTALAČNÍM PRŮVODCI
+POTVRZUJETE, ŽE JSTE TYTO PODMÍNKY V CELÉM ROZSAHU
+PŘEČETLI, POROZUMĚLI JIM A SOUHLASÍTE S NIMI.
+
+================================================================

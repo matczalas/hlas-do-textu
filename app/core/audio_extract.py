@@ -6,6 +6,7 @@ Vzor: /Users/macbook/.claude/skills/video-use/helpers/transcribe.py:39-45
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 from loguru import logger
@@ -15,6 +16,19 @@ from app.config import ffmpeg_path
 
 class AudioExtractError(RuntimeError):
     """FFmpeg selhal nebo vstupní soubor nelze přečíst."""
+
+
+def _subprocess_kwargs() -> dict:
+    """Společné kwargs — na Windows skrýt black flash okno cmd.exe.
+
+    FFmpeg / ffprobe jsou console aplikace. Bez CREATE_NO_WINDOW by každý jejich
+    běh blikl černým oknem (rušivé když pipeline volá ffmpeg pro každý audio soubor).
+    """
+    kwargs: dict = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace"}
+    if sys.platform == "win32":
+        # 0x08000000 = CREATE_NO_WINDOW — process nemá konzoli
+        kwargs["creationflags"] = 0x08000000
+    return kwargs
 
 
 def extract_to_wav(src: Path, dest: Path) -> Path:
@@ -41,7 +55,7 @@ def extract_to_wav(src: Path, dest: Path) -> Path:
     ]
     logger.debug("FFmpeg: {}", " ".join(cmd))
 
-    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    result = subprocess.run(cmd, **_subprocess_kwargs())
     if result.returncode != 0:
         logger.error("FFmpeg selhal pro {}: {}", src, result.stderr.strip()[-500:])
         raise AudioExtractError(f"FFmpeg selhal pro {src.name}: {result.stderr.strip()[-200:]}")
@@ -67,7 +81,7 @@ def probe_duration_seconds(src: Path) -> float | None:
         str(src),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
+        result = subprocess.run(cmd, timeout=15, **_subprocess_kwargs())
         if result.returncode != 0:
             return None
         value = result.stdout.strip()
