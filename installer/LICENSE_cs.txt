@@ -43,6 +43,20 @@ jsou poskytovatelem výslovně vyhrazena.
      a AUTOMATICKÉ ukončení licence bez nároku na vrácení
      jakýchkoli plateb nebo náhrad.
 
+2.4  **OMEZENÍ POČTU ZAŘÍZENÍ.** Jeden aktivační klíč opravňuje
+     Uživatele k instalaci a používání Softwaru NA NEJVÝŠE
+     DVOU (2) ZAŘÍZENÍCH současně. Aplikace eviduje použití
+     klíče na každém zařízení samostatně. Použití klíče na
+     třetím nebo dalším zařízení (například poskytnutí klíče
+     třetí osobě, sdílení mezi více uživateli) PORUŠUJE
+     licenci a Poskytovatel je oprávněn klíč odvolat bez
+     předchozího upozornění a bez nároku na vrácení plateb.
+
+2.5  Při výměně zařízení (např. nákup nového PC) je Uživatel
+     oprávněn klíč přenést, je však povinen Software ze
+     starého zařízení odinstalovat. Sdílení klíče mezi více
+     osobami současně je porušením licence.
+
 
 3. VYLOUČENÍ ZÁRUK
 

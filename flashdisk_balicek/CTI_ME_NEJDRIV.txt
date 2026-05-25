@@ -5,10 +5,24 @@
 ============================================================
 
 
+AKTIVACNI KLIC
+==============
+
+Pri prvnim spusteni aplikace te se zepta na aktivacni klic.
+Vloz tento:
+
+       S4F1-XX4R-XYX6-TJ3K-K5WY
+
+(20 znaku + 4 pomlcky = 24 znaku celkem)
+
+Klic je urcen jen pro tebe — nesdylej ho prosim dal.
+
+
+
 INSTALACE
 =========
 
-1. Dvojklik na  HlasDoTextu-Setup-0.1.0.exe
+1. Dvojklik na HlasDoTextu-Setup-0.1.0.exe
 
 2. Pokud naskoci "Windows protected your PC":
        -> More info
@@ -23,15 +37,16 @@ INSTALACE
 PRVNI SPUSTENI
 ==============
 
-1. Otevre se uvitaci okno.
+1. Otevre se "Aktivace aplikace" -> vloz klic z teto cardy
 
-2. Klikni MODRE tlacitko  "Ziskat klic"
+2. Pak "Ahoj" uvitaci okno:
+   Klikni MODRE tlacitko "Ziskat klic"
        -> v prohlizeci se otevre Google AI Studio
        -> prihlas se Google uctem
        -> "Create API key"
        -> zkopiruj klic (zacina "AIza...")
 
-3. Vrat se do aplikace -> vloz klic -> zaskrtni souhlas -> "Zacit"
+3. Vrat se do aplikace -> vloz Gemini klic -> zaskrtni souhlas -> "Zacit"
 
 4. Aplikace nabidne stazeni modelu pro prepis (~770 MB) — klikni Ano,
    stahne se jen jednou (~5 min).
@@ -45,8 +60,8 @@ JAK POUZIVAT
 2. Volitelne pridej slidy (PDF nebo PPTX)
 3. Klikni jedno ze dvou tlacitek vpravo dole:
 
-   ZELENE  "Prepis"           = jen prepis do Wordu, rychlejsi, offline
-   MODRE   "Prepis + AI body" = plne body pro uceni, potreba internet
+   "Prepis"           = jen prepis do Wordu, rychlejsi, offline
+   "Prepis + AI body" = plne body pro uceni, potreba internet
 
 4. Pockej. Hodina prednasky = 60–90 minut zpracovani.
    Muzes mezitim delat jine veci — aplikace ti posle notifikaci.
@@ -59,6 +74,18 @@ VYSTUP
 Vsechny Word dokumenty se ukladaji do:
 
     Dokumenty\HlasDoTextu\
+
+
+
+AKTUALIZACE
+===========
+
+Aplikace si sama hlida nove verze.
+Kdyz vyjde update, uvidis modrou pasku nahore:
+
+    "Nova verze 0.2.0 je k dispozici  [Aktualizovat]"
+
+Klikni a pockej. Pak "Restartovat a aktualizovat".
 
 
 

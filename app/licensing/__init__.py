@@ -15,6 +15,7 @@ from app.licensing.keys import (
 )
 from app.licensing.store import (
     clear_stored_key,
+    get_activation_info,
     get_stored_key,
     is_activated,
     store_key,
@@ -28,4 +29,5 @@ __all__ = [
     "store_key",
     "get_stored_key",
     "clear_stored_key",
+    "get_activation_info",
 ]

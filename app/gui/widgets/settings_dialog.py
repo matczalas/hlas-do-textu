@@ -131,6 +131,35 @@ class SettingsDialog(QDialog):
 
         root.addWidget(_divider())
 
+        # ----- Aktivace info -----
+        from app.licensing import get_activation_info
+        info = get_activation_info()
+        if info:
+            root.addWidget(_field_label("Aktivace"))
+            activated = info.get("activated_at", "?")
+            if activated and "T" in activated:
+                # ISO timestamp → lidsky čitelný formát
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(activated)
+                    activated = dt.strftime("%d. %m. %Y v %H:%M")
+                except (ValueError, TypeError):
+                    pass
+            machine = info.get("machine_display", "?")
+            fingerprint = info.get("machine_fingerprint", "")[:8]
+            activation_label = QLabel(
+                f"Aktivováno {activated}<br>"
+                f"<span style='color: palette(mid); font-size: 11px;'>"
+                f"Zařízení: {machine} (ID: {fingerprint})</span>"
+            )
+            activation_label.setTextFormat(Qt.TextFormat.RichText)
+            activation_label.setStyleSheet(
+                "padding: 8px 12px; background: palette(alternate-base); "
+                "border-radius: 6px; font-size: 12.5px; color: palette(text);"
+            )
+            root.addWidget(activation_label)
+            root.addWidget(_divider())
+
         # ----- Output -----
         root.addWidget(_field_label("Výstupní složka"))
         out_row = QHBoxLayout()
