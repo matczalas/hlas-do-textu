@@ -135,30 +135,32 @@ class MainWindow(QMainWindow):
         action_row = QHBoxLayout()
         action_row.setSpacing(12)
 
-        self._run_transcribe_btn = QPushButton("📝 Jen přepis")
-        self._run_transcribe_btn.setMinimumHeight(48)
+        self._run_transcribe_btn = QPushButton("📝  Jen přepis")
+        self._run_transcribe_btn.setMinimumHeight(52)
+        self._run_transcribe_btn.setMinimumWidth(200)
         self._run_transcribe_btn.setToolTip(
             "Rychlejší. Vytvoří Word dokument s plným přepisem mluveného slova "
             "(bez AI bodů). Funguje i bez internetu."
         )
         self._run_transcribe_btn.setStyleSheet(
-            "QPushButton { background-color: #e8e8e8; border: 1px solid #aaa; "
-            "border-radius: 6px; padding: 10px 16px; font-size: 14px; }"
-            "QPushButton:hover { background-color: #d8d8d8; }"
-            "QPushButton:disabled { color: #aaa; background-color: #f5f5f5; }"
+            "QPushButton { background-color: #3a8a3a; color: white; border: none; "
+            "border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; }"
+            "QPushButton:hover { background-color: #2d6e2d; }"
+            "QPushButton:disabled { color: rgba(255,255,255,120); background-color: #5a7a5a; }"
         )
 
-        self._run_full_btn = QPushButton("🤖 Přepis + body z AI")
-        self._run_full_btn.setMinimumHeight(48)
+        self._run_full_btn = QPushButton("🤖  Přepis + body z AI")
+        self._run_full_btn.setMinimumHeight(52)
+        self._run_full_btn.setMinimumWidth(200)
         self._run_full_btn.setToolTip(
             "Vytvoří plný studijní materiál: hlavní body, klíčové pojmy, příklady "
             "a doporučení k dalšímu studiu. Potřebuje Gemini klíč nebo Ollama."
         )
         self._run_full_btn.setStyleSheet(
             "QPushButton { background-color: #205ca8; color: white; border: none; "
-            "border-radius: 6px; padding: 10px 16px; font-size: 14px; font-weight: 600; }"
+            "border-radius: 6px; padding: 10px 18px; font-size: 14px; font-weight: 600; }"
             "QPushButton:hover { background-color: #1a4d8f; }"
-            "QPushButton:disabled { color: #ddd; background-color: #8a9fb8; }"
+            "QPushButton:disabled { color: rgba(255,255,255,120); background-color: #5a7595; }"
         )
 
         action_row.addStretch(1)

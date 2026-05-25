@@ -20,10 +20,12 @@ from app.config import AUDIO_VIDEO_EXTENSIONS, PRESENTATION_EXTENSIONS
 from app.core.models import SourceFile, SourceKind
 
 _DROP_ZONE_STYLE_IDLE = (
-    "QFrame { border: 2px dashed #888; border-radius: 8px; background-color: #fafafa; }"
+    "FileDropZone { border: 2px dashed palette(mid); border-radius: 8px; "
+    "background-color: palette(alternate-base); }"
 )
 _DROP_ZONE_STYLE_ACTIVE = (
-    "QFrame { border: 2px solid #205ca8; border-radius: 8px; background-color: #e6efff; }"
+    "FileDropZone { border: 2px solid #205ca8; border-radius: 8px; "
+    "background-color: rgba(32, 92, 168, 40); }"
 )
 
 
@@ -46,14 +48,25 @@ class FileDropZone(QFrame):
 
         label = QLabel("Sem přetáhni nahrávky nebo prezentace — nebo použij tlačítka.")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("border: none; color: #555;")
+        label.setStyleSheet("border: none; color: palette(text); font-size: 13px;")
         layout.addWidget(label)
 
         button_row = QHBoxLayout()
-        button_row.setSpacing(8)
-        btn_audio = QPushButton("+ Přidat nahrávku")
+        button_row.setSpacing(12)
+        button_style = (
+            "QPushButton { background-color: palette(button); color: palette(button-text); "
+            "border: 1px solid palette(mid); border-radius: 4px; padding: 8px 16px; "
+            "font-size: 13px; font-weight: 500; }"
+            "QPushButton:hover { background-color: palette(midlight); }"
+            "QPushButton:pressed { background-color: palette(mid); }"
+        )
+        btn_audio = QPushButton("🎙  Přidat nahrávku")
+        btn_audio.setStyleSheet(button_style)
+        btn_audio.setMinimumHeight(36)
         btn_audio.clicked.connect(self._pick_audio)
-        btn_slides = QPushButton("+ Přidat slidy")
+        btn_slides = QPushButton("📄  Přidat slidy")
+        btn_slides.setStyleSheet(button_style)
+        btn_slides.setMinimumHeight(36)
         btn_slides.clicked.connect(self._pick_slides)
         button_row.addStretch(1)
         button_row.addWidget(btn_audio)

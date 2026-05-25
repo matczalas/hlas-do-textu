@@ -60,14 +60,18 @@ class FirstRunDialog(QDialog):
 
         self._api_edit = QLineEdit()
         self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_edit.setPlaceholderText("AIza… (klíč začíná na AIza, končí ~40 znaků)")
+        self._api_edit.setPlaceholderText("Vlož klíč z Google AI Studio (cca 40 znaků)")
         layout.addWidget(self._api_edit)
 
         self._consent_cb = QCheckBox(
             "Souhlasím s odesíláním textu přepisu do Google Gemini API.\n"
             "Free tier používá data k tréninku modelů."
         )
-        self._consent_cb.setStyleSheet("padding: 8px; background-color: #fff8d8; border-radius: 4px;")
+        self._consent_cb.setStyleSheet(
+            "QCheckBox { padding: 10px; background-color: #fff8d8; color: #333; "
+            "border: 1px solid #d4c97a; border-radius: 4px; font-weight: 500; }"
+            "QCheckBox::indicator { width: 18px; height: 18px; }"
+        )
         layout.addWidget(self._consent_cb)
 
         offline_note = QLabel(

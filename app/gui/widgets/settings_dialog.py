@@ -85,7 +85,11 @@ class SettingsDialog(QDialog):
             "Free tier Gemini používá texty k tréninku modelů (viz ai.google.dev/gemini-api/terms)."
         )
         self._consent_cb.setChecked(settings.ai_consent_gemini)
-        self._consent_cb.setStyleSheet("padding: 8px; background-color: #fff8d8; border-radius: 4px;")
+        self._consent_cb.setStyleSheet(
+            "QCheckBox { padding: 10px; background-color: #fff8d8; color: #333; "
+            "border: 1px solid #d4c97a; border-radius: 4px; font-weight: 500; }"
+            "QCheckBox::indicator { width: 18px; height: 18px; }"
+        )
         self._consent_cb.setWordWrap(True) if hasattr(self._consent_cb, "setWordWrap") else None
         layout.addWidget(self._consent_cb)
 
