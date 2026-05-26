@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from app import __version__
+from app.config import AUDIO_VIDEO_EXTENSIONS, PRESENTATION_EXTENSIONS
 from app.core.audio_extract import probe_duration_seconds
 from app.core.model_downloader import model_is_cached
 from app.core.models import JobConfig, JobMode, SourceFile, SourceKind, TranscribeBackend
@@ -78,6 +79,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Hlas do textu — Safe4Future")
         self.resize(1080, 800)
         self.setMinimumSize(960, 720)
+        # Drop zóna je explicitní v UI, ale uživatelé instinktivně přetahují
+        # soubor kamkoliv. Akceptujeme drop i mimo zóny — pak je předáme
+        # standardní cestou přes _on_sources_added.
+        self.setAcceptDrops(True)
 
         self._settings: AppSettings = load_settings()
         self._pipeline_worker = PipelineWorker(self)
@@ -293,6 +298,26 @@ class MainWindow(QMainWindow):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("&Soubor")
 
+        open_action = QAction("Otevřít soubor…", self)
+        open_action.setShortcut(QKeySequence.StandardKey.Open)
+        open_action.setStatusTip("Vybrat audio / video / prezentaci na disku")
+        open_action.triggered.connect(self._open_file_dialog)
+        file_menu.addAction(open_action)
+
+        url_action = QAction("Přepis z YouTube / URL…", self)
+        url_action.setShortcut(QKeySequence("Ctrl+U"))
+        url_action.setStatusTip("Stáhnout audio z YouTube, Vimeo, podcastu…")
+        url_action.triggered.connect(self._open_youtube_dialog)
+        file_menu.addAction(url_action)
+
+        file_menu.addSeparator()
+
+        # Recent výstupy — submenu, naplní se v _refresh_recent_menu
+        self._recent_menu = file_menu.addMenu("Naposledy vyrobené")
+        self._refresh_recent_menu()
+
+        file_menu.addSeparator()
+
         regen_action = QAction("Vytvořit body z existujícího přepisu…", self)
         regen_action.setStatusTip(
             "Použij dříve uložený .txt přepis a vygeneruj nový .docx s body"
@@ -311,6 +336,19 @@ class MainWindow(QMainWindow):
         open_settings.setShortcut(QKeySequence.StandardKey.Preferences)
         open_settings.triggered.connect(self._open_settings)
         settings_menu.addAction(open_settings)
+
+        # Run / cancel zkratky — bez menu, jen klávesy
+        run_full_sc = QAction(self)
+        run_full_sc.setShortcut(QKeySequence("Ctrl+R"))
+        run_full_sc.triggered.connect(lambda: self._run_pipeline(JobMode.FULL))
+        self.addAction(run_full_sc)
+
+        run_transcribe_sc = QAction(self)
+        run_transcribe_sc.setShortcut(QKeySequence("Ctrl+Shift+R"))
+        run_transcribe_sc.triggered.connect(
+            lambda: self._run_pipeline(JobMode.TRANSCRIBE_ONLY)
+        )
+        self.addAction(run_transcribe_sc)
 
         help_menu = menubar.addMenu("&Nápověda")
         about = QAction("O aplikaci", self)
@@ -421,6 +459,168 @@ class MainWindow(QMainWindow):
             return
         self._table.add_sources(sources)
         self._output_value.setText(self._settings.output_dir)
+
+    # ------ Otevřít soubor (klávesovka Cmd+O / Ctrl+O) ------
+
+    def _open_file_dialog(self) -> None:
+        from PySide6.QtWidgets import QFileDialog
+
+        supported = AUDIO_VIDEO_EXTENSIONS + PRESENTATION_EXTENSIONS
+        filter_str = "Podporované soubory (" + " ".join(f"*{e}" for e in supported) + ")"
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Vyber audio nebo prezentaci",
+            self._settings.last_used_sources_dir,
+            filter_str,
+        )
+        if not files:
+            return
+
+        new_sources: list[SourceFile] = []
+        for f in files:
+            path = Path(f)
+            suffix = path.suffix.lower()
+            if suffix in AUDIO_VIDEO_EXTENSIONS:
+                kind = SourceKind.AUDIO_VIDEO
+            elif suffix in PRESENTATION_EXTENSIONS:
+                kind = SourceKind.PRESENTATION
+            else:
+                continue
+            new_sources.append(SourceFile(path=path, kind=kind, label=path.stem))
+
+        if new_sources:
+            self._settings.last_used_sources_dir = str(new_sources[0].path.parent)
+            save_settings(self._settings)
+            self._on_sources_added(new_sources)
+
+    # ------ Recent výstupy (File menu → Naposledy vyrobené) ------
+
+    def _refresh_recent_menu(self) -> None:
+        if not hasattr(self, "_recent_menu") or self._recent_menu is None:
+            return
+        self._recent_menu.clear()
+        recents = [Path(p) for p in (self._settings.recent_outputs or [])]
+        # Filtrujem ty, co fyzicky existují
+        recents = [p for p in recents if p.is_file()]
+        if not recents:
+            placeholder = self._recent_menu.addAction("(Žádné soubory zatím)")
+            placeholder.setEnabled(False)
+            return
+        for path in recents[:10]:
+            act = QAction(path.name, self)
+            act.setStatusTip(str(path))
+            act.triggered.connect(lambda _checked=False, p=path: self._open_file(p))
+            self._recent_menu.addAction(act)
+        self._recent_menu.addSeparator()
+        clear = QAction("Vyčistit seznam", self)
+        clear.triggered.connect(self._clear_recent_outputs)
+        self._recent_menu.addAction(clear)
+
+    def _add_to_recents(self, path: Path) -> None:
+        path_str = str(path)
+        recents = [p for p in (self._settings.recent_outputs or []) if p != path_str]
+        recents.insert(0, path_str)
+        self._settings.recent_outputs = recents[:10]
+        save_settings(self._settings)
+        self._refresh_recent_menu()
+
+    def _clear_recent_outputs(self) -> None:
+        self._settings.recent_outputs = []
+        save_settings(self._settings)
+        self._refresh_recent_menu()
+
+    # ------ YouTube / URL stahování ------
+
+    def _open_youtube_dialog(self) -> None:
+        from app.gui.widgets.youtube_dialog import YouTubeUrlDialog
+        from app.gui.workers.youtube_worker import YouTubeFetchWorker
+
+        if getattr(self, "_youtube_worker", None) is not None and self._youtube_worker.is_running():
+            QMessageBox.information(
+                self, "Stahování běží",
+                "Předchozí URL se ještě stahuje. Počkej, prosím."
+            )
+            return
+
+        dlg = YouTubeUrlDialog(self)
+        # Worker je členem MainWindow, aby ho nesmel GC sebrat během stahování.
+        if not hasattr(self, "_youtube_worker") or self._youtube_worker is None:
+            self._youtube_worker = YouTubeFetchWorker(self)
+
+        def _on_progress(fraction: float, status: str) -> None:
+            dlg.set_progress(fraction, status)
+
+        def _on_ok(source) -> None:
+            dlg.set_status(f"Hotovo: {source.label}. Zavírám dialog…")
+            QTimer.singleShot(400, dlg.accept)
+            self._on_sources_added([source])
+
+        def _on_error(message: str) -> None:
+            dlg.set_status(f"Chyba: {message}")
+            QMessageBox.warning(self, "Stahování selhalo", message)
+
+        # Odpojit staré handlery pro případ, že user otevírá dialog opakovaně
+        try:
+            self._youtube_worker.progress.disconnect()
+            self._youtube_worker.finished_ok.disconnect()
+            self._youtube_worker.finished_error.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        self._youtube_worker.progress.connect(_on_progress)
+        self._youtube_worker.finished_ok.connect(_on_ok)
+        self._youtube_worker.finished_error.connect(_on_error)
+
+        original_accept = dlg.accept
+
+        def _start_download() -> None:
+            url = dlg.url()
+            if not url:
+                return
+            dlg.lock_for_download()
+            self._youtube_worker.start(url)
+
+        dlg.accept = _start_download  # type: ignore[method-assign]
+        dlg.exec()
+        # Po zavření obnovíme původní accept (kvůli idempotenci)
+        dlg.accept = original_accept  # type: ignore[method-assign]
+
+    # ------ Drag & drop kdekoli v okně ------
+
+    def dragEnterEvent(self, event) -> None:  # type: ignore[override]
+        mime = event.mimeData()
+        if not mime.hasUrls():
+            event.ignore()
+            return
+        # Akceptujeme jen pokud aspoň jeden soubor má podporovanou příponu
+        supported = AUDIO_VIDEO_EXTENSIONS + PRESENTATION_EXTENSIONS
+        for url in mime.urls():
+            if url.isLocalFile() and Path(url.toLocalFile()).suffix.lower() in supported:
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dropEvent(self, event) -> None:  # type: ignore[override]
+        mime = event.mimeData()
+        if not mime.hasUrls():
+            return
+
+        new_sources: list[SourceFile] = []
+        for url in mime.urls():
+            if not url.isLocalFile():
+                continue
+            path = Path(url.toLocalFile())
+            suffix = path.suffix.lower()
+            if suffix in AUDIO_VIDEO_EXTENSIONS:
+                kind = SourceKind.AUDIO_VIDEO
+            elif suffix in PRESENTATION_EXTENSIONS:
+                kind = SourceKind.PRESENTATION
+            else:
+                continue
+            new_sources.append(SourceFile(path=path, kind=kind, label=path.stem))
+
+        if new_sources:
+            event.acceptProposedAction()
+            self._on_sources_added(new_sources)
 
     def _refresh_run_button(self) -> None:
         sources = self._table.sources()
@@ -568,6 +768,7 @@ class MainWindow(QMainWindow):
         self._progress.set_busy(False)
         self._refresh_run_button()
         self._progress.append_message(f"✅ Hotovo. Výstup: {result.output_path}")
+        self._add_to_recents(result.output_path)
 
         summary = self._format_result_summary(result)
         self._notify(
