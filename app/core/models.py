@@ -21,6 +21,13 @@ class JobMode(StrEnum):
     FULL = "full"                        # přepis + AI body + pojmy + příklady
 
 
+class TranscribeBackend(StrEnum):
+    """Kdo dělá vlastní speech-to-text."""
+
+    LOCAL_WHISPER = "local_whisper"  # faster-whisper na CPU, offline
+    CLOUD_GEMINI = "cloud_gemini"    # Gemini Audio API, vyžaduje internet a souhlas
+
+
 @dataclass(slots=True)
 class SourceFile:
     """Jeden importovaný soubor (audio/video nebo prezentace)."""
@@ -82,3 +89,4 @@ class JobConfig:
     prefer_offline: bool = False     # použít rovnou Ollama, přeskočit Gemini
     create_md_export: bool = False   # vytvořit .md prompt pro AI agenta
     user_ai_service: str = "none"    # ChatGPT/Claude/Gemini → custom instrukce v .md
+    transcribe_backend: TranscribeBackend = TranscribeBackend.LOCAL_WHISPER  # kdo přepisuje audio

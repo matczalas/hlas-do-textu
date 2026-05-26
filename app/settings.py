@@ -44,6 +44,10 @@ class AppSettings:
     # Kterou AI student používá — určuje custom instrukce v .md exportu
     # "none" | "chatgpt" | "claude" | "gemini" | "other"
     user_ai_service: str = "none"
+    # Backend pro speech-to-text:
+    # "local_whisper" = faster-whisper na CPU (default, offline)
+    # "cloud_gemini"  = Gemini Audio API (rychlejší, vyžaduje internet a souhlas)
+    transcribe_backend: str = "local_whisper"
 
 
 def load_settings() -> AppSettings:

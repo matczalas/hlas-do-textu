@@ -27,12 +27,17 @@ from app.core.models import (
     SlideText,
     SourceKind,
     StudyMaterial,
+    TranscribeBackend,
     Transcript,
     TranscriptSegment,
 )
 from app.core.pdf_extract import extract_pdf_text
 from app.core.pptx_extract import extract_pptx_text
 from app.core.transcribe import TranscribeCancelled, transcribe_audio
+from app.core.transcribe_gemini import (
+    TranscribeGeminiCancelled,
+    transcribe_audio_via_gemini,
+)
 from app.core.word_export import export_docx, suggested_output_filename
 
 
@@ -113,29 +118,48 @@ def run_pipeline(
         if transcribe_only and not audio_sources:
             raise PipelineError("Režim 'Jen přepis' potřebuje aspoň jednu nahrávku")
 
-        # Stage: Extrakce audia
+        use_gemini = (
+            job.transcribe_backend == TranscribeBackend.CLOUD_GEMINI
+            and bool(gemini_api_key)
+        )
+        if job.transcribe_backend == TranscribeBackend.CLOUD_GEMINI and not gemini_api_key:
+            logger.warning(
+                "Cloud Gemini backend zvolen, ale chybí API klíč — padáme zpět na lokální Whisper"
+            )
+
+        # Stage: Příprava audia
+        # - Lokální Whisper: extrakce do 16 kHz mono WAV přes ffmpeg
+        # - Cloud Gemini: stačí původní soubor (Gemini umí mp3/m4a/wav přímo),
+        #   přesto si zjistíme délku pro progress a estimáty
         extract_stage = stages[1]
         cumulative = _begin_stage(report, extract_stage, cumulative)
-        wav_paths: list[tuple[Path, str, float]] = []  # (wav, label, duration_sec)
+        audio_jobs: list[tuple[Path, str, float]] = []  # (path, label, duration_sec)
         for i, src in enumerate(audio_sources):
             _raise_if_cancelled(cancel_event)
             sub_fraction = (i + 1) / max(len(audio_sources), 1)
-            report(
-                f"Extrahuji audio: {src.label}",
-                cumulative - extract_stage.weight + extract_stage.weight * sub_fraction,
-            )
-            wav = work_dir / f"audio_{i:02d}.wav"
-            extract_to_wav(src.path, wav)
             duration = probe_duration_seconds(src.path) or 0.0
-            wav_paths.append((wav, src.label, duration))
+            if use_gemini:
+                report(
+                    f"Připravuji: {src.label}",
+                    cumulative - extract_stage.weight + extract_stage.weight * sub_fraction,
+                )
+                audio_jobs.append((src.path, src.label, duration))
+            else:
+                report(
+                    f"Extrahuji audio: {src.label}",
+                    cumulative - extract_stage.weight + extract_stage.weight * sub_fraction,
+                )
+                wav = work_dir / f"audio_{i:02d}.wav"
+                extract_to_wav(src.path, wav)
+                audio_jobs.append((wav, src.label, duration))
 
         # Stage: Transkripce
         transcribe_stage = stages[2]
         cumulative = _begin_stage(report, transcribe_stage, cumulative)
         transcripts: list[Transcript] = []
-        total_duration = sum(d for _, _, d in wav_paths) or 1.0
+        total_duration = sum(d for _, _, d in audio_jobs) or 1.0
         accumulated_duration = 0.0
-        for wav, label, duration in wav_paths:
+        for audio_path, label, duration in audio_jobs:
             _raise_if_cancelled(cancel_event)
             stage_base = cumulative - transcribe_stage.weight
             file_weight = (duration or 1.0) / total_duration
@@ -159,19 +183,24 @@ def run_pipeline(
                     except Exception as cb_exc:  # noqa: BLE001
                         logger.warning("transcript_text_cb selhal: {}", cb_exc)
 
-            try:
-                tr = transcribe_audio(
-                    wav,
-                    source_label=label,
-                    model_size=job.whisper_model,
-                    language=job.language,
-                    progress_cb=inner_cb,
-                    text_cb=inner_text_cb,
-                    cancel_event=cancel_event,
-                )
-            except TranscribeCancelled:
-                raise
+            tr = _run_transcribe(
+                audio_path=audio_path,
+                label=label,
+                job=job,
+                use_gemini=use_gemini,
+                gemini_api_key=gemini_api_key,
+                progress_cb=inner_cb,
+                text_cb=inner_text_cb,
+                cancel_event=cancel_event,
+            )
             transcripts.append(tr)
+            # Po cloud přepisu rozsekáme segmenty na text_cb, ať se v UI něco zjeví
+            if use_gemini and transcript_text_cb is not None and tr.segments:
+                for seg in tr.segments:
+                    try:
+                        transcript_text_cb(seg.start, label, seg.text)
+                    except Exception as cb_exc:  # noqa: BLE001
+                        logger.warning("transcript_text_cb selhal: {}", cb_exc)
             accumulated_duration += duration
 
         # Auto-save raw přepisu (vždy — i v TRANSCRIBE_ONLY je užitečný)
@@ -262,6 +291,70 @@ def _make_transcribe_only_title(transcripts: list[Transcript]) -> str:
     if len(transcripts) == 1:
         return f"Přepis: {transcripts[0].source_label}"
     return f"Přepis z {len(transcripts)} nahrávek"
+
+
+def _run_transcribe(
+    *,
+    audio_path: Path,
+    label: str,
+    job: JobConfig,
+    use_gemini: bool,
+    gemini_api_key: str | None,
+    progress_cb: Callable[[float], None],
+    text_cb: Callable[[float, str], None],
+    cancel_event: threading.Event | None,
+) -> Transcript:
+    """Přepis jednoho souboru. Cloud Gemini s fallback na lokální Whisper.
+
+    Když Gemini selže kvůli síti, kvótě nebo authu, **automaticky** spadneme
+    na lokální Whisper — uživatel místo erroru dostane výsledek (pomalejší,
+    ale jistý). Auth chyby logujeme jako varování — uživatel může chtít opravit
+    klíč v nastavení, ale tady ho nezahalíme do error dialogu.
+    """
+    if use_gemini and gemini_api_key:
+        try:
+            return transcribe_audio_via_gemini(
+                audio_path,
+                source_label=label,
+                api_key=gemini_api_key,
+                language=job.language,
+                progress_cb=progress_cb,
+                cancel_event=cancel_event,
+            )
+        except TranscribeGeminiCancelled:
+            # Cancel je explicitní volba uživatele, ne fallback
+            raise TranscribeCancelled(f"Cloud přepis zrušen ({label})") from None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Cloud Gemini přepis selhal ({}: {}) — zkouším lokální Whisper",
+                type(exc).__name__,
+                exc,
+            )
+            # Pokračujeme dolů — fallback na lokální
+            # Lokální Whisper potřebuje 16 kHz mono WAV; pokud `audio_path`
+            # je originál (mp3 atd.), musíme extrahovat teď.
+            if audio_path.suffix.lower() != ".wav":
+                wav_fallback = audio_path.parent / f"{audio_path.stem}_fallback.wav"
+                try:
+                    extract_to_wav(audio_path, wav_fallback)
+                    audio_path = wav_fallback
+                except Exception as wav_exc:  # noqa: BLE001
+                    raise PipelineError(
+                        f"Cloud přepis selhal a převod na WAV pro lokální Whisper také: {wav_exc}"
+                    ) from wav_exc
+
+    try:
+        return transcribe_audio(
+            audio_path,
+            source_label=label,
+            model_size=job.whisper_model,
+            language=job.language,
+            progress_cb=progress_cb,
+            text_cb=text_cb,
+            cancel_event=cancel_event,
+        )
+    except TranscribeCancelled:
+        raise
 
 
 def _build_router(job: JobConfig, gemini_api_key: str | None) -> AIRouter:
@@ -362,16 +455,23 @@ def estimate_total_processing_seconds(
     whisper_model: str = "medium",
     has_ai: bool = True,
     transcribe_only: bool = False,
+    transcribe_backend: str = "local_whisper",
 ) -> tuple[float, float]:
     """Odhad celkového času pipeline. Vrací (low, high) v sekundách.
 
     Použito pro pre-start dialog typu "počítej s 60-90 min".
     """
     from app.core.transcribe import estimate_transcribe_seconds
+    from app.core.transcribe_gemini import estimate_gemini_transcribe_seconds
 
     total_audio = sum(source_durations_sec)
-    transcribe_low = estimate_transcribe_seconds(total_audio, whisper_model) * 0.7
-    transcribe_high = estimate_transcribe_seconds(total_audio, whisper_model) * 1.3
+    if transcribe_backend == "cloud_gemini":
+        base = estimate_gemini_transcribe_seconds(total_audio)
+        transcribe_low = base * 0.7
+        transcribe_high = base * 2.0  # cloud má vyšší varianci (síť, kvóty)
+    else:
+        transcribe_low = estimate_transcribe_seconds(total_audio, whisper_model) * 0.7
+        transcribe_high = estimate_transcribe_seconds(total_audio, whisper_model) * 1.3
 
     if transcribe_only:
         ai_seconds = 0.0
