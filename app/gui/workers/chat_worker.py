@@ -43,6 +43,11 @@ class ChatWorker(QObject):
         if self._thread is not None and self._thread.isRunning():
             raise RuntimeError("Chat už zpracovává předchozí zprávu")
 
+        # Před přepsáním self._thread počkáme na předchozí thread (i když už
+        # quit() byl emitnutý), jinak by mohl být GC'd před doběhem.
+        if self._thread is not None:
+            self._thread.wait(1000)
+
         self._thread = QThread()
         self._runner = _ChatRunner(session, message)
         self._runner.moveToThread(self._thread)
@@ -55,5 +60,13 @@ class ChatWorker(QObject):
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.isRunning()
+
+    def stop_and_wait(self, timeout_ms: int = 3000) -> None:
+        """Zavolat před destrukcí parent dialogu, ať vlákno doběhne čistě."""
+        if self._thread is None:
+            return
+        if self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait(timeout_ms)
 
 

@@ -70,9 +70,24 @@ class YouTubeUrlDialog(QDialog):
         self._ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn = self._buttons.button(QDialogButtonBox.StandardButton.Cancel)
         cancel_btn.setText("Zavřít")
-        self._buttons.accepted.connect(self.accept)
+        # `accepted` signál není napojen na self.accept — místo toho čeká na
+        # external handler nastavený přes `set_download_handler`. Tím se
+        # vyhneme monkey-patchingu `dlg.accept` v hlavním okně.
         self._buttons.rejected.connect(self.reject)
         root.addWidget(self._buttons)
+
+    def set_download_handler(self, handler) -> None:
+        """Připojí callback, který se zavolá po kliku na 'Stáhnout'.
+
+        Handler dostává řízení a sám rozhoduje, kdy zavolat `self.accept()`
+        (typicky až worker doběhne).
+        """
+        # `accepted` signál může být connectovaný opakovaně — bezpečně disconnectneme
+        try:
+            self._buttons.accepted.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        self._buttons.accepted.connect(handler)
 
     def url(self) -> str:
         return self._url_edit.text().strip()

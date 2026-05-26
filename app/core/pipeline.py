@@ -119,14 +119,26 @@ def run_pipeline(
         if transcribe_only and not audio_sources:
             raise PipelineError("Režim 'Jen přepis' potřebuje aspoň jednu nahrávku")
 
+        # Striktnější kontrola klíče: whitespace " " by jinak prošel `bool()`
+        # a cloud volání by selhalo až na transcribe_gemini straně.
+        clean_key = (gemini_api_key or "").strip()
         use_gemini = (
             job.transcribe_backend == TranscribeBackend.CLOUD_GEMINI
-            and bool(gemini_api_key)
+            and bool(clean_key)
         )
-        if job.transcribe_backend == TranscribeBackend.CLOUD_GEMINI and not gemini_api_key:
+        if job.transcribe_backend == TranscribeBackend.CLOUD_GEMINI and not clean_key:
             logger.warning(
                 "Cloud Gemini backend zvolen, ale chybí API klíč — padáme zpět na lokální Whisper"
             )
+            # User vidí v UI, že vybral cloud, ale klíč nemá. Informujeme ho přes
+            # stejný kanál jako runtime cloud chyby.
+            if cloud_fallback_cb is not None:
+                try:
+                    cloud_fallback_cb(
+                        "Nemáš Gemini API klíč v Nastavení — používám lokální Whisper."
+                    )
+                except Exception as cb_exc:  # noqa: BLE001
+                    logger.warning("cloud_fallback_cb selhal: {}", cb_exc)
 
         # Stage: Příprava audia
         # - Lokální Whisper: extrakce do 16 kHz mono WAV přes ffmpeg
@@ -194,6 +206,7 @@ def run_pipeline(
                 text_cb=inner_text_cb,
                 cloud_fallback_cb=cloud_fallback_cb,
                 cancel_event=cancel_event,
+                fallback_work_dir=work_dir,
             )
             transcripts.append(tr)
             # Po cloud přepisu rozsekáme segmenty na text_cb, ať se v UI něco zjeví
@@ -306,6 +319,7 @@ def _run_transcribe(
     text_cb: Callable[[float, str], None],
     cloud_fallback_cb: Callable[[str], None] | None,
     cancel_event: threading.Event | None,
+    fallback_work_dir: Path | None = None,
 ) -> Transcript:
     """Přepis jednoho souboru. Cloud Gemini s fallback na lokální Whisper.
 
@@ -342,14 +356,18 @@ def _run_transcribe(
             # Pokračujeme dolů — fallback na lokální
             # Lokální Whisper potřebuje 16 kHz mono WAV; pokud `audio_path`
             # je originál (mp3 atd.), musíme extrahovat teď.
+            # Píšeme do workspace dir, ne do user directory (collision + read-only risk).
             if audio_path.suffix.lower() != ".wav":
-                wav_fallback = audio_path.parent / f"{audio_path.stem}_fallback.wav"
+                target_dir = fallback_work_dir or audio_path.parent
+                wav_fallback = target_dir / f"{audio_path.stem}_fallback.wav"
                 try:
                     extract_to_wav(audio_path, wav_fallback)
                     audio_path = wav_fallback
                 except Exception as wav_exc:  # noqa: BLE001
+                    logger.exception("Fallback WAV extract selhal pro {}", audio_path)
                     raise PipelineError(
-                        f"Cloud přepis selhal a převod na WAV pro lokální Whisper také: {wav_exc}"
+                        f"Cloud přepis selhal a převod na WAV pro lokální Whisper také: {wav_exc}. "
+                        f"Původní cloud chyba: {exc}"
                     ) from wav_exc
 
     try:

@@ -294,3 +294,30 @@ class ChatDialog(QDialog):
 
     def latest_material(self) -> StudyMaterial:
         return self._latest_material
+
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        """Pokud běží request, počkáme až doběhne — jinak by worker thread
+        emitoval signál na zničený dialog a aplikace by spadla.
+
+        Disconnect signálů PŘED čekáním zamezí volání slotů (které sahají na
+        widgets v destrukci). Po wait() je už OK destrukci dokončit.
+        """
+        if self._chat_worker is not None and self._chat_worker.is_running():
+            try:
+                self._chat_worker.finished_ok.disconnect()
+                self._chat_worker.finished_error.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._chat_worker.stop_and_wait(timeout_ms=3000)
+        super().closeEvent(event)
+
+    def reject(self) -> None:  # type: ignore[override]
+        # `reject` se volá při Esc / [×]. Stejný cleanup.
+        if self._chat_worker is not None and self._chat_worker.is_running():
+            try:
+                self._chat_worker.finished_ok.disconnect()
+                self._chat_worker.finished_error.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._chat_worker.stop_and_wait(timeout_ms=3000)
+        super().reject()
