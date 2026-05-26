@@ -169,6 +169,48 @@ def test_chat_session_send_updates_history_and_calls_router() -> None:
     fake_router.generate_with_failover.assert_called_once()
 
 
+def test_parse_response_preserves_preamble_before_json() -> None:
+    """Modely často píší 'Tady je úprava:\\n```json\\n{...}\\n```' — text před JSON
+    by se měl objevit v zobrazené odpovědi, ne se ztratit."""
+    raw = (
+        "Tady je upravená verze podle tvého požadavku:\n\n"
+        "```json\n"
+        '{"summary": "Body zkráceny na 3.", '
+        '"updated_material": {"title": "X", "bullets": ["a","b","c"], '
+        '"terms": [], "examples": [], "further_study": []}}\n'
+        "```"
+    )
+    response = parse_chat_response(raw, fallback_material=_make_material())
+    assert response.proposal is not None
+    # Text musí obsahovat jak preamble, tak summary
+    assert "Tady je upravená verze" in response.text
+    assert "Body zkráceny na 3." in response.text
+
+
+def test_chat_session_rolls_back_user_message_on_router_error() -> None:
+    """Když router selže, user zpráva nesmí zůstat v history bez assistant odpovědi —
+    jinak by další volání sestavilo nekonzistentní prompt."""
+    from app.core.ai.chat import ChatSession
+
+    fake_router = MagicMock()
+    fake_router.generate_with_failover.side_effect = RuntimeError("network down")
+
+    session = ChatSession(
+        router=fake_router,
+        transcripts=[],
+        slides=[],
+        current_material=_make_material(),
+    )
+
+    try:
+        session.send("Ahoj")
+    except RuntimeError:
+        pass
+
+    # User message nezůstala v history — rollback proběhl
+    assert session.history == []
+
+
 def test_chat_session_apply_proposal_replaces_material() -> None:
     from app.core.ai.chat import ChatProposal, ChatSession
 

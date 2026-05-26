@@ -15,6 +15,7 @@ from loguru import logger
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence
 from PySide6.QtWidgets import (
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -543,21 +544,41 @@ class MainWindow(QMainWindow):
             )
             return
 
-        dlg = YouTubeUrlDialog(self)
-        # Worker je členem MainWindow, aby ho nesmel GC sebrat během stahování.
         if not hasattr(self, "_youtube_worker") or self._youtube_worker is None:
             self._youtube_worker = YouTubeFetchWorker(self)
 
+        dlg = YouTubeUrlDialog(self)
+        # Stav: True = uživatel zavřel dialog před dokončením stahování.
+        # Pak ignorujeme finished_ok callback, aby se soubor nepřidal proti jeho vůli.
+        dialog_state = {"cancelled": False}
+
         def _on_progress(fraction: float, status: str) -> None:
-            dlg.set_progress(fraction, status)
+            if dialog_state["cancelled"]:
+                return
+            try:
+                dlg.set_progress(fraction, status)
+            except RuntimeError:
+                pass  # dialog už zničený
 
         def _on_ok(source) -> None:
-            dlg.set_status(f"Hotovo: {source.label}. Zavírám dialog…")
-            QTimer.singleShot(400, dlg.accept)
+            if dialog_state["cancelled"]:
+                logger.info("YouTube fetch dokončen, ale uživatel mezitím zrušil — soubor zahazuji")
+                return
+            try:
+                dlg.set_status(f"Hotovo: {source.label}. Zavírám dialog…")
+            except RuntimeError:
+                pass
             self._on_sources_added([source])
+            # Zavřeme dialog přímo přes Qt accept (ne monkey-patched verzí)
+            QTimer.singleShot(400, lambda: QDialog.accept(dlg) if not dialog_state["cancelled"] else None)
 
         def _on_error(message: str) -> None:
-            dlg.set_status(f"Chyba: {message}")
+            if dialog_state["cancelled"]:
+                return
+            try:
+                dlg.set_status(f"Chyba: {message}")
+            except RuntimeError:
+                pass
             QMessageBox.warning(self, "Stahování selhalo", message)
 
         # Odpojit staré handlery pro případ, že user otevírá dialog opakovaně
@@ -571,19 +592,26 @@ class MainWindow(QMainWindow):
         self._youtube_worker.finished_ok.connect(_on_ok)
         self._youtube_worker.finished_error.connect(_on_error)
 
-        original_accept = dlg.accept
-
-        def _start_download() -> None:
+        # OK button v dialogu má vlastní accept signál — kontrolujeme přes
+        # Qt accepted signal místo monkey-patche metody.
+        def _on_ok_clicked() -> None:
             url = dlg.url()
             if not url:
                 return
             dlg.lock_for_download()
-            self._youtube_worker.start(url)
+            try:
+                self._youtube_worker.start(url)
+            except RuntimeError as exc:
+                # Předchozí stahování ještě běží
+                QMessageBox.warning(dlg, "Stahování běží", str(exc))
 
-        dlg.accept = _start_download  # type: ignore[method-assign]
-        dlg.exec()
-        # Po zavření obnovíme původní accept (kvůli idempotenci)
-        dlg.accept = original_accept  # type: ignore[method-assign]
+        dlg.set_download_handler(_on_ok_clicked)
+
+        result = dlg.exec()
+        # Pokud user zavřel dialog před tím, než stahování doběhlo, nastavíme flag
+        if result != QDialog.DialogCode.Accepted and self._youtube_worker.is_running():
+            dialog_state["cancelled"] = True
+            logger.info("YouTube dialog zavřen během stahování — výsledek bude zahozen")
 
     # ------ Drag & drop kdekoli v okně ------
 
@@ -806,9 +834,12 @@ class MainWindow(QMainWindow):
     def _open_chat_dialog(self, result) -> None:
         """Otevře chat dialog pro aktuální PipelineResult."""
         from app.core.ai.chat import ChatSession
+        from app.core.ai.router import AIRouter
         from app.gui.widgets.chat_dialog import ChatDialog
 
-        # Postavíme router (stejně jako v pipeline) — Gemini Free → Ollama
+        # Postavíme router (stejně jako v pipeline) — Gemini Free → Ollama.
+        # Wrap v try/except: pokud konstrukce selže (např. Ollama provider
+        # vyhodí při inicializaci), nechceme padat tiše do logu.
         pseudo_job = JobConfig(
             sources=[],
             user_prompt="",
@@ -818,7 +849,24 @@ class MainWindow(QMainWindow):
         )
         from app.core.pipeline import _build_router  # interní helper
 
-        router = _build_router(pseudo_job, get_gemini_api_key())
+        try:
+            router = _build_router(pseudo_job, get_gemini_api_key())
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Chat: nepodařilo se postavit AIRouter")
+            QMessageBox.warning(
+                self,
+                "Chat nelze otevřít",
+                f"Nepodařilo se připravit AI: {exc}\n\n"
+                "Zkontroluj Gemini API klíč v Nastavení nebo zkus to později.",
+            )
+            return
+        if not isinstance(router, AIRouter):
+            QMessageBox.warning(
+                self,
+                "Chat nelze otevřít",
+                "Žádný AI provider není dostupný. Nastav Gemini klíč v Nastavení.",
+            )
+            return
 
         session = ChatSession(
             router=router,

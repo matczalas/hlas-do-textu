@@ -100,8 +100,13 @@ def fetch_audio(
     if not isinstance(info, dict):
         raise YouTubeFetchError("yt-dlp nevrátil info dict")
 
-    # Spočítáme reálnou cestu — yt-dlp dělá různé post-processing
-    raw_path = info.get("requested_downloads", [{}])[0].get("filepath") or info.get("filepath")
+    # Spočítáme reálnou cestu — yt-dlp dělá různé post-processing.
+    # Pozor: `requested_downloads` může být None (klíč existuje, ale hodnota null)
+    # u některých extractor verzí — `info.get(k, default)` to nezachytí.
+    requested = info.get("requested_downloads") or [{}]
+    raw_path = requested[0].get("filepath") if requested else None
+    if not raw_path:
+        raw_path = info.get("filepath")
     if not raw_path:
         # Fallback: hledat podle title
         title = info.get("title", "video")

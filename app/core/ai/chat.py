@@ -119,11 +119,15 @@ class ChatSession:
 
         Pozn.: `current_material` se neaplikuje automaticky — aplikování dělá
         caller (po uživatelově "Aplikovat") přes `apply_proposal()`.
+
+        Pokud router vyhodí chybu, history je vrácena do původního stavu,
+        ať další volání nezačíná s osamělou user zprávou bez odpovědi.
         """
         if not user_message.strip():
             raise ValueError("Prázdná zpráva")
 
-        self.history.append(ChatMessage(role="user", content=user_message))
+        user_msg = ChatMessage(role="user", content=user_message)
+        self.history.append(user_msg)
 
         prompt = build_chat_prompt(
             user_message=user_message,
@@ -133,9 +137,15 @@ class ChatSession:
             current_material=self.current_material,
         )
 
-        raw = self.router.generate_with_failover(prompt, system=CHAT_SYSTEM_PROMPT)
-        response = parse_chat_response(raw, fallback_material=self.current_material)
+        try:
+            raw = self.router.generate_with_failover(prompt, system=CHAT_SYSTEM_PROMPT)
+        except Exception:
+            # Rollback user zprávy, ať příští volání nemá nekonzistentní stav
+            if self.history and self.history[-1] is user_msg:
+                self.history.pop()
+            raise
 
+        response = parse_chat_response(raw, fallback_material=self.current_material)
         self.history.append(ChatMessage(role="assistant", content=response.text))
         return response
 
@@ -214,17 +224,20 @@ def parse_chat_response(raw: str, *, fallback_material: StudyMaterial) -> ChatRe
     """Z raw AI odpovědi extrahuje text + případnou proposal.
 
     Strategie:
-    1) Zkusíme najít JSON blok (s `summary` + `updated_material`)
-    2) Pokud najdeme — vrátíme ChatResponse s proposal
-    3) Pokud ne — celý raw text je čistá odpověď, žádná proposal
+    1) Najít JSON blok (s `summary` + `updated_material`)
+    2) Pokud existuje, zachovat i případný text PŘED JSON (preamble) —
+       modely často píší "Tady je úprava:" před JSON blokem
+    3) Pokud JSON není, celý raw text je čistá odpověď
     """
     raw = raw.strip()
     if not raw:
         return ChatResponse(text="(prázdná odpověď)")
 
-    payload = _extract_proposal_json(raw)
-    if payload is None:
+    extracted = _extract_proposal_json(raw)
+    if extracted is None:
         return ChatResponse(text=raw)
+
+    payload, preamble = extracted
 
     summary = str(payload.get("summary") or "").strip()
     updated = payload.get("updated_material")
@@ -238,35 +251,54 @@ def parse_chat_response(raw: str, *, fallback_material: StudyMaterial) -> ChatRe
         logger.warning("Chat proposal: nevalidní material ({}): {}", exc, raw[:200])
         return ChatResponse(text=raw)
 
-    response_text = summary or "Návrh úpravy dokumentu připraven."
+    # Sestavíme zobrazený text: preamble (text před JSON) + summary
+    pieces: list[str] = []
+    if preamble:
+        pieces.append(preamble.strip())
+    if summary:
+        pieces.append(summary)
+    if not pieces:
+        pieces.append("Návrh úpravy dokumentu připraven.")
+    response_text = "\n\n".join(pieces)
+
     return ChatResponse(
         text=response_text,
-        proposal=ChatProposal(summary=response_text, updated_material=new_material),
+        proposal=ChatProposal(summary=summary or response_text, updated_material=new_material),
     )
 
 
 def _extract_proposal_json(raw: str):
-    """Najde JSON blok v odpovědi, který obsahuje `summary` a `updated_material`."""
-    # Hledáme markdown ```json ``` blok přednostně, jinak nejdelší {...}
+    """Najde JSON blok v odpovědi, který obsahuje `updated_material`.
+
+    Vrací tuple `(payload, preamble)` nebo None.
+    - payload: parsovaný dict s `updated_material`
+    - preamble: text PŘED JSON blokem (nebo prázdný řetězec)
+    """
+    candidates: list[tuple[str, str]] = []  # (json_str, preamble)
+
+    # 1) Markdown ```json ... ``` blok přednostně
     match = re.search(r"```(?:json)?\s*(\{.+?\})\s*```", raw, re.DOTALL)
-    candidates = []
     if match:
-        candidates.append(match.group(1))
-    # Fallback: celý raw jako JSON
-    candidates.append(raw)
-    # Greedy {...} fallback
+        preamble = raw[: match.start()].strip()
+        candidates.append((match.group(1), preamble))
+
+    # 2) Celý raw jako JSON (žádný preamble)
+    candidates.append((raw, ""))
+
+    # 3) Greedy {...} fallback
     first = raw.find("{")
     last = raw.rfind("}")
     if first >= 0 and last > first:
-        candidates.append(raw[first : last + 1])
+        preamble = raw[:first].strip()
+        candidates.append((raw[first : last + 1], preamble))
 
-    for c in candidates:
+    for json_str, preamble in candidates:
         try:
-            data = json.loads(c)
+            data = json.loads(json_str)
         except json.JSONDecodeError:
             continue
         if isinstance(data, dict) and "updated_material" in data:
-            return data
+            return data, preamble
     return None
 
 

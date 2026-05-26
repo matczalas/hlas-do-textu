@@ -310,10 +310,13 @@ def _parse_response(raw: str) -> tuple[list[TranscriptSegment], str, float]:
         text = (item.get("text") or item.get("content") or "").strip()
         if not text:
             continue
-        segments.append(TranscriptSegment(start=start, end=end or start, text=text))
+        effective_end = end if end > 0 else start
+        segments.append(TranscriptSegment(start=start, end=effective_end, text=text))
         text_parts.append(text)
-        if end > duration:
-            duration = end
+        # Duration je nejvyšší koncový timestamp ze všech segmentů.
+        # Když model vrátí jen `start_sec` (chybí `end_sec`), použijeme `start`.
+        if effective_end > duration:
+            duration = effective_end
 
     full_text = " ".join(text_parts).strip()
     return segments, full_text, duration
@@ -363,11 +366,21 @@ def _raise_if_cancelled(cancel_event: threading.Event | None) -> None:
 
 
 def _reraise_as_ai_error(exc: Exception) -> None:
-    """Sjednotíme SDK chyby na naši hierarchii (stejně jako gemini.py)."""
+    """Sjednotíme SDK chyby na naši hierarchii (stejně jako gemini.py).
+
+    Klasifikace je nutně heuristická (google-genai nemá stabilní exception
+    typy pro free tier). Hledáme stringy v nižším měřítku, aby se snížila
+    false-positive klasifikace nesouvisejících chyb (např. permission denied
+    na lokálním filesystému):
+
+    - Auth: výslovně zmiňující "api key" / "401" / "403" / "unauthorized"
+    - Rate limit: "quota" / "rate limit" / "429" / "resource_exhausted"
+    - Network: "connect" / "timeout" / "network" / "dns" / "ssl" / "503"
+    """
     message = str(exc).lower()
-    if any(k in message for k in ("api key", "unauthorized", "permission", "401", "403")):
+    if any(k in message for k in ("api key", "api_key", "unauthorized", "401", "403")):
         raise AIAuthError(f"Gemini: neplatný API klíč ({exc})") from exc
-    if any(k in message for k in ("quota", "rate", "429", "resource_exhausted")):
+    if any(k in message for k in ("quota", "rate limit", "429", "resource_exhausted")):
         raise AIRateLimitError(f"Gemini: vyčerpaný limit ({exc})") from exc
     if any(k in message for k in ("connect", "timeout", "network", "dns", "ssl", "503")):
         raise AINetworkError(f"Gemini: síťová chyba ({exc})") from exc
