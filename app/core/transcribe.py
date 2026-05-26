@@ -44,9 +44,21 @@ def transcribe_audio(
     """
     from faster_whisper import WhisperModel  # lazy import
 
-    logger.info("Načítám Whisper model '{}' (cache: {})", model_size, MODELS_DIR)
+    from app.core.model_downloader import _target_dir, model_is_cached
+
+    # KRITICKÁ OPTIMALIZACE: pokud model máme lokálně, předáme přímou cestu.
+    # Jinak WhisperModel(name, download_root=...) volá huggingface_hub.snapshot_download
+    # který POKAŽDÉ kontroluje HF Hub (i s cache hit). Bez HF tokenu = rate-limited,
+    # čeká minuty místo sekund. S lokální cestou = 1.7s místo 140s na startup.
+    if model_is_cached(model_size):
+        model_arg = str(_target_dir(model_size))
+        logger.info("Načítám Whisper z lokální cache: {}", model_arg)
+    else:
+        model_arg = model_size
+        logger.info("Whisper model '{}' v cache není, stáhne se z HF", model_size)
+
     model = WhisperModel(
-        model_size,
+        model_arg,
         device="cpu",
         compute_type="int8",
         download_root=str(MODELS_DIR),
