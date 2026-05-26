@@ -330,6 +330,7 @@ class MainWindow(QMainWindow):
 
         self._pipeline_worker.progress.connect(self._progress.update)
         self._pipeline_worker.transcript_text.connect(self._progress.append_transcript_line)
+        self._pipeline_worker.cloud_fallback.connect(self._on_cloud_fallback)
         self._pipeline_worker.finished_ok.connect(self._on_pipeline_ok)
         self._pipeline_worker.finished_error.connect(self._on_pipeline_error)
 
@@ -549,6 +550,20 @@ class MainWindow(QMainWindow):
                 self, "Chyba", f"Nepodařilo se spustit zpracování: {exc}"
             )
 
+    def _on_cloud_fallback(self, reason: str) -> None:
+        """Pipeline nás informuje, že cloud přepis selhal a přepojuje na lokální."""
+        logger.warning("Cloud fallback aktivován: {}", reason)
+        self._progress.append_message(
+            f"⚠ Cloud přepis selhal: {reason} Pokračuji s lokálním Whisperem (déle)."
+        )
+        if self._tray is not None:
+            self._tray.showMessage(
+                "Cloud přepis nedostupný",
+                f"{reason}\nPokračuji lokálně přes Whisper (pomalejší, ale spolehlivé).",
+                QSystemTrayIcon.MessageIcon.Warning,
+                8000,
+            )
+
     def _on_pipeline_ok(self, result) -> None:
         self._progress.set_busy(False)
         self._refresh_run_button()
@@ -754,6 +769,12 @@ class MainWindow(QMainWindow):
         self._progress.set_busy(False)
         self._progress.append_message("✅ Model připraven.")
         self._refresh_run_button()
+        # Tray notifikace — stahování může trvat minuty, uživatel mohl
+        # mezitím přepnout do jiné aplikace
+        self._notify(
+            "Whisper model stažen",
+            f"Model {self._settings.whisper_model} je připraven — můžeš spustit přepis.",
+        )
 
     def _on_model_error(self, message: str) -> None:
         self._progress.set_busy(False)

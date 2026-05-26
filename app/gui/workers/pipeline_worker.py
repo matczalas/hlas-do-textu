@@ -15,6 +15,7 @@ from app.core.transcribe import TranscribeCancelled
 class _PipelineRunner(QObject):
     progress = Signal(str, float)        # label, fraction
     transcript_text = Signal(float, str, str)  # seconds, source_label, text
+    cloud_fallback = Signal(str)         # důvod, proč jsme přešli z cloudu zpět na lokál
     finished_ok = Signal(object)         # PipelineResult
     finished_error = Signal(str, bool)   # message, was_cancelled
 
@@ -31,6 +32,7 @@ class _PipelineRunner(QObject):
                 gemini_api_key=self._gemini_api_key,
                 progress_cb=self._emit_progress,
                 transcript_text_cb=self._emit_transcript_text,
+                cloud_fallback_cb=self._emit_cloud_fallback,
                 cancel_event=self._cancel_event,
             )
             self.finished_ok.emit(result)
@@ -50,12 +52,16 @@ class _PipelineRunner(QObject):
     def _emit_transcript_text(self, seconds: float, label: str, text: str) -> None:
         self.transcript_text.emit(seconds, label, text)
 
+    def _emit_cloud_fallback(self, reason: str) -> None:
+        self.cloud_fallback.emit(reason)
+
 
 class PipelineWorker(QObject):
     """Veřejný API obal — vlastní QThread + cancel_event."""
 
     progress = Signal(str, float)
     transcript_text = Signal(float, str, str)  # seconds, label, text
+    cloud_fallback = Signal(str)  # důvod, proč cloud selhal
     finished_ok = Signal(object)       # PipelineResult
     finished_error = Signal(str, bool)
 
@@ -77,6 +83,7 @@ class PipelineWorker(QObject):
         self._thread.started.connect(self._runner.run)
         self._runner.progress.connect(self.progress.emit)
         self._runner.transcript_text.connect(self.transcript_text.emit)
+        self._runner.cloud_fallback.connect(self.cloud_fallback.emit)
         self._runner.finished_ok.connect(self._on_finished_ok)
         self._runner.finished_error.connect(self._on_finished_error)
         self._runner.finished_ok.connect(self._thread.quit)

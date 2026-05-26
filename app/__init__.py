@@ -1,4 +1,4 @@
 """Hlas do textu — desktop aplikace pro přepis přednášek a generování studijních bodů."""
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __app_name__ = "HlasDoTextu"
