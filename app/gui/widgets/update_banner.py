@@ -121,6 +121,15 @@ class UpdateBanner(QFrame):
         self._action_btn.setText("Restartovat a aktualizovat")
         self.show()
 
+    def show_installing(self) -> None:
+        self._state = "installing"
+        self._icon.setText("⏳")
+        self._message.setText("Spouštím instalátor — aplikace se za chvíli ukončí…")
+        self._progress.hide()
+        self._action_btn.setEnabled(False)
+        self._action_btn.setText("Spouštím…")
+        self.show()
+
     def show_error(self, message: str) -> None:
         self._state = "available"  # zpět na available pro retry
         self._icon.setText("⚠")
