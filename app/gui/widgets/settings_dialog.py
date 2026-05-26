@@ -98,7 +98,9 @@ class SettingsDialog(QDialog):
         api_row.addWidget(self._get_key_btn)
         root.addLayout(api_row)
 
-        self._consent_cb = QCheckBox("Souhlasím s odesíláním přepisu do Gemini.")
+        self._consent_cb = QCheckBox(
+            "Souhlasím s odesíláním přepisu a audia do Gemini Free."
+        )
         self._consent_cb.setObjectName("Consent")
         self._consent_cb.setChecked(settings.ai_consent_gemini)
         self._consent_cb.setStyleSheet(

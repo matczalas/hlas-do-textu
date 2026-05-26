@@ -91,7 +91,9 @@ class FirstRunDialog(QDialog):
         root.addWidget(self._api_edit)
 
         # Souhlas
-        self._consent_cb = QCheckBox("Souhlasím s odesíláním přepisu do Gemini.")
+        self._consent_cb = QCheckBox(
+            "Souhlasím s odesíláním přepisu a audia do Gemini Free."
+        )
         self._consent_cb.setObjectName("Consent")
         self._consent_cb.setStyleSheet(
             "QCheckBox#Consent { padding: 12px 14px; "

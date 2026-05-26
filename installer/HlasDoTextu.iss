@@ -3,7 +3,7 @@
 ; Sestavovat pomocí ISCC v CI runneru.
 
 #define MyAppName "Hlas do textu"
-#define MyAppVersion "0.3.0"
+#define MyAppVersion "0.3.1"
 #define MyAppPublisher "Safe4Future z. u."
 #define MyAppExeName "HlasDoTextu.exe"
 #define MyAppId "{{C0FE4F50-AF60-4F7E-8C0F-2A5B0E0E6F7A}}"
@@ -49,10 +49,49 @@ Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Filename: "{app}\{#MyAppExeName}"; Description: "Spustit Hlas do textu"; Flags: nowait postinstall skipifsilent
 
 ; ---------------------------------------------------------------------------
-; UNINSTALL — dotaz na smazání user dat (modely, config, logy, klíč v keyring)
+; CODE — vlastní stránky a uninstall handlery
 ; ---------------------------------------------------------------------------
 
 [Code]
+
+// Druhá stránka po wpLicense — uživatel musí explicitně potvrdit, že si
+// licenci přečetl. Brání bezmyšlenkovému prokliknutí standardního Next.
+var
+  ConfirmPage: TInputOptionWizardPage;
+
+procedure InitializeWizard();
+begin
+  ConfirmPage := CreateInputOptionPage(
+    wpLicense,
+    'Potvrzení licence',
+    'Ujisti se, že jsi licenční podmínky skutečně přečetl',
+    'Aplikace Hlas do textu je placený nástroj se závaznými pravidly použití.' + #13#10 +
+    'Body licence mohou ovlivnit odpovědnost, sdílení dat i obchodní použití.' + #13#10 + #13#10 +
+    'Označením potvrzuješ, že jsi licenci na předchozí stránce přečetl a souhlasíš s ní.' + #13#10 +
+    'Bez tohoto potvrzení nelze pokračovat.',
+    True, False);
+  ConfirmPage.Add('Potvrzuji, že jsem si přečetl licenční podmínky a souhlasím s nimi.');
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (ConfirmPage <> nil) and (CurPageID = ConfirmPage.ID) then
+  begin
+    if not ConfirmPage.Values[0] then
+    begin
+      MsgBox(
+        'Pro pokračování označ, že jsi licenci přečetl a souhlasíš s ní.',
+        mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
+// ---------------------------------------------------------------------------
+// UNINSTALL — dotaz na smazání user dat (modely, config, logy, klíč v keyring)
+// ---------------------------------------------------------------------------
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   UserDataDir: string;

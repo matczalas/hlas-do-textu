@@ -88,6 +88,7 @@ def run_pipeline(
     gemini_api_key: str | None,
     progress_cb: Callable[[str, float], None] | None = None,
     transcript_text_cb: Callable[[float, str, str], None] | None = None,
+    cloud_fallback_cb: Callable[[str], None] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> PipelineResult:
     """Hlavní entry point. Předává progresy přes callback (label, fraction_0_1).
@@ -191,6 +192,7 @@ def run_pipeline(
                 gemini_api_key=gemini_api_key,
                 progress_cb=inner_cb,
                 text_cb=inner_text_cb,
+                cloud_fallback_cb=cloud_fallback_cb,
                 cancel_event=cancel_event,
             )
             transcripts.append(tr)
@@ -302,14 +304,15 @@ def _run_transcribe(
     gemini_api_key: str | None,
     progress_cb: Callable[[float], None],
     text_cb: Callable[[float, str], None],
+    cloud_fallback_cb: Callable[[str], None] | None,
     cancel_event: threading.Event | None,
 ) -> Transcript:
     """Přepis jednoho souboru. Cloud Gemini s fallback na lokální Whisper.
 
     Když Gemini selže kvůli síti, kvótě nebo authu, **automaticky** spadneme
     na lokální Whisper — uživatel místo erroru dostane výsledek (pomalejší,
-    ale jistý). Auth chyby logujeme jako varování — uživatel může chtít opravit
-    klíč v nastavení, ale tady ho nezahalíme do error dialogu.
+    ale jistý). Důvod zaroveň propagujeme do GUI přes `cloud_fallback_cb`,
+    aby uživatel viděl tray notifikaci (např. "Vyčerpaná denní kvóta…").
     """
     if use_gemini and gemini_api_key:
         try:
@@ -325,11 +328,17 @@ def _run_transcribe(
             # Cancel je explicitní volba uživatele, ne fallback
             raise TranscribeCancelled(f"Cloud přepis zrušen ({label})") from None
         except Exception as exc:  # noqa: BLE001
+            reason = _humanize_cloud_error(exc)
             logger.warning(
                 "Cloud Gemini přepis selhal ({}: {}) — zkouším lokální Whisper",
                 type(exc).__name__,
                 exc,
             )
+            if cloud_fallback_cb is not None:
+                try:
+                    cloud_fallback_cb(reason)
+                except Exception as cb_exc:  # noqa: BLE001
+                    logger.warning("cloud_fallback_cb selhal: {}", cb_exc)
             # Pokračujeme dolů — fallback na lokální
             # Lokální Whisper potřebuje 16 kHz mono WAV; pokud `audio_path`
             # je originál (mp3 atd.), musíme extrahovat teď.
@@ -355,6 +364,19 @@ def _run_transcribe(
         )
     except TranscribeCancelled:
         raise
+
+
+def _humanize_cloud_error(exc: BaseException) -> str:
+    """Krátká česká hláška pro tray notifikaci, když Gemini Audio selže."""
+    from app.core.ai.base import AIAuthError, AINetworkError, AIRateLimitError
+
+    if isinstance(exc, AIRateLimitError):
+        return "Gemini Free hlásí vyčerpanou kvótu (limit dotazů). Zkus to později."
+    if isinstance(exc, AINetworkError):
+        return "Není připojení k internetu nebo Google neodpovídá."
+    if isinstance(exc, AIAuthError):
+        return "Neplatný Gemini API klíč — zkontroluj ho v Nastavení."
+    return f"Cloud přepis selhal: {exc}"
 
 
 def _build_router(job: JobConfig, gemini_api_key: str | None) -> AIRouter:
