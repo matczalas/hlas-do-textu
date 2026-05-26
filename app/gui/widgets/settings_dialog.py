@@ -144,8 +144,31 @@ class SettingsDialog(QDialog):
 
         root.addWidget(_divider())
 
+        # ----- Backend přepisu -----
+        root.addWidget(_field_label("Způsob přepisu"))
+        self._backend_combo = QComboBox()
+        self._backend_combo.setMinimumHeight(36)
+        self._backend_combo.addItem(
+            "Lokálně (offline, pomalejší)", userData="local_whisper"
+        )
+        self._backend_combo.addItem(
+            "Rychlý cloud (Gemini, vyžaduje internet)", userData="cloud_gemini"
+        )
+        for i in range(self._backend_combo.count()):
+            if self._backend_combo.itemData(i) == settings.transcribe_backend:
+                self._backend_combo.setCurrentIndex(i)
+                break
+        self._backend_combo.setToolTip(
+            "Lokálně: faster-whisper na CPU, plně offline, 5–15 min na 15 min audia.\n"
+            "Cloud: pošle audio Googlu (Gemini), ~1 min na 15 min audia. "
+            "Vyžaduje API klíč nahoře a souhlas s odesíláním dat."
+        )
+        root.addWidget(self._backend_combo)
+
+        root.addWidget(_divider())
+
         # ----- Whisper -----
-        root.addWidget(_field_label("Kvalita přepisu"))
+        root.addWidget(_field_label("Kvalita lokálního přepisu (Whisper model)"))
         self._model_combo = QComboBox()
         self._model_combo.setMinimumHeight(36)
         for m in WHISPER_MODEL_CHOICES:
@@ -236,6 +259,9 @@ class SettingsDialog(QDialog):
         self._settings.prefer_offline = self._offline_cb.isChecked()
         self._settings.create_md_export = self._md_cb.isChecked()
         self._settings.user_ai_service = self._ai_service_combo.currentData() or "none"
+        self._settings.transcribe_backend = (
+            self._backend_combo.currentData() or "local_whisper"
+        )
         super().accept()
 
     def _toggle_api_visibility(self) -> None:

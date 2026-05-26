@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 from app import __version__
 from app.core.audio_extract import probe_duration_seconds
 from app.core.model_downloader import model_is_cached
-from app.core.models import JobConfig, JobMode, SourceFile, SourceKind
+from app.core.models import JobConfig, JobMode, SourceFile, SourceKind, TranscribeBackend
 from app.core.pipeline import estimate_total_processing_seconds, format_duration_human
 from app.gui.widgets.empty_state import EmptyStateWidget
 from app.gui.widgets.file_drop_zone import FileDropZone
@@ -534,6 +534,7 @@ class MainWindow(QMainWindow):
             prefer_offline=self._settings.prefer_offline,
             create_md_export=self._settings.create_md_export,
             user_ai_service=self._settings.user_ai_service,
+            transcribe_backend=_parse_backend(self._settings.transcribe_backend),
         )
 
         self._progress.reset()
@@ -855,8 +856,16 @@ class MainWindow(QMainWindow):
 
         from app.updater import apply_update
 
+        self._update_banner.show_installing()
         try:
             apply_update(self._update_installer_path)
         except Exception as exc:  # noqa: BLE001
             logger.exception("apply_update selhalo: {}", exc)
             self._update_banner.show_error(str(exc))
+
+
+def _parse_backend(raw: str | None) -> TranscribeBackend:
+    """Tolerantní mapování AppSettings.transcribe_backend (str) → enum."""
+    if raw == TranscribeBackend.CLOUD_GEMINI.value:
+        return TranscribeBackend.CLOUD_GEMINI
+    return TranscribeBackend.LOCAL_WHISPER
