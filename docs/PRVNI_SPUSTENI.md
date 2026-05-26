@@ -1,21 +1,52 @@
 # První spuštění aplikace Hlas do textu
 
-Tento návod tě provede prvním spuštěním aplikace na Windows. Trvá to cca 10 minut.
+Tento návod tě provede prvním spuštěním aplikace. Trvá to cca 10 minut.
 
-## 1. Instalace
+## 1. Instalace — Windows
 
-1. Stáhni si `HlasDoTextu-Setup-X.Y.Z.exe` z [Releases](https://github.com/safe4future/hlas-do-textu/releases).
+1. Stáhni si `HlasDoTextu-Setup-X.Y.Z.exe` z [Releases](https://github.com/matczalas/hlas-do-textu/releases).
 2. Dvojklikem ho spusť.
 
-### Pokud se objeví hláška "Windows protected your PC"
+### Pokud se objeví hláška "Systém Windows ochránil váš počítač"
 
-Tato hláška se objeví u aplikací, které nejsou digitálně podepsané (placený certifikát).
-Aplikace je bezpečná — pochází přímo od Safe4Future.
+Tato hláška (modré okno SmartScreen) se objeví u aplikací, které nejsou
+digitálně podepsané placeným certifikátem. Aplikace je bezpečná — pochází
+přímo od Safe4Future z tvého GitHubu.
 
-1. Klikni na malé **"More info"** uprostřed dialogu.
-2. Klikni na **"Run anyway"** vpravo dole.
+1. Klikni na malé **"Více informací"** uprostřed dialogu.
+2. Klikni na **"Přesto spustit"** vpravo dole.
 
 Tuto hlášku uvidíš jen jednou — při první instalaci.
+
+## 1b. Instalace — macOS
+
+1. Stáhni si `HlasDoTextu-X.Y.Z.dmg` z [Releases](https://github.com/matczalas/hlas-do-textu/releases).
+2. Otevři DMG a přetáhni **Hlas do textu** do složky **Aplikace**.
+
+### Pokud se objeví hláška "Soubor HlasDoTextu nebyl otevřen"
+
+macOS (Gatekeeper) blokuje aplikace, které nejsou notarizované u Apple
+(za to Apple chce placený vývojářský účet). Aplikace je bezpečná — je to
+build z oficiálního Safe4Future GitHubu. Jak ji povolit:
+
+**macOS 13–14 (Ventura, Sonoma):**
+1. V Aplikacích klikni na ikonu **pravým tlačítkem** → **Otevřít**.
+2. V dialogu znovu klikni **Otevřít**.
+
+**macOS 15 (Sequoia) — pravý klik už nestačí:**
+1. Zkus aplikaci otevřít (objeví se varování) → klikni **Hotovo**.
+2. Otevři **Systémové nastavení → Soukromí a zabezpečení**.
+3. Sjeď dolů — uvidíš hlášku "HlasDoTextu byl zablokován". Klikni **"Přesto otevřít"**.
+4. Potvrď heslem / Touch ID.
+
+**Jistý způsob (když nic nefunguje) — Terminál:**
+```bash
+xattr -dr com.apple.quarantine /Applications/HlasDoTextu.app
+```
+Otevři aplikaci **Terminál** (přes Spotlight `Cmd+mezerník` → napiš "Terminál"),
+vlož tento příkaz, stiskni Enter. Pak už jde aplikace otevřít dvojklikem.
+
+Toto varování uvidíš jen jednou.
 
 ## 2. Získej Gemini API klíč (zdarma)
 

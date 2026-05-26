@@ -11,9 +11,12 @@
 
 ## Co umí
 
-- **Lokální přepis** mluveného slova v češtině (Whisper `medium`, offline)
-- **AI body pro učení** přes Google Gemini (free tier, ~1 Kč / hodinová přednáška)
-- **Offline fallback** přes Ollama (volitelné, bez internetu)
+- **Lokální přepis** mluveného slova v češtině (Whisper, offline)
+- **Rychlý cloud přepis** přes Gemini Audio (~1 min na 15 min audia) — volitelné
+- **AI body pro učení** přes Google Gemini (free tier)
+- **Chat o dokumentu** — po vyrobení můžeš AI požádat o úpravy ("stručněji", "vyrob otázky")
+- **Vstup odkudkoli** — drag & drop, YouTube/Vimeo/podcast URL
+- **Offline fallback** přes Ollama (bez internetu)
 - **Markdown export** připravený jako prompt pro ChatGPT / Claude / Gemini
 - **Dva režimy:** rychlý jen-přepis, nebo plný studijní materiál s AI
 - **Auto-update** přes GitHub Releases — nová verze sama naskočí
@@ -32,13 +35,24 @@
 
 1. Stáhni `HlasDoTextu-X.Y.Z.dmg` z [Releases](https://github.com/matczalas/hlas-do-textu/releases)
 2. Otevři DMG → přetáhni **Hlas do textu** do složky **Aplikace**
-3. Při prvním spuštění: pravým klikem na ikonu → **Open** → **Open** (kvůli Gatekeeper warning, aplikace není notarizovaná)
+3. **První spuštění obejde Gatekeeper** (aplikace není notarizovaná u Apple — není to virus, jen za "ověření" Apple chce placený účet):
+
+   **macOS 13–14 (Ventura, Sonoma):**
+   - Pravým klikem na ikonu aplikace → **Otevřít** → v dialogu znovu **Otevřít**
+
+   **macOS 15 (Sequoia) — pravý klik už nestačí:**
+   - Dvojklik (objeví se varování "nebyl otevřen") → klikni **Hotovo**
+   - Otevři **Systémové nastavení → Soukromí a zabezpečení**
+   - Sjeď dolů → u hlášky o HlasDoTextu klikni **"Přesto otevřít"**
+
+   **Když nic z toho nefunguje (jistý způsob přes Terminál):**
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/HlasDoTextu.app
+   ```
+   Pak už jde aplikace otevřít normálně dvojklikem.
 4. Vlož aktivační klíč
 
-Pokud Gatekeeper zablokuje: v Terminálu spusť
-```bash
-xattr -d com.apple.quarantine /Applications/HlasDoTextu.app
-```
+Toto varování uvidíš **jen jednou** — po prvním otevření si macOS aplikaci zapamatuje.
 
 Detailní návod: [docs/PRVNI_SPUSTENI.md](docs/PRVNI_SPUSTENI.md)
 
@@ -74,7 +88,7 @@ cd hlas-do-textu
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 python -m app                  # GUI
-pytest tests/                  # 46 testů
+pytest tests/                  # 82 testů
 ```
 
 ## Licence
