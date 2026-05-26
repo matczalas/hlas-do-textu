@@ -97,6 +97,13 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
+      - name: Read version from app/__init__.py
+        id: version
+        run: |
+          VERSION=$(python -c "import re; print(re.search(r'__version__\s*=\s*[\"\']([^\"\']+)[\"\']', open('app/__init__.py').read()).group(1))")
+          echo "value=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
       - name: Create DMG
         run: |
           mkdir -p installer/Output
@@ -109,7 +116,7 @@ jobs:
             --hide-extension "HlasDoTextu.app" \
             --app-drop-link 425 190 \
             --no-internet-enable \
-            "installer/Output/HlasDoTextu-0.1.0.dmg" \
+            "installer/Output/HlasDoTextu-${{ steps.version.outputs.value }}.dmg" \
             "dist/HlasDoTextu.app"
 
       - name: Upload DMG artifact

@@ -48,6 +48,7 @@ installer/Output/
 # License keys log — SOUKROMÉ, nikdy do gitu
 keys_log.txt
 dist_windows/
+dist_macos/
 flashdisk_balicek/HlasDoTextu-Setup-*.exe
 
 # Tajemství pro lokální vývoj — nikdy do gitu
