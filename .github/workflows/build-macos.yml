@@ -81,10 +81,14 @@ jobs:
             --osx-bundle-identifier cz.safe4future.hlasdotextu \
             --add-data "app/vendor/ffmpeg/macos:vendor/ffmpeg/macos" \
             --add-data "app/resources:resources" \
+            --add-data "app/gui/styles:app/gui/styles" \
             --collect-all ctranslate2 \
             --collect-all faster_whisper \
+            --collect-all tiktoken \
+            --collect-all tiktoken_ext \
+            --hidden-import=tiktoken_ext.openai_public \
+            --hidden-import=tiktoken_ext \
             --collect-data certifi \
-            --collect-data tiktoken \
             app/__main__.py
 
       - name: Make FFmpeg binaries executable in .app bundle

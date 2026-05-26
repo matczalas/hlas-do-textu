@@ -89,7 +89,7 @@ def ffmpeg_path() -> str:
 # Whisper / AI defaults
 # ---------------------------------------------------------------------------
 
-DEFAULT_WHISPER_MODEL: str = "medium"  # akceptováno uživatelem; kvalita češtiny
+DEFAULT_WHISPER_MODEL: str = "small"  # CS WER cca 12 %, AI body to dál parafrázují
 WHISPER_MODEL_CHOICES: tuple[str, ...] = ("small", "medium", "large-v3")
 DEFAULT_LANGUAGE: str = "cs"
 

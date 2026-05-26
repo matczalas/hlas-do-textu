@@ -2,14 +2,15 @@
 
 Implementace:
 - check_for_update() — GET https://api.github.com/repos/{owner}/{repo}/releases/latest
-- download_installer() — stáhne `.exe` asset z release s progress callbackem
-- apply_update() — spustí installer s /SILENT a ukončí aplikaci
+- download_installer() — stáhne `.exe` (Windows) nebo `.dmg` (macOS) asset s progress
+- apply_update() — spustí installer a ukončí aplikaci
 
 Bez authentication (read-only public repo). Network errors jsou tiše ošetřeny
 (žádný update prostě znamená "ticho", uživatel není rušen kdyby byl bez internetu).
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -34,6 +35,13 @@ class UpdateInfo:
     download_size_bytes: int
     release_notes: str      # markdown z GitHub release body
     is_newer_than_current: bool
+
+
+def _installer_extension() -> str:
+    """Vrátí příponu installeru podle aktuální platformy."""
+    if sys.platform == "darwin":
+        return ".dmg"
+    return ".exe"
 
 
 def _parse_version(s: str) -> tuple[int, ...]:
@@ -88,18 +96,19 @@ def check_for_update(timeout: float = 10.0) -> UpdateInfo | None:
     local_ver = _parse_version(__version__)
     is_newer = remote_ver > local_ver
 
-    # Najdi .exe asset
+    # Najdi asset podle platformy (Windows .exe, macOS .dmg)
+    wanted_ext = _installer_extension()
     download_url = ""
     download_size = 0
     for asset in data.get("assets", []):
         name = asset.get("name", "")
-        if name.lower().endswith(".exe"):
+        if name.lower().endswith(wanted_ext):
             download_url = asset.get("browser_download_url", "")
             download_size = int(asset.get("size", 0))
             break
 
     if not download_url:
-        logger.info("Update check: release {} nemá .exe asset", tag)
+        logger.info("Update check: release {} nemá {} asset", tag, wanted_ext)
         return None
 
     return UpdateInfo(
@@ -122,7 +131,7 @@ def download_installer(
     `progress_cb(downloaded_bytes, total_bytes)` — volá se přibližně každých 256 KB.
     """
     ensure_dirs()
-    target = TEMP_DIR / f"HlasDoTextu-Setup-{info.version}.exe"
+    target = TEMP_DIR / f"HlasDoTextu-Setup-{info.version}{_installer_extension()}"
 
     logger.info("Stahuji update {} → {}", info.tag_name, target)
 
@@ -153,26 +162,99 @@ def download_installer(
 
 
 def apply_update(installer_path: Path) -> None:
-    """Spustí installer s /SILENT a ukončí aplikaci.
+    """Spustí installer a ukončí aplikaci.
 
-    Inno Setup default upgrade chování: stejné AppId → přemaže staré soubory,
-    zachová user data v AppData. /SILENT = bez interaktivního UI (jen progress bar).
+    Windows: Inno Setup `/SILENT` upgrade, ale s 3s delayem aby naše app
+    stihla skončit a uvolnit `HlasDoTextu.exe` před přepsáním.
+    macOS: otevře `.dmg` přes `open` — uživatel přetáhne .app do Applications.
+    Linux / ostatní: nepodporováno, jen log.
     """
     if not installer_path.is_file():
         raise FileNotFoundError(f"Installer nenalezen: {installer_path}")
 
-    if sys.platform != "win32":
-        logger.warning("apply_update: na ne-Windows platformě nefunguje (jen log)")
-        return
+    if sys.platform == "win32":
+        _apply_update_windows(installer_path)
+    elif sys.platform == "darwin":
+        _apply_update_macos(installer_path)
+    else:
+        logger.warning("apply_update: platforma {} není podporována", sys.platform)
 
-    cmd = [str(installer_path), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"]
-    logger.info("Spouštím installer: {}", " ".join(cmd))
 
-    # Detach so installer keeps running po našem exitu
-    subprocess.Popen(
-        cmd,
-        creationflags=0x00000008,  # DETACHED_PROCESS
-        close_fds=True,
+def _apply_update_windows(installer_path: Path) -> None:
+    # Windows nedovolí přepsat běžící .exe. Naše aplikace musí skončit DŘÍV,
+    # než Inno Setup začne kopírovat soubory. Spustíme cmd wrapper, který
+    # 3 sekundy spí a teprve pak nahodí installer — a hned ukončíme app.
+    #
+    # creationflags musí odpojit child úplně: bez DETACHED_PROCESS by share-il
+    # konzoli, bez CREATE_BREAKAWAY_FROM_JOB by zemřel s parentem v Job objectu
+    # (PyInstaller bundle běží často v takovém jobu).
+    DETACHED_PROCESS = 0x00000008
+    CREATE_NEW_PROCESS_GROUP = 0x00000200
+    CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+    flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB
+
+    installer_str = str(installer_path)
+    # `start ""` odpojí installer od cmd wrapperu, takže cmd hned skončí
+    # a installer doběhne sám. Prázdné `""` je title — povinné, jinak `start`
+    # interpretuje cestu jako title.
+    shell_cmd = (
+        f'timeout /t 3 /nobreak >nul & '
+        f'start "" "{installer_str}" /SILENT /SUPPRESSMSGBOXES /NORESTART'
     )
-    # Necháme MainWindow.closeEvent doběhnout přirozeně
-    sys.exit(0)
+    logger.info("Spouštím installer (delayed 3s): {}", shell_cmd)
+
+    try:
+        subprocess.Popen(
+            ["cmd.exe", "/c", shell_cmd],
+            creationflags=flags,
+            close_fds=True,
+            cwd=str(Path.home()),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        logger.exception("Nelze spustit installer: {}", exc)
+        raise RuntimeError(
+            f"Nepodařilo se spustit instalátor: {exc}. "
+            f"Spusť ho prosím ručně: {installer_path}"
+        ) from exc
+
+    _request_app_quit()
+
+
+def _apply_update_macos(installer_path: Path) -> None:
+    logger.info("Otevírám DMG: {}", installer_path)
+    try:
+        subprocess.Popen(
+            ["open", str(installer_path)],
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        logger.exception("Nelze otevřít DMG: {}", exc)
+        raise RuntimeError(
+            f"Nepodařilo se otevřít DMG: {exc}. "
+            f"Otevři ho prosím ručně: {installer_path}"
+        ) from exc
+
+    _request_app_quit()
+
+
+def _request_app_quit() -> None:
+    # Qt potřebuje aspoň jeden event loop tick na cleanup (closeEvent,
+    # uložení nastavení, zavření workerů). Když je app k dispozici, použijeme
+    # QTimer.singleShot — jinak fallback na os._exit bez Python atexit hooků,
+    # protože sys.exit by mohl spustit threading cleanup, který blokne.
+    try:
+        from PySide6.QtCore import QCoreApplication, QTimer
+
+        app = QCoreApplication.instance()
+        if app is not None:
+            QTimer.singleShot(100, app.quit)
+            return
+    except ImportError:
+        pass
+    os._exit(0)
