@@ -97,6 +97,7 @@ class MainWindow(QMainWindow):
         self._update_download = UpdateDownloadWorker(self)
         self._available_update = None  # UpdateInfo | None
         self._update_installer_path = None  # Path | None
+        self._last_result = None  # PipelineResult | None — pro chat o dokumentu
 
         self._tray = self._init_tray()
 
@@ -769,6 +770,8 @@ class MainWindow(QMainWindow):
         self._refresh_run_button()
         self._progress.append_message(f"✅ Hotovo. Výstup: {result.output_path}")
         self._add_to_recents(result.output_path)
+        # Uložíme si poslední výsledek pro chat (potřebuje plný kontext).
+        self._last_result = result
 
         summary = self._format_result_summary(result)
         self._notify(
@@ -787,6 +790,7 @@ class MainWindow(QMainWindow):
         msg.setTextFormat(Qt.TextFormat.RichText)
         open_doc_btn = msg.addButton("Otevřít dokument", QMessageBox.ButtonRole.AcceptRole)
         open_folder_btn = msg.addButton("Otevřít složku", QMessageBox.ButtonRole.ActionRole)
+        chat_btn = msg.addButton("Chatovat o dokumentu", QMessageBox.ButtonRole.ActionRole)
         msg.addButton("Zavřít", QMessageBox.ButtonRole.RejectRole)
         msg.setDefaultButton(open_doc_btn)
         msg.exec()
@@ -796,6 +800,68 @@ class MainWindow(QMainWindow):
             self._open_file(result.output_path)
         elif clicked is open_folder_btn:
             self._open_file(result.output_path.parent)
+        elif clicked is chat_btn:
+            self._open_chat_dialog(result)
+
+    def _open_chat_dialog(self, result) -> None:
+        """Otevře chat dialog pro aktuální PipelineResult."""
+        from app.core.ai.chat import ChatSession
+        from app.gui.widgets.chat_dialog import ChatDialog
+
+        # Postavíme router (stejně jako v pipeline) — Gemini Free → Ollama
+        pseudo_job = JobConfig(
+            sources=[],
+            user_prompt="",
+            output_dir=Path(self._settings.output_dir),
+            ai_consent_gemini=self._settings.ai_consent_gemini,
+            prefer_offline=self._settings.prefer_offline,
+        )
+        from app.core.pipeline import _build_router  # interní helper
+
+        router = _build_router(pseudo_job, get_gemini_api_key())
+
+        session = ChatSession(
+            router=router,
+            transcripts=list(result.transcripts),
+            slides=list(result.slides),
+            current_material=result.material,
+        )
+        dialog = ChatDialog(session, result.output_path, parent=self)
+        dialog.material_changed.connect(
+            lambda new_material, r=result, d=dialog: self._on_chat_material_changed(
+                new_material, r, d
+            )
+        )
+        dialog.exec()
+
+    def _on_chat_material_changed(self, new_material, result, dialog) -> None:
+        """Přegeneruje .docx s novým materiálem (po Apply v chatu)."""
+        from app.core.word_export import export_docx
+
+        try:
+            export_docx(
+                output_path=result.output_path,
+                material=new_material,
+                transcripts=result.transcripts,
+                slides=result.slides,
+                sources=[],  # už jsme v post-pipeline kontextu
+                user_prompt=None,
+            )
+            # Update result objektu, aby další chat zprávy viděly nový materiál
+            result.material = new_material
+            self._progress.append_message(
+                f"✏ Dokument upraven podle chatu: {result.output_path.name}"
+            )
+            self._notify(
+                "Dokument upraven",
+                f"Aplikoval jsem změnu navrženou v chatu: {result.output_path.name}",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Re-export po chatu selhal: {}", exc)
+            QMessageBox.warning(
+                dialog, "Re-export selhal",
+                f"Nepodařilo se přegenerovat dokument: {exc}",
+            )
 
     @staticmethod
     def _format_result_summary(result) -> str:
