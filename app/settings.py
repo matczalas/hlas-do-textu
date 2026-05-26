@@ -48,6 +48,8 @@ class AppSettings:
     # "local_whisper" = faster-whisper na CPU (default, offline)
     # "cloud_gemini"  = Gemini Audio API (rychlejší, vyžaduje internet a souhlas)
     transcribe_backend: str = "local_whisper"
+    # Posledních 10 vygenerovaných .docx — pro File → Naposledy vyrobené.
+    recent_outputs: list[str] = field(default_factory=list)
 
 
 def load_settings() -> AppSettings:

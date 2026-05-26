@@ -23,6 +23,7 @@ dependencies = [
     "loguru>=0.7",
     "pydantic>=2.6",
     "tiktoken>=0.7",
+    "yt-dlp>=2024.8",
 ]
 
 [project.optional-dependencies]
