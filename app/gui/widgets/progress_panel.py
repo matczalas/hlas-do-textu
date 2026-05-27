@@ -52,13 +52,31 @@ class ProgressPanel(QGroupBox):
         outer.setContentsMargins(18, 14, 18, 14)
         outer.setSpacing(10)
 
-        # Top row: label + percent + cancel
+        # Top row: fáze badge + label + ETA + percent + cancel
         top = QHBoxLayout()
         top.setSpacing(10)
+
+        # Fázový badge — barevně rozlišuje krok (Příprava / Přepis / AI / Ukládání)
+        self._phase = QLabel("")
+        self._phase.setStyleSheet(
+            "font-size: 11px; font-weight: 700; color: white; "
+            "background: #888; border-radius: 8px; padding: 3px 9px;"
+        )
+        self._phase.hide()
+        top.addWidget(self._phase)
 
         self._status = QLabel("Připraveno")
         self._status.setStyleSheet("font-size: 13px; font-weight: 600; color: palette(text);")
         top.addWidget(self._status, 1)
+
+        # Indikátor pozice v dávce ("2 / 5") — viditelný jen při více nahrávkách
+        self._batch = QLabel("")
+        self._batch.setStyleSheet(
+            "font-size: 11px; font-weight: 700; color: #205ca8; "
+            "background: rgba(32,92,168,0.12); border-radius: 8px; padding: 3px 9px;"
+        )
+        self._batch.hide()
+        top.addWidget(self._batch)
 
         # Živý odhad zbývajícího času (ETA) — počítá se z reálné rychlosti
         self._eta = QLabel("")
@@ -123,6 +141,7 @@ class ProgressPanel(QGroupBox):
 
     def update(self, label: str, fraction: float) -> None:
         self._status.setText(label)
+        self._set_phase_badge(label)
         # Guard proti NaN/inf — int(nan) vyhodí ValueError a shodil by panel.
         if not math.isfinite(fraction):
             fraction = 0.0
@@ -132,6 +151,41 @@ class ProgressPanel(QGroupBox):
         self._percent.setText(f"{fraction * 100:.0f} %")
         self._update_eta(fraction)
         self._append_log(f"[{fraction * 100:5.1f}%] {label}")
+
+    def set_batch_position(self, index: int, total: int) -> None:
+        """Zobrazí 'X / N' při dávkovém zpracování. total<=1 → skryté."""
+        if total > 1:
+            self._batch.setText(f"dávka {index} / {total}")
+            self._batch.show()
+        else:
+            self._batch.hide()
+
+    def _set_phase_badge(self, label: str) -> None:
+        """Z textu progresu odvodí fázi a obarví badge. Uživatel hned vidí,
+        jestli běží přepis (Whisper) nebo AI zpracování."""
+        low = label.lower()
+        # (text badge, barva) podle klíčových slov v labelu
+        if "přepis" in low or "transcrib" in low:
+            text, color = "Přepis řeči", "#205ca8"   # modrá = Whisper/cloud přepis
+        elif "body" in low or "generuj" in low or " ai" in low or "ai " in low:
+            text, color = "AI zpracování", "#7c3aed"  # fialová = AI
+        elif "prezentac" in low or "slid" in low or "čtu" in low:
+            text, color = "Čtení slidů", "#0891b2"
+        elif "word" in low or "ukládám" in low or "export" in low:
+            text, color = "Ukládání", "#16a34a"       # zelená = finalizace
+        elif "extrah" in low or "připrav" in low or "stahuj" in low:
+            text, color = "Příprava", "#888"
+        elif "hotovo" in low:
+            text, color = "Hotovo", "#16a34a"
+        else:
+            self._phase.hide()
+            return
+        self._phase.setText(text)
+        self._phase.setStyleSheet(
+            f"font-size: 11px; font-weight: 700; color: white; "
+            f"background: {color}; border-radius: 8px; padding: 3px 9px;"
+        )
+        self._phase.show()
 
     def _update_eta(self, fraction: float) -> None:
         """Spočítá a zobrazí odhad zbývajícího času z reálné rychlosti.
@@ -164,6 +218,7 @@ class ProgressPanel(QGroupBox):
 
     def reset(self) -> None:
         self._status.setText("Připraveno")
+        self._phase.hide()
         self._bar.setValue(0)
         self._percent.setText("")
         self._eta.setText("")
