@@ -101,6 +101,48 @@ def extract_to_wav(src: Path, dest: Path) -> Path:
     return dest
 
 
+def trim_wav(src: Path, dest: Path, start_sec: float) -> Path:
+    """Ořízne WAV od `start_sec` do konce — pro resume přepisu.
+
+    Použije přesný (sample-accurate) seek: `-ss` AŽ ZA `-i` zaručuje, že ffmpeg
+    dekóduje od začátku a ořízne přesně, ne na nejbližší keyframe. U PCM WAV
+    je to rychlé (žádné re-enkódování, jen kopie samplů).
+
+    Vrací `dest`. Vyhodí AudioExtractError při selhání.
+    """
+    src = Path(src)
+    dest = Path(dest)
+    if not src.is_file():
+        raise AudioExtractError(f"Soubor pro ořez nenalezen: {src}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        ffmpeg_path(),
+        "-y",
+        "-i", str(src),
+        "-ss", f"{start_sec:.3f}",   # output seeking = přesný
+        "-ac", "1",
+        "-ar", "16000",
+        "-c:a", "pcm_s16le",
+        str(dest),
+    ]
+    logger.debug("FFmpeg trim: {}", " ".join(cmd))
+    try:
+        result = subprocess.run(cmd, timeout=600, **_subprocess_kwargs())
+    except FileNotFoundError as exc:
+        raise AudioExtractError("FFmpeg nebyl nalezen (trim).") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise AudioExtractError(f"Ořez {src.name} trval příliš dlouho.") from exc
+
+    if result.returncode != 0:
+        raise AudioExtractError(
+            f"FFmpeg ořez selhal pro {src.name}: {result.stderr.strip()[-200:]}"
+        )
+    if not dest.is_file() or dest.stat().st_size == 0:
+        raise AudioExtractError(f"FFmpeg ořez neprodukoval výstup pro {src.name}")
+    return dest
+
+
 def probe_duration_seconds(src: Path) -> float | None:
     """Vrátí délku média v sekundách přes ffprobe (best-effort).
 

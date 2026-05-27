@@ -415,6 +415,14 @@ class MainWindow(QMainWindow):
         self._maybe_offer_model_download()
         self._status_bar.refresh(get_gemini_api_key())
 
+        # Úklid osiřelých checkpointů (>7 dní) — z dávno opuštěných přepisů
+        try:
+            from app.core import checkpoint as _ckpt
+
+            _ckpt.cleanup_old()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Cleanup checkpointů selhal: {}", exc)
+
         # Tichá kontrola aktualizace po 5 s — nezdržuje startup ani s pomalou sítí
         QTimer.singleShot(5000, self._silent_update_check)
 
