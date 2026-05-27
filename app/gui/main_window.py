@@ -385,7 +385,7 @@ class MainWindow(QMainWindow):
         self._run_transcribe_btn.clicked.connect(
             lambda: self._run_pipeline(JobMode.TRANSCRIBE_ONLY)
         )
-        self._progress.cancel_button.clicked.connect(self._pipeline_worker.cancel)
+        self._progress.cancel_button.clicked.connect(self._on_cancel_clicked)
 
         self._pipeline_worker.progress.connect(self._progress.update)
         self._pipeline_worker.transcript_text.connect(self._progress.append_transcript_line)
@@ -896,6 +896,16 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self, "Chyba", f"Nepodařilo se spustit zpracování: {exc}"
             )
+
+    def _on_cancel_clicked(self) -> None:
+        """Uživatel klikl Zrušit. Nastavíme cancel_event a HNED dáme vizuální
+        zpětnou vazbu — Whisper kontroluje zrušení až na hranici segmentu,
+        takže reálné zastavení může pár sekund trvat. Bez feedbacku to vypadá,
+        že klik nic neudělal a uživatel klikne znovu."""
+        self._pipeline_worker.cancel()
+        # Pokud běží dávka, zahodíme i zbytek fronty
+        self._job_queue = []
+        self._progress.set_cancelling()
 
     def _on_cloud_fallback(self, reason: str) -> None:
         """Pipeline nás informuje, že cloud přepis selhal a přepojuje na lokální."""
