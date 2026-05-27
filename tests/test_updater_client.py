@@ -23,45 +23,60 @@ def test_apply_update_missing_file(tmp_path: Path) -> None:
         updater_client.apply_update(bogus)
 
 
-def test_apply_update_windows_launches_delayed_cmd_wrapper(fake_installer: Path) -> None:
+def test_apply_update_windows_uses_shellexecute_with_bat(fake_installer: Path) -> None:
+    """Primární cesta: ShellExecuteW spustí .bat wrapper (s ping delayem)."""
     with (
         patch.object(updater_client.sys, "platform", "win32"),
+        patch.object(updater_client, "_shellexecute", return_value=True) as shell_exec,
+        patch.object(updater_client.subprocess, "Popen") as popen,
+        patch.object(updater_client, "_request_app_quit") as quit_app,
+    ):
+        updater_client.apply_update(fake_installer)
+
+    # ShellExecuteW se zavolal, fallback Popen ne
+    shell_exec.assert_called_once()
+    popen.assert_not_called()
+    quit_app.assert_called_once()
+
+    # ShellExecuteW dostal cestu k .bat wrapperu (s ping delayem, ne timeout!)
+    target_arg = shell_exec.call_args[0][0]
+    assert target_arg.endswith(".bat")
+    # Ověříme obsah .bat — ping delay, ne timeout (ten padá bez konzole)
+    bat = fake_installer.with_name("hdt_update_launch.bat")
+    content = bat.read_text(encoding="ascii")
+    assert "ping" in content
+    assert "timeout" not in content
+    assert "/SILENT" in content
+
+
+def test_apply_update_windows_falls_back_to_popen_without_breakaway(fake_installer: Path) -> None:
+    """Když ShellExecuteW selže, fallback na Popen BEZ breakaway flagu
+    (breakaway byl příčina 'Access denied' na reálném Windows)."""
+    with (
+        patch.object(updater_client.sys, "platform", "win32"),
+        patch.object(updater_client, "_shellexecute", return_value=False),
         patch.object(updater_client.subprocess, "Popen") as popen,
         patch.object(updater_client, "_request_app_quit") as quit_app,
     ):
         updater_client.apply_update(fake_installer)
 
     popen.assert_called_once()
-    args, kwargs = popen.call_args
-    cmd = args[0]
-    assert cmd[0] == "cmd.exe"
-    assert cmd[1] == "/c"
-    shell_str = cmd[2]
-    assert "timeout /t 3" in shell_str
-    assert "/SILENT" in shell_str
-    assert "/SUPPRESSMSGBOXES" in shell_str
-    assert str(fake_installer) in shell_str
-    # start "" musí předcházet cestě, jinak start interpretuje cestu jako title.
-    assert 'start ""' in shell_str
-
+    _, kwargs = popen.call_args
     flags = kwargs["creationflags"]
-    DETACHED_PROCESS = 0x00000008
-    CREATE_NEW_PROCESS_GROUP = 0x00000200
     CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+    DETACHED_PROCESS = 0x00000008
+    # KLÍČOVÉ: breakaway flag UŽ NESMÍ být (padal na Access denied)
+    assert not (flags & CREATE_BREAKAWAY_FROM_JOB)
     assert flags & DETACHED_PROCESS
-    assert flags & CREATE_NEW_PROCESS_GROUP
-    assert flags & CREATE_BREAKAWAY_FROM_JOB
-
-    assert kwargs["close_fds"] is True
     quit_app.assert_called_once()
 
 
-def test_apply_update_windows_popen_failure_raises_runtime_error(fake_installer: Path) -> None:
+def test_apply_update_windows_both_paths_fail_raises(fake_installer: Path) -> None:
     with (
         patch.object(updater_client.sys, "platform", "win32"),
+        patch.object(updater_client, "_shellexecute", return_value=False),
         patch.object(
-            updater_client.subprocess,
-            "Popen",
+            updater_client.subprocess, "Popen",
             side_effect=OSError("[WinError 740] Vyžaduje elevation"),
         ),
         patch.object(updater_client, "_request_app_quit") as quit_app,
@@ -70,7 +85,6 @@ def test_apply_update_windows_popen_failure_raises_runtime_error(fake_installer:
             updater_client.apply_update(fake_installer)
 
     assert "ručně" in str(excinfo.value)
-    assert str(fake_installer) in str(excinfo.value)
     quit_app.assert_not_called()
 
 

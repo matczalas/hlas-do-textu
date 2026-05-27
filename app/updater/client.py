@@ -250,44 +250,108 @@ def apply_update(installer_path: Path) -> None:
 
 
 def _apply_update_windows(installer_path: Path) -> None:
-    # Windows nedovolí přepsat běžící .exe. Naše aplikace musí skončit DŘÍV,
-    # než Inno Setup začne kopírovat soubory. Spustíme cmd wrapper, který
-    # 3 sekundy spí a teprve pak nahodí installer — a hned ukončíme app.
-    #
-    # creationflags musí odpojit child úplně: bez DETACHED_PROCESS by share-il
-    # konzoli, bez CREATE_BREAKAWAY_FROM_JOB by zemřel s parentem v Job objectu
-    # (PyInstaller bundle běží často v takovém jobu).
-    DETACHED_PROCESS = 0x00000008
-    CREATE_NEW_PROCESS_GROUP = 0x00000200
-    CREATE_BREAKAWAY_FROM_JOB = 0x01000000
-    flags = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB
+    """Spustí Inno Setup installer odděleně od běžící aplikace a ukončí ji.
 
+    Windows nedovolí přepsat běžící `.exe`. Potřebujeme tedy:
+    1. Spustit installer jako proces NEZÁVISLÝ na naší aplikaci (přežije náš exit).
+    2. Dát aplikaci čas se ukončit, NEŽ installer začne kopírovat soubory.
+
+    Historie bugu: dřívější verze používala `cmd /c "timeout /t 3 & start ..."`
+    s `creationflags=CREATE_BREAKAWAY_FROM_JOB`. Na reálném Windows to padalo
+    ze dvou důvodů:
+      - `timeout` vyžaduje konzoli — se stdin=DEVNULL skončí chybou
+        "Input redirection is not supported" a delay vůbec neproběhne.
+      - `CREATE_BREAKAWAY_FROM_JOB` vyhodí "Access denied", když proces běží
+        v Job Objectu bez povoleného breakaway (časté u PyInstaller bundlu).
+
+    Nové řešení:
+      - delay přes `ping` (funguje i bez konzole/stdin, narozdíl od `timeout`),
+      - installer spuštěn přes `ShellExecuteW` (nativní Windows API — spustí
+        proces mimo náš Job Object bez potřeby breakaway flagu),
+      - pojistka: Inno Setup má `CloseApplications=yes` + `AppMutex`, takže
+        i kdyby naše app ještě běžela, installer ji sám korektně zavře.
+    """
     installer_str = str(installer_path)
-    # `start ""` odpojí installer od cmd wrapperu, takže cmd hned skončí
-    # a installer doběhne sám. Prázdné `""` je title — povinné, jinak `start`
-    # interpretuje cestu jako title.
-    shell_cmd = (
-        f'timeout /t 3 /nobreak >nul & '
-        f'start "" "{installer_str}" /SILENT /SUPPRESSMSGBOXES /NORESTART'
-    )
-    logger.info("Spouštím installer (delayed 3s): {}", shell_cmd)
 
+    # Wrapper .bat: počká přes `ping` (spolehlivé bez konzole), spustí installer
+    # a sám se smaže. `ping -n 4` = ~3 s prodleva.
+    bat_path = installer_path.with_name("hdt_update_launch.bat")
+    bat_content = (
+        "@echo off\r\n"
+        "ping 127.0.0.1 -n 4 >nul\r\n"
+        f'start "" "{installer_str}" /SILENT /SUPPRESSMSGBOXES /NORESTART\r\n'
+        'del "%~f0"\r\n'
+    )
     try:
-        subprocess.Popen(
-            ["cmd.exe", "/c", shell_cmd],
-            creationflags=flags,
-            close_fds=True,
-            cwd=str(Path.home()),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        bat_path.write_text(bat_content, encoding="ascii")
     except OSError as exc:
-        logger.exception("Nelze spustit installer: {}", exc)
-        raise RuntimeError(
-            f"Nepodařilo se spustit instalátor: {exc}. "
-            f"Spusť ho prosím ručně: {installer_path}"
-        ) from exc
+        logger.warning("Nelze zapsat update .bat ({}), zkusím přímé spuštění", exc)
+        bat_path = None
+
+    target = str(bat_path) if bat_path is not None else installer_str
+    params = "" if bat_path is not None else "/SILENT /SUPPRESSMSGBOXES /NORESTART"
+
+    # 1) Primární cesta: ShellExecuteW (nejnativnější, neřeší Job Object).
+    launched = _shellexecute(target, params)
+
+    # 2) Fallback: subprocess.Popen BEZ breakaway flagu (jen DETACHED_PROCESS).
+    if not launched:
+        logger.warning("ShellExecuteW selhal, fallback na subprocess.Popen")
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        try:
+            if bat_path is not None:
+                subprocess.Popen(
+                    ["cmd.exe", "/c", str(bat_path)],
+                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                    close_fds=True,
+                    cwd=str(Path.home()),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                subprocess.Popen(
+                    [installer_str, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                    close_fds=True,
+                    cwd=str(Path.home()),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            launched = True
+        except OSError as exc:
+            logger.exception("Fallback subprocess.Popen také selhal: {}", exc)
+            raise RuntimeError(
+                f"Nepodařilo se spustit instalátor: {exc}. "
+                f"Spusť ho prosím ručně: {installer_path}"
+            ) from exc
+
+    logger.info("Installer spuštěn (bat={}, target={})", bat_path is not None, target)
+
+    # Ukončíme aplikaci, ať uvolní .exe pro přepsání. Installer čeká přes
+    # ping delay v .bat + Inno Setup CloseApplications jako pojistka.
+    _request_app_quit()
+
+
+def _shellexecute(target: str, params: str) -> bool:
+    """Spustí proces přes Windows ShellExecuteW. Vrací True při úspěchu.
+
+    ShellExecuteW vrací hodnotu >32 při úspěchu. Proces se spustí nezávisle
+    na našem (mimo Job Object), takže nepotřebujeme CREATE_BREAKAWAY_FROM_JOB.
+    """
+    try:
+        import ctypes
+
+        # SW_SHOWNORMAL=1. Vrací HINSTANCE > 32 při úspěchu.
+        rc = ctypes.windll.shell32.ShellExecuteW(
+            None, "open", target, params or None, str(Path.home()), 1
+        )
+        return int(rc) > 32
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("ShellExecuteW výjimka: {}", exc)
+        return False
 
     _request_app_quit()
 
