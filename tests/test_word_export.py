@@ -69,3 +69,36 @@ def test_suggested_filename_empty_title_fallback():
     name = suggested_output_filename(material)
     assert name.endswith(".docx")
     assert len(name) > 5
+
+
+def test_export_docx_survives_control_characters(tmp_path: Path) -> None:
+    """Control znaky (\\x00, \\x0b...) z Whisper/PDF nesmí shodit export —
+    python-docx by jinak vyhodil ValueError a ztratila by se celá práce."""
+    material = StudyMaterial(
+        title="Mat\x00eriál\x0b s control znaky",
+        bullets=["Bod s\x00 NULL", "Normální bod"],
+        terms=[("po\x0cjem", "defi\x1fnice")],
+        examples=["Příklad\x08"],
+        further_study=["Zdroj\x0e"],
+    )
+    transcripts = [
+        Transcript(
+            source_label="Část\x00 1",
+            language="cs",
+            duration_sec=10.0,
+            text="Přepis\x00 s control\x0b znakem.",
+            segments=[TranscriptSegment(start=0.0, end=5.0, text="Přepis\x00 s control\x0b znakem.")],
+        )
+    ]
+    out = tmp_path / "ctrl.docx"
+    # Nesmí vyhodit ValueError
+    result = export_docx(
+        output_path=out,
+        material=material,
+        transcripts=transcripts,
+        slides=[],
+        sources=[],
+        user_prompt="Prompt\x00 s NULL",
+    )
+    assert result.exists()
+    assert out.stat().st_size > 1000

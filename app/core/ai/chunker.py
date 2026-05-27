@@ -5,17 +5,44 @@ Gemini má vlastní tokenizer, ale tiktoken `cl100k_base` je dost dobrý odhad
 
 from __future__ import annotations
 
+from loguru import logger
+
 from app.config import MAP_CHUNK_TOKENS
 
 _ENCODER = None
+_ENCODER_FAILED = False
+
+
+class _FallbackEncoder:
+    """Náhrada za tiktoken, když selže (chybějící data v PyInstaller bundle).
+
+    Hrubý odhad ~4 znaky / token. Není přesné, ale chunking dál funguje —
+    lepší než shodit celou AI vrstvu. encode() vrací list správné délky,
+    takže `len(enc.encode(text))` dá odhad počtu tokenů.
+    """
+
+    @staticmethod
+    def encode(text: str) -> list[int]:
+        return [0] * (max(len(text), 1) // 4 + 1)
 
 
 def _get_encoder():
-    global _ENCODER
-    if _ENCODER is None:
+    global _ENCODER, _ENCODER_FAILED
+    if _ENCODER is not None:
+        return _ENCODER
+    if _ENCODER_FAILED:
+        return _FallbackEncoder()
+    try:
         import tiktoken
 
         _ENCODER = tiktoken.get_encoding("cl100k_base")
+    except Exception as exc:  # noqa: BLE001 — tiktoken může selhat v bundlu
+        logger.warning(
+            "tiktoken nedostupný ({}), používám hrubý odhad tokenů (~4 znaky/token)",
+            exc,
+        )
+        _ENCODER_FAILED = True
+        return _FallbackEncoder()
     return _ENCODER
 
 
@@ -74,6 +101,16 @@ def _split_long_paragraph(para: str, target_tokens: int, enc) -> list[str]:
     buf_tokens = 0
     for sent in sentences:
         s_tokens = len(enc.encode(sent))
+        # Pojistka: jediná "věta" delší než target (text bez interpunkce/mezer —
+        # slepený OCR, base64, dlouhá URL). Bez hard-splitu by vznikl jeden
+        # obří chunk přetékající kontext modelu. Rozsekáme ji natvrdo po znacích.
+        if s_tokens > target_tokens:
+            if buf:
+                out.append(" ".join(buf))
+                buf = []
+                buf_tokens = 0
+            out.extend(_hard_split_by_chars(sent, target_tokens, enc))
+            continue
         if buf_tokens + s_tokens > target_tokens and buf:
             out.append(" ".join(buf))
             buf = [sent]
@@ -84,6 +121,17 @@ def _split_long_paragraph(para: str, target_tokens: int, enc) -> list[str]:
     if buf:
         out.append(" ".join(buf))
     return out
+
+
+def _hard_split_by_chars(text: str, target_tokens: int, enc) -> list[str]:
+    """Poslední záchrana: rozseká text podle počtu znaků na kusy pod limitem.
+
+    Odhad znaků na chunk z aktuálního poměru znaky/token daného textu.
+    """
+    token_count = max(len(enc.encode(text)), 1)
+    chars_per_token = max(len(text) // token_count, 1)
+    chunk_chars = max(target_tokens * chars_per_token, 1)
+    return [text[i : i + chunk_chars] for i in range(0, len(text), chunk_chars)]
 
 
 def _split_sentences(text: str) -> list[str]:
