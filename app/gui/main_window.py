@@ -104,6 +104,12 @@ class MainWindow(QMainWindow):
         self._pipeline_start_monotonic = None
         self._pipeline_audio_seconds = 0.0
         self._pipeline_backend_used = None
+        # Fronta dávkového zpracování (víc nahrávek "každou zvlášť")
+        self._job_queue: list = []
+        self._queue_total = 0
+        self._queue_index = 0
+        self._queue_results: list = []
+        self._queue_api_key = None
 
         self._tray = self._init_tray()
 
@@ -785,11 +791,53 @@ class MainWindow(QMainWindow):
             self._start_model_download()
             return
 
+        # Když je víc nahrávek, zeptáme se: spojit do jednoho dokumentu, nebo
+        # zpracovat každou zvlášť (dávka → N dokumentů).
+        audio_count = sum(1 for s in sources if s.kind == SourceKind.AUDIO_VIDEO)
+        batch_mode = self._ask_batch_mode(audio_count)
+        if batch_mode is None:
+            return  # uživatel zrušil
+
         if not self._confirm_time_estimate(sources, mode):
             return
 
-        job = JobConfig(
-            sources=sources,
+        # Sestavíme frontu jobů. "merge" = jeden job se vším. "separate" =
+        # jeden job na každou nahrávku (slidy se přiloží ke každé).
+        self._build_job_queue(sources, mode, batch_mode)
+        self._queue_api_key = get_gemini_api_key() if mode == JobMode.FULL else None
+        self._start_next_job()
+
+    def _ask_batch_mode(self, audio_count: int) -> str | None:
+        """Vrátí 'merge' / 'separate' / None (zrušeno). Při <=1 nahrávce 'merge'."""
+        if audio_count <= 1:
+            return "merge"
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Více nahrávek")
+        msg.setIcon(QMessageBox.Icon.Question)
+        msg.setText(
+            f"Přidal jsi {audio_count} nahrávek. Jak je mám zpracovat?"
+        )
+        msg.setInformativeText(
+            "• Spojit = jedna přednáška → jeden dokument\n"
+            "• Každou zvlášť = samostatný dokument pro každou nahrávku"
+        )
+        merge_btn = msg.addButton("Spojit do jednoho", QMessageBox.ButtonRole.AcceptRole)
+        sep_btn = msg.addButton(
+            f"Každou zvlášť ({audio_count} dokumentů)", QMessageBox.ButtonRole.AcceptRole
+        )
+        msg.addButton("Zrušit", QMessageBox.ButtonRole.RejectRole)
+        msg.setDefaultButton(merge_btn)
+        msg.exec()
+        clicked = msg.clickedButton()
+        if clicked is merge_btn:
+            return "merge"
+        if clicked is sep_btn:
+            return "separate"
+        return None
+
+    def _build_job_queue(self, sources, mode: JobMode, batch_mode: str) -> None:
+        """Naplní self._job_queue podle batch módu."""
+        common = dict(
             user_prompt=self._prompt_editor.text(),
             output_dir=Path(self._settings.output_dir),
             mode=mode,
@@ -801,12 +849,37 @@ class MainWindow(QMainWindow):
             user_ai_service=self._settings.user_ai_service,
             transcribe_backend=_parse_backend(self._settings.transcribe_backend),
         )
+        from app.core.pipeline import split_sources_for_batch
 
+        groups = split_sources_for_batch(list(sources), batch_mode)
+        self._job_queue = [JobConfig(sources=g, **common) for g in groups]
+        self._queue_total = len(self._job_queue)
+        self._queue_index = 0
+        self._queue_results = []
+
+    def _start_next_job(self) -> None:
+        """Spustí další job z fronty, nebo finalizuje, když je prázdná."""
+        if not self._job_queue:
+            return
+        job = self._job_queue.pop(0)
+        self._queue_index += 1
+        if self._queue_total > 1:
+            self._progress.append_message(
+                f"▶ Zpracovávám {self._queue_index}/{self._queue_total}: "
+                f"{job.sources[0].label if job.sources else '?'}"
+            )
         self._progress.reset()
+        self._progress.set_batch_position(self._queue_index, self._queue_total)
         self._progress.set_busy(True)
         self._run_btn.setEnabled(False)
+        self._run_current_job(job)
+
+    def _run_current_job(self, job: JobConfig) -> None:
         # Pro self-kalibraci odhadu: zapamatujeme start + celkovou délku audia
         import time as _time
+
+        sources = job.sources
+        api_key = self._queue_api_key
 
         self._pipeline_start_monotonic = _time.monotonic()
         self._pipeline_audio_seconds = sum(
@@ -847,6 +920,22 @@ class MainWindow(QMainWindow):
         self._last_result = result
         # Self-kalibrace odhadu — jen pro lokální přepis (cloud má jinou dynamiku)
         self._calibrate_speed_factor(result)
+        self._queue_results.append(result)
+
+        # Dávka (víc jobů) — nepřerušujeme blokujícím dialogem, jen tichá
+        # notifikace a pokračujeme dalším jobem. Souhrn až na konci fronty.
+        if self._job_queue:
+            self._notify(
+                "Hlas do textu",
+                f"Hotovo {self._queue_index}/{self._queue_total}: {result.output_path.name}",
+            )
+            self._start_next_job()
+            return
+
+        # Poslední / jediný job — souhrnný dialog
+        if self._queue_total > 1:
+            self._show_batch_summary()
+            return
 
         summary = self._format_result_summary(result)
         self._notify(
@@ -877,6 +966,26 @@ class MainWindow(QMainWindow):
             self._open_file(result.output_path.parent)
         elif clicked is chat_btn:
             self._open_chat_dialog(result)
+
+    def _show_batch_summary(self) -> None:
+        """Souhrnný dialog po dokončení celé dávky."""
+        n = len(self._queue_results)
+        first_dir = self._queue_results[0].output_path.parent if self._queue_results else None
+        self._notify("Hlas do textu — dávka hotová ✅", f"Vyrobeno {n} dokumentů.")
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Dávka dokončena")
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setText(
+            f"<b>Hotovo — vyrobeno {n} dokumentů.</b><br><br>"
+            "Najdeš je roztříděné podle tématu ve výstupní složce."
+        )
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        open_btn = msg.addButton("Otevřít složku", QMessageBox.ButtonRole.AcceptRole)
+        msg.addButton("Zavřít", QMessageBox.ButtonRole.RejectRole)
+        msg.exec()
+        if msg.clickedButton() is open_btn and first_dir is not None:
+            # Otevřeme kořenovou výstupní složku (ne téma-podsložku konkrétního jobu)
+            self._open_file(Path(self._settings.output_dir))
 
     def _open_chat_dialog(self, result) -> None:
         """Otevře chat dialog pro aktuální PipelineResult."""
@@ -979,13 +1088,38 @@ class MainWindow(QMainWindow):
     def _on_pipeline_error(self, message: str, cancelled: bool) -> None:
         self._progress.set_busy(False)
         self._refresh_run_button()
+
+        # Cancel zastaví celou dávku (uživatel to chtěl).
         if cancelled:
+            self._job_queue = []  # zahodit zbytek fronty
             self._progress.append_message("⚠️ Zpracování zrušeno.")
             QMessageBox.information(self, "Zrušeno", "Zpracování bylo zrušeno.")
-        else:
-            self._progress.append_message(f"❌ {message}")
-            self._notify("Hlas do textu — chyba ❌", message[:120], is_error=True)
-            QMessageBox.critical(self, "Chyba", message)
+            return
+
+        # Chyba JEDNOHO jobu v dávce nezastaví ostatní — zalogujeme a jedeme dál.
+        if self._job_queue:
+            self._progress.append_message(
+                f"❌ {self._queue_index}/{self._queue_total} selhalo: {message[:100]}. "
+                "Pokračuji dalším."
+            )
+            self._notify("Hlas do textu", "Jedna nahrávka selhala, pokračuji dál.", is_error=True)
+            self._start_next_job()
+            return
+
+        # Poslední/jediný job
+        if self._queue_total > 1:
+            # Konec dávky — část mohla projít
+            done = len(self._queue_results)
+            self._progress.append_message(f"❌ Poslední selhalo: {message[:100]}")
+            QMessageBox.warning(
+                self, "Dávka dokončena s chybou",
+                f"Hotovo {done} z {self._queue_total}. Poslední selhalo:\n{message[:200]}",
+            )
+            return
+
+        self._progress.append_message(f"❌ {message}")
+        self._notify("Hlas do textu — chyba ❌", message[:120], is_error=True)
+        QMessageBox.critical(self, "Chyba", message)
 
     def _regenerate_from_existing(self) -> None:
         if self._pipeline_worker.is_running() or self._regenerate_worker.is_running():

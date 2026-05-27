@@ -25,6 +25,7 @@ from app.core.models import (
     JobConfig,
     JobMode,
     SlideText,
+    SourceFile,
     SourceKind,
     StudyMaterial,
     TranscribeBackend,
@@ -399,6 +400,30 @@ def _run_transcribe(
         )
     except TranscribeCancelled:
         raise
+
+
+def split_sources_for_batch(
+    sources: list[SourceFile], batch_mode: str
+) -> list[list[SourceFile]]:
+    """Rozdělí zdroje na skupiny pro joby podle dávkového módu.
+
+    - "separate": každá nahrávka = vlastní job, slidy se přiloží ke každému
+      (slidy bývají ke kurzu, hodí se ke každé přednášce).
+    - jinak ("merge"): vše do jedné skupiny (jeden job).
+
+    Vrací list skupin; každá skupina je list SourceFile pro jeden JobConfig.
+    Prázdný vstup → prázdný list (žádné joby).
+    """
+    if not sources:
+        return []
+    if batch_mode == "separate":
+        audio = [s for s in sources if s.kind == SourceKind.AUDIO_VIDEO]
+        slides = [s for s in sources if s.kind == SourceKind.PRESENTATION]
+        if not audio:
+            # Žádné audio (jen slidy) — nedává smysl dělit, jeden job
+            return [list(sources)]
+        return [[a, *slides] for a in audio]
+    return [list(sources)]
 
 
 def _humanize_cloud_error(exc: BaseException) -> str:
