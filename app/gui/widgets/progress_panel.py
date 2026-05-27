@@ -126,9 +126,21 @@ class ProgressPanel(QGroupBox):
     def cancel_button(self) -> QPushButton:
         return self._cancel_btn
 
+    def set_cancelling(self) -> None:
+        """Okamžitá zpětná vazba po kliku Zrušit. Whisper reaguje až na hranici
+        segmentu, takže reálné zastavení může pár sekund trvat — uživatel musí
+        vidět, že klik byl přijat (jinak klikne znovu / myslí si, že to nefunguje)."""
+        self._cancel_btn.setEnabled(False)
+        self._cancel_btn.setText("Ruším…")
+        self._phase.hide()
+        self._eta.setText("")
+        self._status.setText("Zastavuji — dokončuji aktuální úsek…")
+        self._append_log("⏹ Ruším zpracování… (zastaví se po dokončení aktuálního úseku)")
+
     def set_busy(self, busy: bool) -> None:
         self._cancel_btn.setEnabled(busy)
         if busy:
+            self._cancel_btn.setText("Zrušit")  # reset z případného "Ruším…"
             # Start měření pro ETA
             self._start_monotonic = time.monotonic()
             self._smoothed_eta = None

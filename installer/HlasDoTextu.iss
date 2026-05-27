@@ -3,7 +3,7 @@
 ; Sestavovat pomocí ISCC v CI runneru.
 
 #define MyAppName "Hlas do textu"
-#define MyAppVersion "0.9.0"
+#define MyAppVersion "0.9.1"
 #define MyAppPublisher "Safe4Future z. u."
 #define MyAppExeName "HlasDoTextu.exe"
 #define MyAppId "{{C0FE4F50-AF60-4F7E-8C0F-2A5B0E0E6F7A}}"
