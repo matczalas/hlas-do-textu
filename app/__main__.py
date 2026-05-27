@@ -63,8 +63,35 @@ def _install_crash_handler() -> None:
     sys.excepthook = _excepthook
 
 
+# Drží se globálně, ať ho GC nezavře — mutex žije po dobu běhu procesu.
+_WIN_MUTEX_HANDLE = None
+
+
+def _create_windows_mutex() -> None:
+    """Vytvoří pojmenovaný mutex, který Inno Setup `AppMutex` detekuje.
+
+    Díky tomu instalátor/odinstalátor pozná, že aplikace běží, a nabídne
+    uživateli ji zavřít (místo aby narazil na zamčený .exe nebo logy).
+    Jméno musí přesně odpovídat `AppMutex` v installer/HlasDoTextu.iss.
+    No-op mimo Windows.
+    """
+    global _WIN_MUTEX_HANDLE
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        # CreateMutexW(securityAttrs=None, initialOwner=False, name)
+        _WIN_MUTEX_HANDLE = ctypes.windll.kernel32.CreateMutexW(
+            None, False, "Global\\HlasDoTextu_Running_Mutex"
+        )
+    except Exception:  # noqa: BLE001 — mutex je nice-to-have, ne kritické
+        _WIN_MUTEX_HANDLE = None
+
+
 def main() -> int:
     _install_crash_handler()
+    _create_windows_mutex()
 
     # Musí se nastavit PŘED QApplication
     os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "1")
