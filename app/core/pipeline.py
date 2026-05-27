@@ -38,7 +38,11 @@ from app.core.transcribe_gemini import (
     TranscribeGeminiCancelled,
     transcribe_audio_via_gemini,
 )
-from app.core.word_export import export_docx, suggested_output_filename
+from app.core.word_export import (
+    export_docx,
+    suggested_output_filename,
+    topic_folder_name,
+)
 
 
 @dataclass(slots=True)
@@ -267,7 +271,15 @@ def run_pipeline(
         out_filename = suggested_output_filename(material)
         if transcribe_only:
             out_filename = "Prepis_" + out_filename.replace("Studijni-material_", "")
-        out_path = Path(job.output_dir) / out_filename
+        # Třídění do podsložky podle tématu (AI navrhne, např. "Fyzika").
+        # Prázdné téma (transcribe-only nebo AI nevrátila) → kořenová složka.
+        out_dir = Path(job.output_dir)
+        folder = topic_folder_name(material)
+        if folder:
+            out_dir = out_dir / folder
+            out_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("Export tříděn do složky podle tématu: {}", folder)
+        out_path = out_dir / out_filename
         export_docx(
             output_path=out_path,
             material=material,

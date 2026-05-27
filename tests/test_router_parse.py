@@ -13,6 +13,19 @@ def test_parse_clean_json():
     assert mat.terms == [("pojem", "definice")]
 
 
+def test_parse_extracts_topic():
+    raw = '{"topic": "Fyzika", "title": "Newton", "bullets": ["a"]}'
+    mat = _parse_study_material(raw)
+    assert mat.topic == "Fyzika"
+    assert mat.title == "Newton"
+
+
+def test_parse_missing_topic_defaults_empty():
+    raw = '{"title": "X", "bullets": ["a"]}'
+    mat = _parse_study_material(raw)
+    assert mat.topic == ""
+
+
 def test_parse_markdown_fenced_json():
     raw = "Zde je tvůj výstup:\n```json\n{\"title\": \"T\", \"bullets\": [\"x\"]}\n```\nHotovo."
     mat = _parse_study_material(raw)

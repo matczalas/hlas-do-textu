@@ -56,6 +56,7 @@ Vytvoř strukturovaný výstup ve formě validního JSON:
 
 ```json
 {{
+  "topic": "obor/předmět jedním až dvěma slovy (např. Fyzika, Dějepis, Marketing) — pro zařazení do složky",
   "title": "stručný název materiálu (max 80 znaků)",
   "bullets": ["hlavní bod k zapamatování (max 30 bodů, prioritní pro zkoušku)"],
   "terms": [["pojem", "definice s kontextem"]],
@@ -92,6 +93,7 @@ Vytvoř strukturovaný výstup ve formě validního JSON:
 
 ```json
 {{
+  "topic": "obor/předmět jedním až dvěma slovy (např. Fyzika, Dějepis, Marketing) — pro zařazení do složky",
   "title": "stručný název materiálu (max 80 znaků)",
   "bullets": ["hlavní bod k zapamatování (max 30 bodů, prioritní pro zkoušku)"],
   "terms": [["pojem", "definice s kontextem"]],

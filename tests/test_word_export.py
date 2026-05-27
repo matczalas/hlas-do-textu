@@ -12,7 +12,11 @@ from app.core.models import (
     Transcript,
     TranscriptSegment,
 )
-from app.core.word_export import export_docx, suggested_output_filename
+from app.core.word_export import (
+    export_docx,
+    suggested_output_filename,
+    topic_folder_name,
+)
 
 
 def test_export_docx_creates_valid_file(tmp_path: Path) -> None:
@@ -69,6 +73,36 @@ def test_suggested_filename_empty_title_fallback():
     name = suggested_output_filename(material)
     assert name.endswith(".docx")
     assert len(name) > 5
+
+
+def test_topic_folder_name_basic():
+    assert topic_folder_name(StudyMaterial(title="X", topic="Fyzika")) == "Fyzika"
+    assert topic_folder_name(StudyMaterial(title="X", topic="Dějepis 20. století")) == "Dějepis 20 století"
+
+
+def test_topic_folder_name_empty_returns_empty():
+    assert topic_folder_name(StudyMaterial(title="X", topic="")) == ""
+    assert topic_folder_name(StudyMaterial(title="X")) == ""
+
+
+def test_topic_folder_name_strips_unsafe_chars():
+    # Znaky nebezpečné pro Windows/macOS cesty se odstraní
+    result = topic_folder_name(StudyMaterial(title="X", topic='Fyzika/Mechanika: úvod*?'))
+    for forbidden in ("/", "\\", ":", "*", "?", '"', "<", ">", "|"):
+        assert forbidden not in result
+    assert "Fyzika" in result
+
+
+def test_topic_folder_name_no_trailing_dot_or_space():
+    # Windows nesnáší tečku/mezeru na konci názvu složky
+    result = topic_folder_name(StudyMaterial(title="X", topic="Biologie. "))
+    assert not result.endswith(".")
+    assert not result.endswith(" ")
+
+
+def test_topic_folder_name_length_capped():
+    long_topic = "A" * 100
+    assert len(topic_folder_name(StudyMaterial(title="X", topic=long_topic))) <= 40
 
 
 def test_export_docx_survives_control_characters(tmp_path: Path) -> None:

@@ -327,10 +327,14 @@ def _parse_material(data: dict, *, fallback: StudyMaterial) -> StudyMaterial:
     further_raw = data.get("further_study") or []
     further = [str(f).strip() for f in further_raw if str(f).strip()]
 
+    # Téma zachováme z fallbacku, pokud ho model nevrátil (chat ho obvykle nemění)
+    topic = str(data.get("topic") or fallback.topic or "").strip()
+
     return StudyMaterial(
         title=title,
         bullets=bullets,
         terms=terms,
         examples=examples,
         further_study=further,
+        topic=topic,
     )
