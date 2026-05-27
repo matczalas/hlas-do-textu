@@ -41,6 +41,9 @@ USER_CONFIG_DIR: Path = _user_config_dir()
 MODELS_DIR: Path = USER_DATA_DIR / "models"
 TEMP_DIR: Path = USER_DATA_DIR / "tmp"
 LOGS_DIR: Path = USER_DATA_DIR / "logs"
+# Checkpointy přepisu — přežívají restart/cancel (na rozdíl od TEMP workspace),
+# umožňují navázat dlouhý přepis od místa přerušení.
+CHECKPOINTS_DIR: Path = USER_DATA_DIR / "checkpoints"
 
 CONFIG_FILE: Path = USER_CONFIG_DIR / "config.json"
 
@@ -49,7 +52,8 @@ DEFAULT_OUTPUT_DIR: Path = Path.home() / "Documents" / __app_name__
 
 def ensure_dirs() -> None:
     """Volat při startu aplikace. Idempotentní."""
-    for d in (USER_DATA_DIR, USER_CONFIG_DIR, MODELS_DIR, TEMP_DIR, LOGS_DIR, DEFAULT_OUTPUT_DIR):
+    for d in (USER_DATA_DIR, USER_CONFIG_DIR, MODELS_DIR, TEMP_DIR, LOGS_DIR,
+              CHECKPOINTS_DIR, DEFAULT_OUTPUT_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
 

@@ -146,7 +146,9 @@ def run_pipeline(
         #   přesto si zjistíme délku pro progress a estimáty
         extract_stage = stages[1]
         cumulative = _begin_stage(report, extract_stage, cumulative)
-        audio_jobs: list[tuple[Path, str, float]] = []  # (path, label, duration_sec)
+        # (path_k_přepisu, originální_soubor, label, duration) — originál slouží
+        # jako stabilní klíč checkpointu (workspace WAV se mezi běhy mění).
+        audio_jobs: list[tuple[Path, Path, str, float]] = []
         for i, src in enumerate(audio_sources):
             _raise_if_cancelled(cancel_event)
             sub_fraction = (i + 1) / max(len(audio_sources), 1)
@@ -156,7 +158,7 @@ def run_pipeline(
                     f"Připravuji: {src.label}",
                     cumulative - extract_stage.weight + extract_stage.weight * sub_fraction,
                 )
-                audio_jobs.append((src.path, src.label, duration))
+                audio_jobs.append((src.path, src.path, src.label, duration))
             else:
                 report(
                     f"Extrahuji audio: {src.label}",
@@ -164,15 +166,15 @@ def run_pipeline(
                 )
                 wav = work_dir / f"audio_{i:02d}.wav"
                 extract_to_wav(src.path, wav)
-                audio_jobs.append((wav, src.label, duration))
+                audio_jobs.append((wav, src.path, src.label, duration))
 
         # Stage: Transkripce
         transcribe_stage = stages[2]
         cumulative = _begin_stage(report, transcribe_stage, cumulative)
         transcripts: list[Transcript] = []
-        total_duration = sum(d for _, _, d in audio_jobs) or 1.0
+        total_duration = sum(d for _, _, _, d in audio_jobs) or 1.0
         accumulated_duration = 0.0
-        for audio_path, label, duration in audio_jobs:
+        for audio_path, original_path, label, duration in audio_jobs:
             _raise_if_cancelled(cancel_event)
             stage_base = cumulative - transcribe_stage.weight
             file_weight = (duration or 1.0) / total_duration
@@ -198,6 +200,7 @@ def run_pipeline(
 
             tr = _run_transcribe(
                 audio_path=audio_path,
+                original_audio=original_path,
                 label=label,
                 job=job,
                 use_gemini=use_gemini,
@@ -320,6 +323,7 @@ def _run_transcribe(
     cloud_fallback_cb: Callable[[str], None] | None,
     cancel_event: threading.Event | None,
     fallback_work_dir: Path | None = None,
+    original_audio: Path | None = None,
 ) -> Transcript:
     """Přepis jednoho souboru. Cloud Gemini s fallback na lokální Whisper.
 
@@ -379,6 +383,7 @@ def _run_transcribe(
             progress_cb=progress_cb,
             text_cb=text_cb,
             cancel_event=cancel_event,
+            checkpoint_audio=original_audio,
         )
     except TranscribeCancelled:
         raise
