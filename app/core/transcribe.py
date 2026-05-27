@@ -76,48 +76,57 @@ def transcribe_audio(
     # beam_size=1 + condition_on_previous_text=False: na CPU 5-8x rychlejší
     # než faster-whisper defaulty. Trade-off: WER nahoru o 1-3 % na CS, což
     # je pro studijní body neviditelné (AI to dál parafrázuje).
-    segments_iter, info = model.transcribe(
-        str(wav_path),
-        language=language,
-        beam_size=1,
-        vad_filter=True,
-        condition_on_previous_text=False,
-        word_timestamps=False,
-    )
+    try:
+        segments_iter, info = model.transcribe(
+            str(wav_path),
+            language=language,
+            beam_size=1,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            word_timestamps=False,
+        )
 
-    total = info.duration if info.duration else 1.0
-    segments: list[TranscriptSegment] = []
-    text_parts: list[str] = []
+        total = info.duration if info.duration else 1.0
+        segments: list[TranscriptSegment] = []
+        text_parts: list[str] = []
 
-    for seg in segments_iter:
-        if cancel_event is not None and cancel_event.is_set():
-            logger.warning("Přepis zrušen v {:.1f}s", seg.start)
-            raise TranscribeCancelled(f"Přepis zrušen uživatelem ({wav_path.name})")
+        for seg in segments_iter:
+            if cancel_event is not None and cancel_event.is_set():
+                logger.warning("Přepis zrušen v {:.1f}s", seg.start)
+                raise TranscribeCancelled(f"Přepis zrušen uživatelem ({wav_path.name})")
 
-        clean = seg.text.strip()
-        segments.append(TranscriptSegment(start=seg.start, end=seg.end, text=clean))
-        text_parts.append(clean)
+            clean = seg.text.strip()
+            segments.append(TranscriptSegment(start=seg.start, end=seg.end, text=clean))
+            text_parts.append(clean)
 
-        if progress_cb is not None and total > 0:
-            progress_cb(min(seg.end / total, 1.0))
-        if text_cb is not None and clean:
-            text_cb(seg.start, clean)
+            if progress_cb is not None and total > 0:
+                progress_cb(min(seg.end / total, 1.0))
+            if text_cb is not None and clean:
+                text_cb(seg.start, clean)
 
-    full_text = " ".join(text_parts).strip()
-    logger.info(
-        "Přepis hotov: {} segmentů, {:.0f}s, {} znaků",
-        len(segments),
-        total,
-        len(full_text),
-    )
+        full_text = " ".join(text_parts).strip()
+        logger.info(
+            "Přepis hotov: {} segmentů, {:.0f}s, {} znaků",
+            len(segments),
+            total,
+            len(full_text),
+        )
 
-    return Transcript(
-        source_label=source_label,
-        language=info.language,
-        duration_sec=total,
-        text=full_text,
-        segments=segments,
-    )
+        return Transcript(
+            source_label=source_label,
+            language=info.language,
+            duration_sec=total,
+            text=full_text,
+            segments=segments,
+        )
+    finally:
+        # faster-whisper (CTranslate2) drží stovky MB nativní paměti a nemá
+        # close(). Bez explicitního uvolnění by RSS rostl s každým přepisem
+        # v jedné GUI session. del + gc.collect() uvolní referenci hned.
+        del model
+        import gc
+
+        gc.collect()
 
 
 def estimate_transcribe_seconds(media_duration_sec: float, model_size: str = DEFAULT_WHISPER_MODEL) -> float:

@@ -33,12 +33,21 @@ def extract_pptx_text(pptx_path: Path, source_label: str) -> SlideText:
         slide_count = idx
         slide_chunks: list[str] = []
         for shape in slide.shapes:
-            if not shape.has_text_frame:
-                continue
-            for paragraph in shape.text_frame.paragraphs:
-                line = "".join(run.text for run in paragraph.runs).strip()
-                if line:
-                    slide_chunks.append(line)
+            # Textové rámce (běžné textboxy, nadpisy)
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    # paragraph.text zachytí i text v polích (datum, číslo slidu),
+                    # který "".join(runs) vynechá.
+                    line = paragraph.text.strip()
+                    if line:
+                        slide_chunks.append(line)
+            # Tabulky — ve slidech přednášek časté; bez tohoto se tiše ztratí
+            elif shape.has_table:
+                for trow in shape.table.rows:
+                    cells = [cell.text.strip() for cell in trow.cells]
+                    row_text = " | ".join(c for c in cells if c)
+                    if row_text:
+                        slide_chunks.append(row_text)
 
         # Notes (speaker notes)
         if slide.has_notes_slide and slide.notes_slide.notes_text_frame is not None:

@@ -12,6 +12,7 @@ Obsahuje:
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from pathlib import Path
 
@@ -201,6 +202,10 @@ def export_markdown(
 
 
 def _format_seconds(seconds: float) -> str:
+    # Guard proti NaN/inf — int(nan) vyhodí ValueError, int(inf) OverflowError,
+    # a shodily by celý .md export. Poškozené audio může dát NaN timestamp.
+    if not math.isfinite(seconds) or seconds < 0:
+        seconds = 0.0
     total = int(seconds)
     h, rem = divmod(total, 3600)
     m, s = divmod(rem, 60)

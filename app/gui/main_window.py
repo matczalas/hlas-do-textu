@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
         self._available_update = None  # UpdateInfo | None
         self._update_installer_path = None  # Path | None
         self._last_result = None  # PipelineResult | None — pro chat o dokumentu
+        self._youtube_worker = None  # YouTubeFetchWorker | None — líně v _open_youtube_dialog
 
         self._tray = self._init_tray()
 
@@ -421,11 +422,19 @@ class MainWindow(QMainWindow):
         self._update_check.start()
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        if self._pipeline_worker.is_running():
+        # Varujeme u libovolné déletrvající práce, ne jen pipeline — model
+        # download i YouTube fetch stojí za potvrzení (ztratí se postup).
+        busy = any(
+            getattr(self, attr, None) is not None
+            and getattr(self, attr).is_running()
+            for attr in ("_pipeline_worker", "_model_worker", "_regenerate_worker", "_youtube_worker")
+        )
+        if busy:
             answer = QMessageBox.question(
                 self,
                 "Zpracování běží",
-                "Zpracování ještě běží. Opravdu chcete zavřít aplikaci? Postup se ztratí.",
+                "Něco se ještě zpracovává (přepis, stahování modelu nebo videa). "
+                "Opravdu chcete zavřít aplikaci? Postup se ztratí.",
             )
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
@@ -447,6 +456,8 @@ class MainWindow(QMainWindow):
             "_regenerate_worker",
             "_update_check",
             "_update_download",
+            "_youtube_worker",  # líně vytvořený v _open_youtube_dialog — taky musí stop
+            "_chat_worker",     # může existovat z chat dialogu
         ):
             w = getattr(self, worker_attr, None)
             if w is not None and hasattr(w, "stop_and_wait"):
@@ -663,9 +674,13 @@ class MainWindow(QMainWindow):
         sources = self._table.sources()
         has_audio = any(s.kind == SourceKind.AUDIO_VIDEO for s in sources)
         has_any = bool(sources)
+        # I model download blokuje spuštění — jinak by `files_changed` událost
+        # uprostřed stahování modelu tlačítka znovu povolila a uživatel by
+        # spustil pipeline souběžně se stahováním téhož modelu (konflikt o cache).
         running = (
             self._pipeline_worker.is_running()
             or self._regenerate_worker.is_running()
+            or self._model_worker.is_running()
         )
 
         self._run_transcribe_btn.setEnabled(has_audio and not running)

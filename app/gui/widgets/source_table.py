@@ -191,12 +191,17 @@ class SourceTable(QTableWidget):
     def _on_cell_changed(self, row: int, col: int) -> None:
         if col != 3:
             return
-        if 0 <= row < len(self._sources):
-            new_label = (self.item(row, 3).text() or "").strip()
-            if not new_label:
-                new_label = Path(self._sources[row].path).stem
-                self.item(row, 3).setText(new_label)
-            self._sources[row].label = new_label
+        if not (0 <= row < len(self._sources)):
+            return
+        item = self.item(row, 3)
+        if item is None:
+            # cellChanged může přijít během rebuildu, kdy item ještě/už neexistuje
+            return
+        new_label = (item.text() or "").strip()
+        if not new_label:
+            new_label = Path(self._sources[row].path).stem
+            item.setText(new_label)
+        self._sources[row].label = new_label
 
     def _remove(self, path) -> None:
         self._sources = [s for s in self._sources if s.path != path]
