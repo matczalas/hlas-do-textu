@@ -58,13 +58,45 @@ def load_settings() -> AppSettings:
         try:
             with CONFIG_FILE.open(encoding="utf-8") as fh:
                 data = json.load(fh)
-            # Tolerate extra/missing fields
-            known = {f.name for f in AppSettings.__dataclass_fields__.values()}
-            data = {k: v for k, v in data.items() if k in known}
-            return AppSettings(**data)
-        except (OSError, ValueError) as exc:
+            # config.json mohl být ručně upraven na ne-objekt ([], null, 123…) —
+            # bez této kontroly by data.items() vyhodilo AttributeError → crash
+            # při startu a dialog s defaulty by se nikdy nezobrazil.
+            if not isinstance(data, dict):
+                raise ValueError(f"config.json není objekt, ale {type(data).__name__}")
+            # Tolerate extra/missing fields + coerce typy podle defaultů
+            return _coerce_settings(data)
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
             logger.warning("Nevalidní config.json ({}), použiju defaulty", exc)
     return AppSettings()
+
+
+def _coerce_settings(data: dict) -> AppSettings:
+    """Z dictu vyrobí AppSettings — ignoruje neznámá pole a opravuje špatné typy.
+
+    Bez type-coerce by `recent_outputs: "x"` (string místo listu) prošlo
+    dataclass konstruktorem a spadlo až později jinde (např. `Path(p)` iterující
+    znaky stringu). Každé pole zkontrolujeme proti typu defaultní hodnoty.
+    """
+    defaults = AppSettings()
+    kwargs: dict = {}
+    for f in AppSettings.__dataclass_fields__.values():
+        if f.name not in data:
+            continue
+        value = data[f.name]
+        default_value = getattr(defaults, f.name)
+        # list pole musí být list; jinak ignorujeme (vezme se default)
+        if isinstance(default_value, list):
+            if isinstance(value, list):
+                kwargs[f.name] = [str(x) for x in value]
+            continue
+        # bool/str/int — coerce na typ defaultu, jinak default
+        expected_type = type(default_value)
+        if isinstance(value, expected_type):
+            kwargs[f.name] = value
+        elif expected_type is bool and isinstance(value, int):
+            kwargs[f.name] = bool(value)
+        # jinak ponecháme default (kwargs neobsahuje → dataclass default)
+    return AppSettings(**kwargs)
 
 
 def save_settings(settings: AppSettings) -> None:

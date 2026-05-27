@@ -36,6 +36,10 @@ _REQUIRED_FILES: tuple[str, ...] = (
 _HF_BASE: str = "https://huggingface.co"
 
 
+class ModelDownloadError(RuntimeError):
+    """Stahování modelu selhalo (network, neúplný soubor, disk)."""
+
+
 def _target_dir(model_name: str) -> Path:
     return MODELS_DIR / f"faster-whisper-{model_name}"
 
@@ -127,7 +131,7 @@ def download_model(
         ) -> None:
             _emit_chunk_progress(progress_cb, _f, _base, bytes_now, _file_size, _total)
 
-        _download_file_streaming(url=url, dest=dest, on_chunk=_on_chunk)
+        _download_file_streaming(url=url, dest=dest, on_chunk=_on_chunk, expected_size=size)
         downloaded_total += size if size > 0 else dest.stat().st_size
         logger.info("✓ {} stažen ({:.1f} MB)", fname, dest.stat().st_size / 1024 / 1024)
 
@@ -155,31 +159,50 @@ def _download_file_streaming(
     url: str,
     dest: Path,
     on_chunk: Callable[[int], None],
+    expected_size: int = 0,
 ) -> None:
-    """Stáhne URL do dest po blocích, volá on_chunk(downloaded_in_file) po každém."""
+    """Stáhne URL do dest po blocích, volá on_chunk(downloaded_in_file) po každém.
+
+    Píše do `.part` a až po ověření velikosti přejmenuje na finální (atomic).
+    Když je `expected_size > 0` a stažená velikost nesedí (přerušené spojení),
+    `.part` se smaže a vyhodí se chyba. Bez toho by se zkrácený `model.bin`
+    uložil jako platný a faster-whisper by pak za běhu padal — a `model_is_cached`
+    by takový corrupt model považoval za hotový už navždy.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     temp = dest.with_suffix(dest.suffix + ".part")
 
-    with httpx.stream("GET", url, follow_redirects=True, timeout=120.0) as response:
-        response.raise_for_status()
-        downloaded = 0
-        last_reported = 0
-        with temp.open("wb") as f:
-            for chunk in response.iter_bytes(chunk_size=256 * 1024):
-                f.write(chunk)
-                downloaded += len(chunk)
-                # Hlásit progress max 5× za sekundu (každých 256 KB je dost často)
-                if downloaded - last_reported >= 1024 * 1024:  # 1 MB
-                    try:
-                        on_chunk(downloaded)
-                    except Exception:  # noqa: BLE001
-                        pass
-                    last_reported = downloaded
-        # Final report
-        try:
-            on_chunk(downloaded)
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        with httpx.stream("GET", url, follow_redirects=True, timeout=120.0) as response:
+            response.raise_for_status()
+            downloaded = 0
+            last_reported = 0
+            with temp.open("wb") as f:
+                for chunk in response.iter_bytes(chunk_size=256 * 1024):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    # Hlásit progress max 5× za sekundu (každých 256 KB je dost často)
+                    if downloaded - last_reported >= 1024 * 1024:  # 1 MB
+                        try:
+                            on_chunk(downloaded)
+                        except Exception:  # noqa: BLE001
+                            pass
+                        last_reported = downloaded
+            try:
+                on_chunk(downloaded)
+            except Exception:  # noqa: BLE001
+                pass
+    except BaseException:
+        temp.unlink(missing_ok=True)
+        raise
+
+    # Verifikace velikosti — zkrácený soubor nesmí projít jako hotový
+    if expected_size > 0 and downloaded != expected_size:
+        temp.unlink(missing_ok=True)
+        raise ModelDownloadError(
+            f"Neúplné stažení {dest.name}: {downloaded} z {expected_size} B. "
+            f"Zkontroluj připojení a zkus to znovu."
+        )
 
     temp.replace(dest)
 

@@ -18,6 +18,22 @@ class AudioExtractError(RuntimeError):
     """FFmpeg selhal nebo vstupní soubor nelze přečíst."""
 
 
+def _ffprobe_path() -> str:
+    """Odvodí cestu k ffprobe z ffmpeg cesty.
+
+    Naivní `str.replace("ffmpeg", "ffprobe")` by rozbil cesty, kde je "ffmpeg"
+    i v názvu adresáře (náš vendor bundle: `.../vendor/ffmpeg/macos/ffmpeg`
+    → `.../vendor/ffprobe/macos/ffprobe`, což neexistuje). Nahrazujeme jen
+    název souboru přes Path.with_name.
+    """
+    ffmpeg = ffmpeg_path()
+    if ffmpeg == "ffmpeg":  # systémový z PATH
+        return "ffprobe"
+    p = Path(ffmpeg)
+    new_name = p.name.replace("ffmpeg", "ffprobe")
+    return str(p.with_name(new_name))
+
+
 def _subprocess_kwargs() -> dict:
     """Společné kwargs — na Windows skrýt black flash okno cmd.exe.
 
@@ -55,7 +71,25 @@ def extract_to_wav(src: Path, dest: Path) -> Path:
     ]
     logger.debug("FFmpeg: {}", " ".join(cmd))
 
-    result = subprocess.run(cmd, **_subprocess_kwargs())
+    try:
+        # timeout 1 h — corrupt/zaseknutý vstup jinak GUI worker zamrzne navždy.
+        # Reálná hodinová přednáška se extrahuje za sekundy, takže 3600 s je
+        # bohatá rezerva i pro velmi dlouhé soubory.
+        result = subprocess.run(cmd, timeout=3600, **_subprocess_kwargs())
+    except FileNotFoundError as exc:
+        # ffmpeg binárka chybí (dev bez bundlu / poškozená instalace).
+        # Bez tohoto by propadl raw FileNotFoundError, ale pipeline/UI
+        # očekává AudioExtractError s čitelnou hláškou.
+        raise AudioExtractError(
+            "FFmpeg nebyl nalezen. Přeinstaluj aplikaci, nebo (dev) doinstaluj "
+            "ffmpeg do PATH."
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise AudioExtractError(
+            f"Zpracování {src.name} trvalo příliš dlouho (přes hodinu) — "
+            "soubor může být poškozený."
+        ) from exc
+
     if result.returncode != 0:
         logger.error("FFmpeg selhal pro {}: {}", src, result.stderr.strip()[-500:])
         raise AudioExtractError(f"FFmpeg selhal pro {src.name}: {result.stderr.strip()[-200:]}")
@@ -72,7 +106,7 @@ def probe_duration_seconds(src: Path) -> float | None:
 
     Pokud ffprobe selže, vrátí None — volající si poradí (např. odhad z velikosti).
     """
-    ffprobe = ffmpeg_path().replace("ffmpeg", "ffprobe")
+    ffprobe = _ffprobe_path()
     cmd = [
         ffprobe,
         "-v", "error",

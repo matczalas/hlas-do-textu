@@ -27,6 +27,13 @@ def _install_crash_handler() -> None:
 
             ensure_dirs()
             crash_file = LOGS_DIR / "crash.log"
+            # Rotace: když crash.log přeroste 1 MB, ořízneme ho (jinak při
+            # opakovaných pádech roste donekonečna). Držíme jen poslední pády.
+            try:
+                if crash_file.is_file() and crash_file.stat().st_size > 1024 * 1024:
+                    crash_file.unlink()
+            except OSError:
+                pass
             with crash_file.open("a", encoding="utf-8") as fh:
                 fh.write("\n" + "=" * 80 + "\n")
                 fh.write(formatted)

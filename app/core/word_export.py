@@ -15,12 +15,28 @@ Struktura:
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
 from loguru import logger
 
 from app.core.models import SlideText, SourceFile, StudyMaterial, Transcript
+
+# python-docx (resp. lxml) odmítne uložit XML s control znaky a vyhodí
+# ValueError "All strings must be XML compatible: Unicode or ASCII, no NULL
+# bytes or control characters". Whisper, Gemini i extrakce z PDF/PPTX občas
+# takový znak protlačí (\x00, \x0b, \x0c z naskenovaného PDF nebo vadného
+# audia). Bez sanitizace by spadl celý export NA KONCI pipeline — uživatel
+# by ztratil hodiny přepisu. Povolujeme jen tab/newline/carriage-return.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
+def _clean(text: str | None) -> str:
+    """Odstraní XML-nekompatibilní control znaky. None → ''."""
+    if not text:
+        return ""
+    return _CONTROL_CHARS_RE.sub("", text)
 
 
 def export_docx(
@@ -48,7 +64,7 @@ def export_docx(
     style.font.size = Pt(11)
 
     # ----- Titul + metadata -----
-    title = material.title.strip() or "Studijní materiál"
+    title = _clean(material.title).strip() or "Studijní materiál"
     doc.add_heading(title, level=0)
 
     meta = doc.add_paragraph()
@@ -56,37 +72,37 @@ def export_docx(
     if sources:
         meta.add_run("Zdroje:\n").bold = True
         for src in sources:
-            meta.add_run(f"  • {src.label} ({src.path.name})\n")
+            meta.add_run(f"  • {_clean(src.label)} ({_clean(src.path.name)})\n")
     if user_prompt:
         meta.add_run("\nPopis od studenta:\n").bold = True
-        meta.add_run(user_prompt + "\n")
+        meta.add_run(_clean(user_prompt) + "\n")
 
     # ----- Hlavní body -----
     if material.bullets:
         doc.add_heading("Hlavní body k zapamatování", level=1)
         for bullet in material.bullets:
-            doc.add_paragraph(bullet, style="List Bullet")
+            doc.add_paragraph(_clean(bullet), style="List Bullet")
 
     # ----- Klíčové pojmy -----
     if material.terms:
         doc.add_heading("Klíčové pojmy", level=1)
         for term, definition in material.terms:
             p = doc.add_paragraph(style="List Bullet")
-            p.add_run(term).bold = True
+            p.add_run(_clean(term)).bold = True
             if definition:
-                p.add_run(f" — {definition}")
+                p.add_run(f" — {_clean(definition)}")
 
     # ----- Příklady -----
     if material.examples:
         doc.add_heading("Příklady z přednášky", level=1)
         for ex in material.examples:
-            doc.add_paragraph(ex, style="List Bullet")
+            doc.add_paragraph(_clean(ex), style="List Bullet")
 
     # ----- Doporučení k dalšímu studiu -----
     if material.further_study:
         doc.add_heading("Doporučení k dalšímu studiu", level=1)
         for f in material.further_study:
-            doc.add_paragraph(f, style="List Bullet")
+            doc.add_paragraph(_clean(f), style="List Bullet")
 
     # ----- Page break -----
     if transcripts or slides:
@@ -97,11 +113,11 @@ def export_docx(
     if transcripts:
         doc.add_heading("Plný přepis přednášky", level=1)
         for tr in transcripts:
-            doc.add_heading(tr.source_label, level=2)
+            doc.add_heading(_clean(tr.source_label), level=2)
             body = _format_transcript_with_timestamps(tr)
             for paragraph in body.split("\n\n"):
                 if paragraph.strip():
-                    doc.add_paragraph(paragraph.strip())
+                    doc.add_paragraph(_clean(paragraph.strip()))
 
     # ----- Plný text slidů -----
     if any(sl.text for sl in slides):
@@ -109,10 +125,10 @@ def export_docx(
         for sl in slides:
             if not sl.text:
                 continue
-            doc.add_heading(sl.source_label, level=2)
+            doc.add_heading(_clean(sl.source_label), level=2)
             for block in sl.text.split("\n\n"):
                 if block.strip():
-                    doc.add_paragraph(block.strip())
+                    doc.add_paragraph(_clean(block.strip()))
 
     doc.save(str(output_path))
     logger.info("Uloženo: {} ({:.1f} KB)", output_path, output_path.stat().st_size / 1024)

@@ -87,7 +87,10 @@ def generate_study_material(
     total_tokens = count_tokens(full_transcript_text) + count_tokens(slides_text)
     logger.info("Celkové vstupní tokeny: ~{}", total_tokens)
 
-    if count_tokens(full_transcript_text) <= MAP_REDUCE_THRESHOLD_TOKENS:
+    # Rozhodnutí single-shot vs map-reduce musí počítat CELKOVÝ vstup
+    # (přepis + slidy). Dřív se koukalo jen na přepis — velký transcript pod
+    # thresholdem + obří prezentace pak přetekly kontext modelu v single-shotu.
+    if total_tokens <= MAP_REDUCE_THRESHOLD_TOKENS:
         logger.info("Single-shot strategie (pod thresholdem)")
         prompt = build_single_shot_prompt(user_prompt, full_transcript_text, slides_text)
         raw = router.generate_with_failover(prompt, system=SYSTEM_PROMPT_CS)
@@ -209,6 +212,16 @@ def _parse_study_material(raw: str) -> StudyMaterial:
             definition = str(item.get("definition") or item.get("definice") or "").strip()
             if term:
                 terms.append((term, definition))
+
+    # Pojistka: AI vrátila validní JSON, ale všechna pole prázdná → výsledný
+    # .docx by byl prázdný a uživatel by nevěděl proč. Vložíme aspoň
+    # informativní bod, ať je zřejmé, že AI nic nevytěžila.
+    if not bullets and not terms and not examples and not further:
+        logger.warning("AI vrátila prázdný StudyMaterial (raw: {}…)", raw.strip()[:160])
+        bullets = [
+            "AI z přepisu nevytěžila strukturované body. Zkus to znovu, "
+            "uprav popis zadání, nebo použij chat o dokumentu."
+        ]
 
     return StudyMaterial(
         title=title,
