@@ -357,6 +357,14 @@ class MainWindow(QMainWindow):
         about.triggered.connect(self._show_about)
         help_menu.addAction(about)
 
+        help_menu.addSeparator()
+        uninstall = QAction("Odinstalovat / smazat data…", self)
+        uninstall.setStatusTip(
+            "Smaže stažené modely, nastavení a uložené klíče z tohoto počítače"
+        )
+        uninstall.triggered.connect(self._on_uninstall_requested)
+        help_menu.addAction(uninstall)
+
     # ------ Signals ------
 
     def _wire_signals(self) -> None:
@@ -1198,6 +1206,93 @@ class MainWindow(QMainWindow):
         except Exception as exc:  # noqa: BLE001
             logger.exception("apply_update selhalo: {}", exc)
             self._update_banner.show_error(str(exc))
+            return
+
+        # Na Windows apply_update aplikaci sama ukončí (installer doběhne
+        # po 3s delayi). Na macOS jen otevře DMG a app běží dál — uživatel
+        # musí ručně přetáhnout novou verzi do Aplikací. Ukážeme mu instrukci.
+        if sys.platform == "darwin":
+            self._update_banner.show_macos_manual()
+            QMessageBox.information(
+                self,
+                "Dokončení aktualizace",
+                "Otevřel jsem okno s novou verzí.\n\n"
+                "1. Přetáhni ikonu Hlas do textu do složky Aplikace "
+                "(přepiš stávající).\n"
+                "2. Zavři tuto aplikaci.\n"
+                "3. Spusť novou verzi z Aplikací.",
+            )
+
+
+    def _on_uninstall_requested(self) -> None:
+        """Smaže user data + uložené klíče. Pak dá platform-specific instrukci
+        k dokončení (přetáhnout .app do koše / Ovládací panely)."""
+        from app.config import USER_CONFIG_DIR, USER_DATA_DIR
+
+        answer = QMessageBox.warning(
+            self,
+            "Odinstalovat / smazat data",
+            "Tímto smažu z tohoto počítače:\n"
+            "• stažené Whisper modely (0,5–1,5 GB)\n"
+            "• nastavení a logy\n"
+            "• uložený Gemini klíč a aktivační klíč\n\n"
+            "Samotnou aplikaci pak odstraníš ručně (řeknu jak). Pokračovat?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        errors: list[str] = []
+
+        # 1) Smazat uložené klíče (keyring: gemini + licence)
+        try:
+            from app.settings import set_gemini_api_key
+
+            set_gemini_api_key("")  # prázdný = delete z keyringu
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Mazání Gemini klíče selhalo: {}", exc)
+            errors.append(f"Gemini klíč: {exc}")
+        try:
+            from app.licensing.store import clear_stored_key
+
+            clear_stored_key()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Mazání licenčního klíče selhalo: {}", exc)
+            errors.append(f"Licenční klíč: {exc}")
+
+        # 2) Smazat user data adresáře (modely, config, logy)
+        import shutil
+
+        for d in {USER_DATA_DIR, USER_CONFIG_DIR}:
+            try:
+                if d.exists():
+                    shutil.rmtree(d, ignore_errors=True)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Mazání {} selhalo: {}", d, exc)
+                errors.append(f"{d}: {exc}")
+
+        # 3) Platform-specific instrukce k dokončení
+        if sys.platform == "darwin":
+            finish = (
+                "Data smazána. Pro úplné odstranění přetáhni aplikaci "
+                "Hlas do textu ze složky Aplikace do Koše."
+            )
+        elif sys.platform == "win32":
+            finish = (
+                "Data smazána. Pro odebrání samotné aplikace jdi do "
+                "Nastavení → Aplikace → Hlas do textu → Odinstalovat."
+            )
+        else:
+            finish = "Data smazána. Aplikaci odeber podle svého systému."
+
+        if errors:
+            finish += "\n\nPoznámka: některé položky se nepodařilo smazat:\n" + "\n".join(errors)
+
+        QMessageBox.information(self, "Hotovo", finish)
+        logger.info("Uživatel spustil odinstalaci dat (chyby: {})", len(errors))
+        # Aplikaci ukončíme — bez dat by stejně nefungovala
+        self.close()
 
 
 def _parse_backend(raw: str | None) -> TranscribeBackend:

@@ -130,6 +130,16 @@ class UpdateBanner(QFrame):
         self._action_btn.setText("Spouštím…")
         self.show()
 
+    def show_macos_manual(self) -> None:
+        """macOS: DMG otevřeno, čeká se na ruční přetažení uživatelem."""
+        self._state = "macos_manual"
+        self._icon.setText("📦")
+        self._message.setText("Přetáhni novou verzi do Aplikací a restartuj appku")
+        self._progress.hide()
+        self._action_btn.setEnabled(False)
+        self._action_btn.setText("Čeká na tebe…")
+        self.show()
+
     def show_error(self, message: str) -> None:
         self._state = "available"  # zpět na available pro retry
         self._icon.setText("⚠")

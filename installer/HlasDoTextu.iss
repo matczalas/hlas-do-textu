@@ -3,7 +3,7 @@
 ; Sestavovat pomocí ISCC v CI runneru.
 
 #define MyAppName "Hlas do textu"
-#define MyAppVersion "0.4.2"
+#define MyAppVersion "0.4.3"
 #define MyAppPublisher "Safe4Future z. u."
 #define MyAppExeName "HlasDoTextu.exe"
 #define MyAppId "{{C0FE4F50-AF60-4F7E-8C0F-2A5B0E0E6F7A}}"
@@ -29,6 +29,15 @@ WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
 LicenseFile=LICENSE_cs.txt
 LanguageDetectionMethod=uilanguage
+; AppMutex — když aplikace běží, Inno Setup (instalace i odinstalace) počká /
+; vyzve uživatele k jejímu zavření, místo aby narazil na zamčený .exe nebo
+; zamčené logy. Aplikace musí stejnojmenný mutex vytvořit při startu
+; (viz app/__main__.py).
+AppMutex=Global\HlasDoTextu_Running_Mutex
+; CloseApplications — při upgradu Inno Setup automaticky zavře běžící
+; instanci a po instalaci ji volitelně restartuje. Řeší race s uvolněním .exe.
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
@@ -92,11 +101,30 @@ end;
 // UNINSTALL — dotaz na smazání user dat (modely, config, logy, klíč v keyring)
 // ---------------------------------------------------------------------------
 
+procedure DeleteStoredCredentials();
+var
+  ResultCode: Integer;
+begin
+  // Python `keyring` (WinVaultKeyring) ukládá credentials pod target name
+  // ve formátu "<service>@<username>". Aplikace používá:
+  //   - HlasDoTextu.gemini  / default   → Gemini API klíč
+  //   - HlasDoTextu.license / default   → licenční klíč
+  // Mažeme oba ve formátu "@default" i bez, ať to projde napříč verzemi
+  // keyring knihovny. Selhání (klíč neexistuje) ignorujeme.
+  Exec(ExpandConstant('{cmd}'), '/C cmdkey /delete:HlasDoTextu.gemini@default',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{cmd}'), '/C cmdkey /delete:HlasDoTextu.license@default',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{cmd}'), '/C cmdkey /delete:HlasDoTextu.gemini',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{cmd}'), '/C cmdkey /delete:HlasDoTextu.license',
+       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   UserDataDir: string;
   MsgResult: Integer;
-  ResultCode: Integer;
 begin
   if CurUninstallStep = usUninstall then
   begin
@@ -117,18 +145,13 @@ begin
       if MsgResult = IDYES then
       begin
         DelTree(UserDataDir, True, True, True);
-
-        // Smazat uložený Gemini API klíč z Windows Credential Manager.
-        // Selhání ignorujeme (klíč třeba neexistuje).
-        Exec(ExpandConstant('{cmd}'), '/C cmdkey /delete:HlasDoTextu.gemini',
-             '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        DeleteStoredCredentials();
       end;
     end
     else
     begin
-      // Pro jistotu zkusit smazat keyring entry i bez user-data dir
-      Exec(ExpandConstant('{cmd}'), '/C cmdkey /delete:HlasDoTextu.gemini',
-           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      // I bez user-data dir zkusíme smazat citlivé klíče z Credential Manageru
+      DeleteStoredCredentials();
     end;
   end;
 end;
