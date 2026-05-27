@@ -26,6 +26,31 @@ def test_parse_missing_topic_defaults_empty():
     assert mat.topic == ""
 
 
+def test_parse_extracts_quiz_questions():
+    raw = '{"title": "X", "bullets": ["a"], "quiz_questions": ["Co je Newton?", "Vysvětli sílu."]}'
+    mat = _parse_study_material(raw)
+    assert mat.quiz_questions == ["Co je Newton?", "Vysvětli sílu."]
+
+
+def test_parse_quiz_only_not_treated_as_empty():
+    # Výstup jen s otázkami (učitelská šablona) nesmí spadnout do prázdné pojistky
+    raw = '{"title": "X", "quiz_questions": ["Otázka 1?", "Otázka 2?"]}'
+    mat = _parse_study_material(raw)
+    assert mat.quiz_questions == ["Otázka 1?", "Otázka 2?"]
+    assert mat.bullets == []  # žádná informativní pojistka
+
+
+def test_template_prompts_exist():
+    from app.core.ai.prompts import PROMPT_TEMPLATES, template_prompt
+
+    assert "teacher_lesson" in PROMPT_TEMPLATES
+    teacher = template_prompt("teacher_lesson")
+    assert "učitel" in teacher.lower()
+    assert "zkoušení" in teacher.lower() or "vyzkoušet" in teacher.lower()
+    # Neznámý klíč → prázdný řetězec
+    assert template_prompt("neexistuje") == ""
+
+
 def test_parse_markdown_fenced_json():
     raw = "Zde je tvůj výstup:\n```json\n{\"title\": \"T\", \"bullets\": [\"x\"]}\n```\nHotovo."
     mat = _parse_study_material(raw)

@@ -7,14 +7,18 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
+
+from app.core.ai.prompts import PROMPT_TEMPLATES
 
 ACCENT = "#205ca8"
 
@@ -40,6 +44,22 @@ class PromptEditor(QGroupBox):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(8)
+
+        # Combo šablon — předvyplní zadání podle toho, co uživatel chce vyrobit
+        tpl_row = QHBoxLayout()
+        tpl_row.setSpacing(8)
+        tpl_label = QLabel("Co vyrobit:")
+        tpl_label.setStyleSheet("font-size: 12.5px; color: palette(text);")
+        tpl_row.addWidget(tpl_label)
+
+        self._template_combo = QComboBox()
+        self._template_combo.setMinimumHeight(32)
+        self._template_combo.addItem("— vlastní zadání —", userData="")
+        for key, tpl in PROMPT_TEMPLATES.items():
+            self._template_combo.addItem(tpl["label"], userData=key)
+        self._template_combo.currentIndexChanged.connect(self._on_template_changed)
+        tpl_row.addWidget(self._template_combo, 1)
+        outer.addLayout(tpl_row)
 
         self._edit = QPlainTextEdit()
         self._edit.setPlaceholderText(
@@ -72,6 +92,17 @@ class PromptEditor(QGroupBox):
             chips_row.addWidget(chip)
         chips_row.addStretch(1)
         outer.addLayout(chips_row)
+
+    def _on_template_changed(self, _index: int) -> None:
+        """Po výběru šablony předvyplní zadání. Prázdná volba ('vlastní') nic nemění."""
+        key = self._template_combo.currentData()
+        if not key:
+            return
+        from app.core.ai.prompts import template_prompt
+
+        prompt = template_prompt(key)
+        if prompt:
+            self._edit.setPlainText(prompt)
 
     def text(self) -> str:
         return self._edit.toPlainText().strip()
