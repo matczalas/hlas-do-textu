@@ -201,6 +201,7 @@ def _parse_study_material(raw: str) -> StudyMaterial:
     topic = str(data.get("topic") or "").strip()
     bullets = [str(b).strip() for b in (data.get("bullets") or []) if str(b).strip()]
     examples = [str(e).strip() for e in (data.get("examples") or []) if str(e).strip()]
+    quiz = [str(q).strip() for q in (data.get("quiz_questions") or []) if str(q).strip()]
     further = [str(f).strip() for f in (data.get("further_study") or []) if str(f).strip()]
     terms: list[tuple[str, str]] = []
     for item in data.get("terms") or []:
@@ -217,7 +218,7 @@ def _parse_study_material(raw: str) -> StudyMaterial:
     # Pojistka: AI vrátila validní JSON, ale všechna pole prázdná → výsledný
     # .docx by byl prázdný a uživatel by nevěděl proč. Vložíme aspoň
     # informativní bod, ať je zřejmé, že AI nic nevytěžila.
-    if not bullets and not terms and not examples and not further:
+    if not bullets and not terms and not examples and not further and not quiz:
         logger.warning("AI vrátila prázdný StudyMaterial (raw: {}…)", raw.strip()[:160])
         bullets = [
             "AI z přepisu nevytěžila strukturované body. Zkus to znovu, "
@@ -230,5 +231,6 @@ def _parse_study_material(raw: str) -> StudyMaterial:
         terms=terms,
         examples=examples,
         further_study=further,
+        quiz_questions=quiz,
         topic=topic,
     )

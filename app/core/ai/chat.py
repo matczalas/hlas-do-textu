@@ -327,6 +327,12 @@ def _parse_material(data: dict, *, fallback: StudyMaterial) -> StudyMaterial:
     further_raw = data.get("further_study") or []
     further = [str(f).strip() for f in further_raw if str(f).strip()]
 
+    quiz_raw = data.get("quiz_questions") or []
+    quiz = [str(q).strip() for q in quiz_raw if str(q).strip()]
+    # Pokud chat quiz nevrátil, zachováme původní (uživatel jen upravoval body)
+    if not quiz:
+        quiz = list(fallback.quiz_questions)
+
     # Téma zachováme z fallbacku, pokud ho model nevrátil (chat ho obvykle nemění)
     topic = str(data.get("topic") or fallback.topic or "").strip()
 
@@ -336,5 +342,6 @@ def _parse_material(data: dict, *, fallback: StudyMaterial) -> StudyMaterial:
         terms=terms,
         examples=examples,
         further_study=further,
+        quiz_questions=quiz,
         topic=topic,
     )

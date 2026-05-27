@@ -61,7 +61,8 @@ Vytvoř strukturovaný výstup ve formě validního JSON:
   "bullets": ["hlavní bod k zapamatování (max 30 bodů, prioritní pro zkoušku)"],
   "terms": [["pojem", "definice s kontextem"]],
   "examples": ["konkrétní příklad/případ z přednášky"],
-  "further_study": ["doporučení k dalšímu studiu — pojmy k rozšíření, otázky k zamyšlení"]
+  "further_study": ["doporučení k dalšímu studiu — pojmy k rozšíření, otázky k zamyšlení"],
+  "quiz_questions": ["otázka k procvičení nebo ke zkoušení (5-10 otázek různé obtížnosti, ověřují pochopení látky)"]
 }}
 ```
 
@@ -98,7 +99,8 @@ Vytvoř strukturovaný výstup ve formě validního JSON:
   "bullets": ["hlavní bod k zapamatování (max 30 bodů, prioritní pro zkoušku)"],
   "terms": [["pojem", "definice s kontextem"]],
   "examples": ["konkrétní příklad/případ z přednášky"],
-  "further_study": ["doporučení k dalšímu studiu — pojmy k rozšíření, otázky k zamyšlení"]
+  "further_study": ["doporučení k dalšímu studiu — pojmy k rozšíření, otázky k zamyšlení"],
+  "quiz_questions": ["otázka k procvičení nebo ke zkoušení (5-10 otázek různé obtížnosti, ověřují pochopení látky)"]
 }}
 ```
 
@@ -128,3 +130,56 @@ def build_single_shot_prompt(user_prompt: str, transcript: str, slides_text: str
         transcript=transcript,
         slides_text=slides_text or "(žádné slidy)",
     )
+
+
+# ---------------------------------------------------------------------------
+# Šablony zadání (předvyplní pole "popis pro AI") — uživatel vybere v UI
+# podle toho, co potřebuje vyrobit. `key` se ukládá, `label` se zobrazí,
+# `prompt` se vloží do editoru (uživatel může dál upravit).
+# ---------------------------------------------------------------------------
+
+PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
+    "student": {
+        "label": "Studijní materiál pro studenta",
+        "prompt": (
+            "Jsem student a tohle je záznam přednášky. Vytvoř přehledný studijní "
+            "materiál k učení na zkoušku — hlavní body, klíčové pojmy s definicemi, "
+            "příklady a otázky k procvičení."
+        ),
+    },
+    "teacher_lesson": {
+        "label": "Záznam hodiny pro učitele (poznámky + otázky ke zkoušení)",
+        "prompt": (
+            "Jsem učitel/ka základní školy a tohle je nahrávka mé vyučovací hodiny. "
+            "Vytvoř z ní:\n"
+            "1) Přehledné POZNÁMKY co se v hodině probíralo — srozumitelně, bod po bodu, "
+            "v pořadí jak látka šla, vhodné jako zápis do třídní knihy nebo pro "
+            "nepřítomné žáky.\n"
+            "2) Klíčové pojmy a jejich vysvětlení tak, jak byly v hodině podány.\n"
+            "3) OTÁZKY KE ZKOUŠENÍ ŽÁKŮ (quiz_questions) — 8-10 otázek různé obtížnosti, "
+            "ze kterých můžu žáky ústně nebo písemně vyzkoušet. Od jednoduchých "
+            "(zapamatování) po složitější (pochopení a aplikace). Otázky piš jasně, "
+            "přiměřeně věku žáků ZŠ."
+        ),
+    },
+    "quiz": {
+        "label": "Hlavně otázky k procvičení",
+        "prompt": (
+            "Z tohoto záznamu vytvoř hlavně sadu otázek k procvičení a ověření "
+            "pochopení látky (quiz_questions) — co nejvíc, různé obtížnosti. "
+            "Plus stručný přehled probraných bodů."
+        ),
+    },
+    "summary": {
+        "label": "Krátké shrnutí (1 strana)",
+        "prompt": (
+            "Vytvoř stručné shrnutí tohoto záznamu — jen ty nejdůležitější body, "
+            "tak aby se vešly na jednu stranu A4. Žádná vata."
+        ),
+    },
+}
+
+
+def template_prompt(key: str) -> str:
+    """Vrátí předvyplněný text zadání pro danou šablonu (nebo prázdný řetězec)."""
+    return PROMPT_TEMPLATES.get(key, {}).get("prompt", "")

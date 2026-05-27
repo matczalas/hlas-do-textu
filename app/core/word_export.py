@@ -98,6 +98,12 @@ def export_docx(
         for ex in material.examples:
             doc.add_paragraph(_clean(ex), style="List Bullet")
 
+    # ----- Otázky k procvičení / ke zkoušení -----
+    if material.quiz_questions:
+        doc.add_heading("Otázky k procvičení a zkoušení", level=1)
+        for i, q in enumerate(material.quiz_questions, start=1):
+            doc.add_paragraph(f"{i}. {_clean(q)}", style="List Number")
+
     # ----- Doporučení k dalšímu studiu -----
     if material.further_study:
         doc.add_heading("Doporučení k dalšímu studiu", level=1)

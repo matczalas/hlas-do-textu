@@ -75,6 +75,24 @@ def test_suggested_filename_empty_title_fallback():
     assert len(name) > 5
 
 
+def test_export_docx_includes_quiz_questions(tmp_path: Path) -> None:
+    out = tmp_path / "out.docx"
+    material = StudyMaterial(
+        title="Hodina fyziky",
+        bullets=["Newtonovy zákony"],
+        quiz_questions=["Co říká první Newtonův zákon?", "Vysvětli setrvačnost."],
+    )
+    export_docx(output_path=out, material=material, transcripts=[], slides=[], sources=[], user_prompt=None)
+    assert out.is_file()
+    # Ověříme, že sekce s otázkami je v dokumentu
+    from docx import Document
+
+    doc = Document(str(out))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Otázky k procvičení a zkoušení" in full_text
+    assert "první Newtonův zákon" in full_text
+
+
 def test_topic_folder_name_basic():
     assert topic_folder_name(StudyMaterial(title="X", topic="Fyzika")) == "Fyzika"
     assert topic_folder_name(StudyMaterial(title="X", topic="Dějepis 20. století")) == "Dějepis 20 století"
