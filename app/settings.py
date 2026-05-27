@@ -50,6 +50,10 @@ class AppSettings:
     transcribe_backend: str = "local_whisper"
     # Posledních 10 vygenerovaných .docx — pro File → Naposledy vyrobené.
     recent_outputs: list[str] = field(default_factory=list)
+    # Kalibrace rychlosti tohoto počítače pro přesnější odhad času.
+    # = skutečné_RTF / tabulkové_RTF z posledních běhů (1.0 = přesně podle tabulky,
+    # >1 = počítač je pomalejší, <1 = rychlejší). Aktualizuje se po každém přepisu.
+    cpu_speed_factor: float = 1.0
 
 
 def load_settings() -> AppSettings:
@@ -89,12 +93,14 @@ def _coerce_settings(data: dict) -> AppSettings:
             if isinstance(value, list):
                 kwargs[f.name] = [str(x) for x in value]
             continue
-        # bool/str/int — coerce na typ defaultu, jinak default
+        # bool/str/int/float — coerce na typ defaultu, jinak default
         expected_type = type(default_value)
         if isinstance(value, expected_type):
             kwargs[f.name] = value
         elif expected_type is bool and isinstance(value, int):
             kwargs[f.name] = bool(value)
+        elif expected_type is float and isinstance(value, int | float):
+            kwargs[f.name] = float(value)
         # jinak ponecháme default (kwargs neobsahuje → dataclass default)
     return AppSettings(**kwargs)
 

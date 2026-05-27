@@ -46,6 +46,32 @@ def test_estimate_total_processing_returns_low_high():
     assert low > 0
 
 
+def test_estimate_scales_with_cpu_speed_factor():
+    """Pomalejší počítač (factor > 1) → vyšší odhad; rychlejší → nižší."""
+    base_low, base_high = estimate_total_processing_seconds(
+        [600.0], whisper_model="small", cpu_speed_factor=1.0
+    )
+    slow_low, slow_high = estimate_total_processing_seconds(
+        [600.0], whisper_model="small", cpu_speed_factor=3.0
+    )
+    fast_low, fast_high = estimate_total_processing_seconds(
+        [600.0], whisper_model="small", cpu_speed_factor=0.5
+    )
+    assert slow_high > base_high
+    assert fast_high < base_high
+
+
+def test_estimate_factor_clamped_to_sane_range():
+    """Extrémní factor (např. z divného běhu) se ořízne, ať odhad není absurdní."""
+    huge_low, huge_high = estimate_total_processing_seconds(
+        [600.0], whisper_model="small", cpu_speed_factor=999.0
+    )
+    clamped_low, clamped_high = estimate_total_processing_seconds(
+        [600.0], whisper_model="small", cpu_speed_factor=5.0
+    )
+    assert huge_high == clamped_high  # 999 se ořízne na 5.0
+
+
 def test_humanize_error_permission():
     msg = humanize_error(PermissionError("/some/protected/path"))
     assert "oprávnění" in msg.lower()

@@ -496,10 +496,14 @@ def estimate_total_processing_seconds(
     has_ai: bool = True,
     transcribe_only: bool = False,
     transcribe_backend: str = "local_whisper",
+    cpu_speed_factor: float = 1.0,
 ) -> tuple[float, float]:
     """Odhad celkového času pipeline. Vrací (low, high) v sekundách.
 
     Použito pro pre-start dialog typu "počítej s 60-90 min".
+
+    `cpu_speed_factor` kalibruje lokální přepis na reálnou rychlost tohoto
+    počítače (z předchozích běhů). 1.0 = tabulkový odhad, >1 = pomalejší stroj.
     """
     from app.core.transcribe import estimate_transcribe_seconds
     from app.core.transcribe_gemini import estimate_gemini_transcribe_seconds
@@ -510,8 +514,12 @@ def estimate_total_processing_seconds(
         transcribe_low = base * 0.7
         transcribe_high = base * 2.0  # cloud má vyšší varianci (síť, kvóty)
     else:
-        transcribe_low = estimate_transcribe_seconds(total_audio, whisper_model) * 0.7
-        transcribe_high = estimate_transcribe_seconds(total_audio, whisper_model) * 1.3
+        # Kalibrace: omezíme factor na rozumný rozsah (0.3–5×), aby jeden
+        # divný běh (např. PC pod plnou zátěží) odhad úplně nerozhodil.
+        factor = max(0.3, min(5.0, cpu_speed_factor))
+        base = estimate_transcribe_seconds(total_audio, whisper_model) * factor
+        transcribe_low = base * 0.8
+        transcribe_high = base * 1.3
 
     if transcribe_only:
         ai_seconds = 0.0
