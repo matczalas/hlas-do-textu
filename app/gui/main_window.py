@@ -100,6 +100,10 @@ class MainWindow(QMainWindow):
         self._update_installer_path = None  # Path | None
         self._last_result = None  # PipelineResult | None — pro chat o dokumentu
         self._youtube_worker = None  # YouTubeFetchWorker | None — líně v _open_youtube_dialog
+        # Self-kalibrace odhadu času
+        self._pipeline_start_monotonic = None
+        self._pipeline_audio_seconds = 0.0
+        self._pipeline_backend_used = None
 
         self._tray = self._init_tray()
 
@@ -793,6 +797,16 @@ class MainWindow(QMainWindow):
         self._progress.reset()
         self._progress.set_busy(True)
         self._run_btn.setEnabled(False)
+        # Pro self-kalibraci odhadu: zapamatujeme start + celkovou délku audia
+        import time as _time
+
+        self._pipeline_start_monotonic = _time.monotonic()
+        self._pipeline_audio_seconds = sum(
+            probe_duration_seconds(s.path) or 0.0
+            for s in sources
+            if s.kind == SourceKind.AUDIO_VIDEO
+        )
+        self._pipeline_backend_used = job.transcribe_backend
         try:
             self._pipeline_worker.start(job, api_key)
         except Exception as exc:  # noqa: BLE001
@@ -823,6 +837,8 @@ class MainWindow(QMainWindow):
         self._add_to_recents(result.output_path)
         # Uložíme si poslední výsledek pro chat (potřebuje plný kontext).
         self._last_result = result
+        # Self-kalibrace odhadu — jen pro lokální přepis (cloud má jinou dynamiku)
+        self._calibrate_speed_factor(result)
 
         summary = self._format_result_summary(result)
         self._notify(
@@ -1046,6 +1062,8 @@ class MainWindow(QMainWindow):
             whisper_model=self._settings.whisper_model,
             has_ai=has_ai,
             transcribe_only=transcribe_only,
+            transcribe_backend=self._settings.transcribe_backend,
+            cpu_speed_factor=self._settings.cpu_speed_factor,
         )
         audio_label = format_duration_human(total_audio)
         run_label = (
@@ -1238,6 +1256,43 @@ class MainWindow(QMainWindow):
                 "3. Spusť novou verzi z Aplikací.",
             )
 
+
+    def _calibrate_speed_factor(self, result) -> None:
+        """Po lokálním přepisu změří skutečnou rychlost a upraví odhad pro příště.
+
+        speed_factor = skutečné_RTF / tabulkové_RTF. Vyhladíme EMA, ať jeden
+        atypický běh odhad nerozhodí. Cloud běhy ignorujeme (jiná dynamika).
+        """
+        from app.core.models import TranscribeBackend
+
+        if getattr(self, "_pipeline_backend_used", None) == TranscribeBackend.CLOUD_GEMINI:
+            return
+        start = getattr(self, "_pipeline_start_monotonic", None)
+        audio_sec = getattr(self, "_pipeline_audio_seconds", 0.0)
+        if start is None or audio_sec < 30:
+            return  # krátké audio = nespolehlivé měření
+
+        import time as _time
+
+        from app.core.transcribe import estimate_transcribe_seconds
+
+        elapsed = _time.monotonic() - start
+        actual_rtf = elapsed / audio_sec
+        # tabulkové RTF pro tento model (bez kalibrace)
+        table_rtf = estimate_transcribe_seconds(audio_sec, self._settings.whisper_model) / audio_sec
+        if table_rtf <= 0:
+            return
+        observed_factor = actual_rtf / table_rtf
+
+        old = self._settings.cpu_speed_factor or 1.0
+        # EMA: 40 % nový, 60 % historie
+        new_factor = 0.4 * observed_factor + 0.6 * old
+        self._settings.cpu_speed_factor = max(0.3, min(5.0, new_factor))
+        save_settings(self._settings)
+        logger.info(
+            "Kalibrace odhadu: actual_rtf={:.2f}, factor {:.2f} → {:.2f}",
+            actual_rtf, old, self._settings.cpu_speed_factor,
+        )
 
     def _on_uninstall_requested(self) -> None:
         """Smaže user data + uložené klíče. Pak dá platform-specific instrukci
