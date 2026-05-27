@@ -11,6 +11,7 @@ Veřejné API:
 
 from __future__ import annotations
 
+import math
 from datetime import datetime
 from html import escape
 
@@ -87,6 +88,10 @@ class ProgressPanel(QGroupBox):
         self._log.setReadOnly(True)
         self._log.setMinimumHeight(110)
         self._log.setPlaceholderText("Zde se ti budou objevovat zprávy a živý přepis…")
+        # Limit počtu bloků — u dlouhé přednášky (tisíce segmentů živého přepisu)
+        # by jinak QTextEdit rostl bez omezení a UI by se sekalo / žralo RAM.
+        # Starší řádky se automaticky odřezávají.
+        self._log.document().setMaximumBlockCount(5000)
         outer.addWidget(self._log, 1)
 
     @property
@@ -101,6 +106,9 @@ class ProgressPanel(QGroupBox):
 
     def update(self, label: str, fraction: float) -> None:
         self._status.setText(label)
+        # Guard proti NaN/inf — int(nan) vyhodí ValueError a shodil by panel.
+        if not math.isfinite(fraction):
+            fraction = 0.0
         value = max(0, min(1000, int(fraction * 1000)))
         self._bar.setValue(value)
         self._percent.setText(f"{fraction * 100:.0f} %")
