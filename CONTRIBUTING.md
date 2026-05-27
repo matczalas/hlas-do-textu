@@ -6,7 +6,7 @@ Vítej. Tady je vše co potřebuješ vědět než si projekt projdeš nebo přis
 
 ### Prerekvizity
 
-- **Python 3.11** (testováno také na 3.13)
+- **Python 3.11+** (testováno na 3.11 a 3.13)
 - **FFmpeg** dostupný v PATH
   - macOS: `brew install ffmpeg`
   - Ubuntu: `sudo apt install ffmpeg`
@@ -51,17 +51,22 @@ python scripts/make_key.py --count 3 --customer "Local dev"
 ## Testy
 
 ```bash
-pytest tests/                 # všechny testy (~46)
-pytest tests/test_chunker.py  # konkrétní
+pytest                        # všechny testy (126)
+pytest tests/test_chunker.py  # konkrétní soubor
 pytest -v -k licensing        # podle jména
+pytest tests/test_chat.py::test_parse_text_only_response_no_proposal  # jeden test
 ```
 
 Lint:
 
 ```bash
-ruff check app/ tests/ scripts/
+ruff check app/ tests/
 ruff check . --fix            # auto-fix
 ```
+
+> **Worktree gotcha:** při práci v git worktree tam chybí `.env` s HMAC
+> secretem → licenční klíče se vyhodnotí jako neplatné. Řešení:
+> `ln -sf <hlavní-repo>/.env <worktree>/.env`.
 
 ## Struktura projektu
 
@@ -72,28 +77,31 @@ app/
 ├── settings.py              # AppSettings persistence
 ├── logging_setup.py         # loguru config
 ├── core/                    # business logika (NO Qt imports here!)
-│   ├── pipeline.py          # orchestrátor
-│   ├── transcribe.py        # Whisper wrapper
-│   ├── audio_extract.py     # FFmpeg
-│   ├── pdf_extract.py
-│   ├── pptx_extract.py
-│   ├── word_export.py
-│   ├── md_export.py         # nový — AI prompts
+│   ├── pipeline.py          # orchestrátor + dávkové rozdělení
+│   ├── transcribe.py        # lokální Whisper wrapper + resume
+│   ├── transcribe_gemini.py # cloud Gemini Audio přepis
+│   ├── checkpoint.py        # resume přepisu od místa přerušení
+│   ├── audio_extract.py     # FFmpeg (extract + trim)
+│   ├── youtube_fetch.py     # stahování audia z URL (yt-dlp)
+│   ├── pdf_extract.py / pptx_extract.py
+│   ├── word_export.py / md_export.py
 │   ├── model_downloader.py
-│   └── ai/                  # Gemini + Ollama + router
+│   └── ai/                  # Gemini + Ollama + router + chat + prompts
 ├── gui/                     # PySide6 (Qt UI)
-│   ├── main_window.py
-│   ├── widgets/             # všechny widgety
-│   └── workers/             # QThread runners
-├── licensing/               # license key validation
+│   ├── main_window.py       # + dávková fronta, kalibrace, recents
+│   ├── widgets/             # dialogy, tabulky, panely
+│   └── workers/             # QThread runners (pipeline/model/youtube/chat/update)
+├── licensing/               # license key validation (HMAC)
 └── updater/                 # GitHub Releases auto-update
 
 tests/                       # pytest
-scripts/                     # CLI utilities (make_key, build, etc.)
+scripts/                     # CLI utilities (make_key, generate_icon, build, ffmpeg)
 installer/                   # Inno Setup .iss
 docs/                        # uživatelská dokumentace
-.github/workflows/           # CI: Windows build pipeline
+.github/workflows/           # CI: Windows + macOS build pipeline
 ```
+
+Architektonické detaily, konvence a gotchas viz [CLAUDE.md](CLAUDE.md).
 
 ## Pravidla
 
@@ -157,31 +165,41 @@ python scripts/download_ffmpeg_windows.py    # na Win runneru
 python scripts/generate_icon.py
 
 # 3. PyInstaller bundle
+#    Hidden importy a --collect-* musí přesně odpovídat .github/workflows/
+#    build-windows.yml — jsou tam záměrně (jinak to padá až v .exe, ne v dev):
 pyinstaller --noconfirm --clean \
   --onedir --windowed --name HlasDoTextu \
   --icon app/resources/icon.ico \
   --add-data "app/vendor/ffmpeg/win64;vendor/ffmpeg/win64" \
   --add-data "app/resources;resources" \
+  --add-data "app/gui/styles;app/gui/styles" \
   --collect-all ctranslate2 \
   --collect-all faster_whisper \
+  --collect-all tiktoken \
+  --collect-all tiktoken_ext \
+  --hidden-import=tiktoken_ext.openai_public \
+  --collect-all yt_dlp \
   --collect-data certifi \
-  --collect-data tiktoken \
   app/__main__.py
 
 # 4. Inno Setup .exe (vyžaduje Windows + Inno Setup nainstalované)
 iscc installer\HlasDoTextu.iss
 ```
 
+> Build flags jsou source of truth v `.github/workflows/build-*.yml` — když
+> přidáš dependenci s lazy plugin loadingem nebo data soubory, aktualizuj
+> oba workflow (Windows i macOS) i tento příkaz.
+
 Cross-compile z macOS / Linux **nefunguje**. Buď použij Windows VM
-(Parallels / VMware), nebo nech to dělat GitHub Actions push do `main`
-větve repa (workflow `.github/workflows/build-windows.yml`).
+(Parallels / VMware), nebo nech to dělat GitHub Actions (workflow
+`build-windows.yml` / `build-macos.yml` reagují na push do `main` a na tagy `v*`).
 
 ## Verifikace před PR
 
 Kontrolní seznam:
 
-- [ ] `ruff check . --fix` — žádné varování
-- [ ] `pytest tests/` — všechny testy projdou
+- [ ] `ruff check app/ tests/` — žádné varování
+- [ ] `pytest` — všechny testy projdou
 - [ ] `python -m app` — GUI startne, žádný crash, žádné runtime warning
 - [ ] Pro nové widgety: ruční ověření na macOS i Windows (CI runneru)
 
