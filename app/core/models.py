@@ -73,6 +73,7 @@ class StudyMaterial:
     terms: list[tuple[str, str]] = field(default_factory=list)  # (pojem, definice)
     examples: list[str] = field(default_factory=list)       # Příklady z přednášky
     further_study: list[str] = field(default_factory=list)  # Doporučení k dalšímu studiu
+    topic: str = ""  # Krátké téma/předmět (1-2 slova) — pro třídění exportu do složek
 
 
 @dataclass(slots=True)

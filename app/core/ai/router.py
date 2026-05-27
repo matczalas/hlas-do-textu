@@ -198,6 +198,7 @@ def _parse_study_material(raw: str) -> StudyMaterial:
         )
 
     title = str(data.get("title") or "Studijní materiál").strip()
+    topic = str(data.get("topic") or "").strip()
     bullets = [str(b).strip() for b in (data.get("bullets") or []) if str(b).strip()]
     examples = [str(e).strip() for e in (data.get("examples") or []) if str(e).strip()]
     further = [str(f).strip() for f in (data.get("further_study") or []) if str(f).strip()]
@@ -229,4 +230,5 @@ def _parse_study_material(raw: str) -> StudyMaterial:
         terms=terms,
         examples=examples,
         further_study=further,
+        topic=topic,
     )

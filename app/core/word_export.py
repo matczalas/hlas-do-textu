@@ -180,3 +180,21 @@ def suggested_output_filename(material: StudyMaterial) -> str:
     safe_title = safe_title.replace(" ", "-")[:60]
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     return f"{safe_title}_{timestamp}.docx"
+
+
+def topic_folder_name(material: StudyMaterial) -> str:
+    """Vrátí bezpečný název složky podle tématu, nebo "" když téma chybí.
+
+    Téma navrhne AI (např. "Fyzika", "Dějepis"). Sanitizujeme na název složky
+    bezpečný napříč Windows/macOS — bez `\\ / : * ? " < > |`, bez tečky na konci
+    (Windows), max 40 znaků. Když je téma prázdné, vrátíme "" (export jde do
+    kořenové výstupní složky jako dosud).
+    """
+    topic = (material.topic or "").strip()
+    if not topic:
+        return ""
+    # Povolíme písmena, čísla, mezery, pomlčky, podtržítka; zbytek pryč
+    safe = "".join(c if c.isalnum() or c in (" ", "-", "_") else " " for c in topic)
+    safe = " ".join(safe.split())  # zkolabovat vícenásobné mezery
+    safe = safe.strip(" .")[:40].strip()
+    return safe
