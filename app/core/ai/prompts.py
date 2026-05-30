@@ -177,6 +177,52 @@ PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
             "tak aby se vešly na jednu stranu A4. Žádná vata."
         ),
     },
+    # --- Učitelské akce (redesign — 3 akční karty) ---
+    "teacher_questions_oral": {
+        "label": "Otázky vhodné k testu — ústní",
+        "prompt": (
+            "Z této nahrávky hodiny vytvoř sadu otázek k ÚSTNÍMU ZKOUŠENÍ žáků "
+            "(quiz_questions). 8–10 otázek různé obtížnosti — od zapamatování po "
+            "pochopení a aplikaci. Krátké, jasné, přiměřené věku žáků ZŠ. "
+            "Vhodné pro ústní formu (žák odpovídá souvisle vlastními slovy)."
+        ),
+    },
+    "teacher_questions_written": {
+        "label": "Otázky vhodné k testu — písemka",
+        "prompt": (
+            "Z této nahrávky hodiny vytvoř sadu otázek do PÍSEMNÉ PRÁCE pro žáky "
+            "(quiz_questions). 8–10 otázek různé obtížnosti, formulované tak, aby "
+            "žák odpověděl 1–3 větami. Připoj i krátkou variantu řešení pro "
+            "učitele (jako poznámku v závorce)."
+        ),
+    },
+    "teacher_questions_practice": {
+        "label": "Otázky vhodné k testu — procvičování",
+        "prompt": (
+            "Z této nahrávky hodiny vytvoř sadu otázek k PROCVIČOVÁNÍ doma "
+            "(quiz_questions). 10–15 kratších otázek, gradované od jednodušších "
+            "k složitějším. Smyslem je opakovat látku, ne hodnotit."
+        ),
+    },
+    "teacher_materials": {
+        "label": "Materiály k zaslání pro studenty",
+        "prompt": (
+            "Z této nahrávky hodiny připrav STUDIJNÍ MATERIÁL pro žáky "
+            "(přehledné poznámky + klíčové pojmy s definicemi). Formát: Word/PDF "
+            "ke stažení — vhodné pro nepřítomné žáky nebo opakování doma. "
+            "Strukturuj v pořadí, jak látka v hodině šla."
+        ),
+    },
+    "teacher_reflection": {
+        "label": "Reflexe hodiny — zpětná vazba na projev",
+        "prompt": (
+            "Tohle je nahrávka mé vyučovací hodiny. Dej mi UPŘÍMNOU ZPĚTNOU VAZBU "
+            "k mému učitelskému projevu, ne k obsahu látky: tempo řeči, výplňová "
+            "slova, srozumitelnost, dynamika, délka monologů vs. interakce se "
+            "žáky. Konkrétní příklady z hodiny, ne obecné rady. Co fungovalo, "
+            "co příště zkusit jinak."
+        ),
+    },
 }
 
 
