@@ -148,6 +148,17 @@ def main() -> int:
     app.setApplicationName("Hlas do textu")
     app.setOrganizationName("Safe4Future z. ú.")
 
+    # Globální theme (role-aware QSS + palette) — musí být PŘED prvním dialogem.
+    # Bez tohoto by activation/first-run dialogy běžely bez stylesheet.
+    try:
+        from app.gui.styles import theme
+        from app.settings import load_settings as _load_settings
+
+        _s = _load_settings()
+        theme.apply_theme(app, role=_s.app_role, dark=_s.dark_mode)
+    except Exception as exc:  # noqa: BLE001 — theme je nice-to-have, ne kritické
+        logger.warning("apply_theme selhalo: {}", exc)
+
     # License gate — bez platného klíče se nikam nedostaneme
     from app.licensing import is_activated
 

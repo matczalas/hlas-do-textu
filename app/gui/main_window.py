@@ -113,21 +113,12 @@ class MainWindow(QMainWindow):
 
         self._tray = self._init_tray()
 
-        self._load_stylesheet()
+        # QSS je globální (theme.apply_theme() v entrypointu) — žádný per-window
+        # setStyleSheet, protože by přebil sentinely a accent by zůstal nevyplněný.
         self._build_ui()
         self._wire_signals()
 
         QTimer.singleShot(50, self._post_show_init)
-
-    # ------ Stylesheet ------
-
-    def _load_stylesheet(self) -> None:
-        """Načte globální QSS z app/gui/styles/app.qss."""
-        qss_path = Path(__file__).resolve().parent / "styles" / "app.qss"
-        try:
-            self.setStyleSheet(qss_path.read_text(encoding="utf-8"))
-        except OSError as exc:
-            logger.warning("Stylesheet nešel načíst ({}): {}", qss_path, exc)
 
     # ------ System tray ------
 

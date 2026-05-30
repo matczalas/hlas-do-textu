@@ -1,10 +1,19 @@
 /* =========================================================================
-   Hlas do textu — globální stylesheet
-   Notion / Linear vibe. Accent: Safe4Future blue #205ca8.
-   Drží se palette() rolí, aby dark / light mode fungoval out of the box.
+   Hlas do textu — globální stylesheet (REDESIGN, role-aware)
+
+   POZOR: Tohle je ŠABLONA. Nesmí se načítat přímo přes setStyleSheet —
+   musí projít přes tokens.render_qss() (viz theme.apply_theme()).
+   Sentinely (@ACCENT@, @FONT@…) se nahradí hodnotami z tokens.py.
+
+   ZMĚNA OPROTI PŮVODNÍMU:
+   - Žádné #205ca8 natvrdo. Accent doplní tokens.render_qss():
+       @ACCENT@ @ACCENT_STRONG@ @ACCENT_PRESS@ @ACCENT_06@…@ACCENT_30@
+       @SUCCESS@ @WARNING@ @DANGER@ @DANGER_10@ @CONSENT_BG@ @CONSENT_BORDER@
+       @FONT@ @FONT_MONO@
+   - Role (student=modrá / teacher=teal) se přepne set_role() + render.
+   - Dark/light dál řeší palette() role z build_palette().
    ========================================================================= */
 
-/* Základní okno -------------------------------------------------------- */
 QMainWindow,
 QDialog {
     background-color: palette(window);
@@ -12,335 +21,216 @@ QDialog {
 }
 
 QWidget {
-    font-family: "Segoe UI Variable Display", "Segoe UI", "SF Pro Text",
-                 -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-family: @FONT@;
     font-size: 13px;
     color: palette(text);
 }
 
 /* Menu bar ------------------------------------------------------------- */
-QMenuBar {
-    background: transparent;
-    border-bottom: 1px solid palette(mid);
-    padding: 4px 8px;
-}
-QMenuBar::item {
-    padding: 4px 10px;
-    border-radius: 6px;
-}
-QMenuBar::item:selected {
-    background: palette(midlight);
-}
-QMenu {
-    background: palette(base);
-    border: 1px solid palette(mid);
-    border-radius: 8px;
-    padding: 4px;
-}
-QMenu::item {
-    padding: 6px 14px;
-    border-radius: 6px;
-}
-QMenu::item:selected {
-    background: rgba(32, 92, 168, 0.12);
-    color: palette(text);
-}
+QMenuBar { background: transparent; border-bottom: 1px solid palette(mid); padding: 4px 8px; }
+QMenuBar::item { padding: 4px 10px; border-radius: 6px; }
+QMenuBar::item:selected { background: palette(midlight); }
+QMenu { background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 4px; }
+QMenu::item { padding: 6px 14px; border-radius: 6px; }
+QMenu::item:selected { background: @ACCENT_12@; color: palette(text); }
 
-/* Karta — používáme objectName="Card" ---------------------------------- */
+/* Karta — objectName="Card" ------------------------------------------- */
 QFrame#Card {
     background: palette(base);
     border: 1px solid palette(mid);
-    border-radius: 10px;
+    border-radius: 12px;
 }
 
-/* Section header v okně ------------------------------------------------ */
+/* Sekční label / popisky ---------------------------------------------- */
 QLabel#SectionLabel {
-    font-size: 11px;
-    font-weight: 600;
-    color: palette(mid);
-    letter-spacing: 1px;
-    text-transform: uppercase;
+    font-size: 11px; font-weight: 700; color: @ACCENT@;
+    letter-spacing: 1px; text-transform: uppercase;
 }
-QLabel#Caption {
-    font-size: 11px;
-    color: palette(placeholder-text);
-}
-QLabel#Mono {
-    font-family: "JetBrains Mono", "Cascadia Code", "Consolas", "Menlo", monospace;
-    font-size: 12px;
-    color: palette(text);
-}
-QLabel#Hint {
-    color: palette(placeholder-text);
-    font-size: 12px;
-}
+QLabel#Caption { font-size: 11px; color: palette(placeholder-text); }
+QLabel#Mono { font-family: @FONT_MONO@; font-size: 12px; color: palette(text); }
+QLabel#Hint { color: palette(placeholder-text); font-size: 12px; }
 
 /* Tlačítka ------------------------------------------------------------- */
 QPushButton {
-    background: palette(button);
-    color: palette(button-text);
-    border: 1px solid palette(mid);
-    border-radius: 8px;
-    padding: 7px 14px;
-    font-size: 13px;
-    font-weight: 500;
+    background: palette(button); color: palette(button-text);
+    border: 1px solid palette(mid); border-radius: 8px;
+    padding: 7px 14px; font-size: 13px; font-weight: 500;
 }
 QPushButton:hover  { background: palette(midlight); }
 QPushButton:pressed{ background: palette(mid); }
-QPushButton:disabled {
-    color: palette(placeholder-text);
-    background: palette(window);
-    border-color: palette(mid);
-}
+QPushButton:disabled { color: palette(placeholder-text); background: palette(window); border-color: palette(mid); }
 
-/* Primary CTA — modré ------------------------------------------------- */
+/* Primary CTA --------------------------------------------------------- */
 QPushButton#Primary {
-    background: #205ca8;
-    color: #ffffff;
-    border: 1px solid #205ca8;
-    padding: 12px 22px;
-    font-size: 14px;
-    font-weight: 600;
+    background: @ACCENT@; color: #ffffff; border: 1px solid @ACCENT@;
+    padding: 12px 22px; font-size: 14px; font-weight: 600;
 }
-QPushButton#Primary:hover   { background: #1a4d8f; border-color: #1a4d8f; }
-QPushButton#Primary:pressed { background: #163f76; }
-QPushButton#Primary:disabled {
-    background: rgba(32, 92, 168, 0.30);
-    color: rgba(255, 255, 255, 0.7);
-    border-color: transparent;
-}
+QPushButton#Primary:hover    { background: @ACCENT_STRONG@; border-color: @ACCENT_STRONG@; }
+QPushButton#Primary:pressed  { background: @ACCENT_PRESS@; }
+QPushButton#Primary:disabled { background: @ACCENT_30@; color: rgba(255,255,255,0.7); border-color: transparent; }
 
-/* Secondary CTA — outlined modrý ------------------------------------- */
+/* Secondary CTA — outlined -------------------------------------------- */
 QPushButton#Secondary {
-    background: transparent;
-    color: #205ca8;
-    border: 1px solid #205ca8;
-    padding: 12px 22px;
-    font-size: 14px;
-    font-weight: 600;
+    background: transparent; color: @ACCENT@; border: 1px solid @ACCENT@;
+    padding: 12px 22px; font-size: 14px; font-weight: 600;
 }
-QPushButton#Secondary:hover   { background: rgba(32, 92, 168, 0.08); }
-QPushButton#Secondary:pressed { background: rgba(32, 92, 168, 0.16); }
-QPushButton#Secondary:disabled {
-    color: palette(placeholder-text);
-    border-color: palette(mid);
-    background: transparent;
-}
+QPushButton#Secondary:hover    { background: @ACCENT_08@; }
+QPushButton#Secondary:pressed  { background: @ACCENT_16@; }
+QPushButton#Secondary:disabled { color: palette(placeholder-text); border-color: palette(mid); background: transparent; }
 
-/* Ghost / link tlačítko ---------------------------------------------- */
+/* Ghost / link / back -------------------------------------------------- */
 QPushButton#Ghost {
-    background: transparent;
-    border: 1px solid transparent;
-    color: palette(text);
-    padding: 6px 10px;
-    font-weight: 500;
+    background: transparent; border: 1px solid transparent; color: palette(text);
+    padding: 6px 10px; font-weight: 500;
 }
 QPushButton#Ghost:hover { background: palette(midlight); }
 
-QPushButton#Link {
-    background: transparent;
-    border: none;
-    color: #205ca8;
-    padding: 2px 0;
-    text-align: left;
-    font-weight: 500;
+/* Back ("← Moje projekty") — pill, vlevo nahoře ----------------------- */
+QPushButton#Back {
+    background: palette(base); border: 1px solid palette(mid);
+    border-radius: 999px; color: palette(text);
+    padding: 7px 14px; font-weight: 700; font-size: 13px;
 }
-QPushButton#Link:hover { color: #1a4d8f; text-decoration: underline; }
+QPushButton#Back:hover   { background: palette(midlight); border-color: palette(mid); }
 
-/* Danger (cancel processing) ---------------------------------------- */
-QPushButton#Danger {
-    background: transparent;
-    border: 1px solid palette(mid);
-    color: palette(text);
+QPushButton#Link {
+    background: transparent; border: none; color: @ACCENT@;
+    padding: 2px 0; text-align: left; font-weight: 500;
 }
-QPushButton#Danger:hover {
-    background: rgba(216, 70, 70, 0.10);
-    border-color: #c84444;
-    color: #c84444;
-}
+QPushButton#Link:hover { color: @ACCENT_STRONG@; text-decoration: underline; }
+
+/* Danger (zrušit zpracování) ------------------------------------------ */
+QPushButton#Danger { background: transparent; border: 1px solid palette(mid); color: palette(text); }
+QPushButton#Danger:hover { background: @DANGER_10@; border-color: @DANGER@; color: @DANGER@; }
 
 /* Inputs --------------------------------------------------------------- */
-QLineEdit,
-QPlainTextEdit,
-QTextEdit,
-QComboBox {
-    background: palette(base);
-    border: 1px solid palette(mid);
-    border-radius: 8px;
+QLineEdit, QPlainTextEdit, QTextEdit, QComboBox {
+    background: palette(base); border: 1px solid palette(mid); border-radius: 8px;
     padding: 8px 10px;
-    selection-background-color: rgba(32, 92, 168, 0.25);
-    selection-color: palette(text);
+    selection-background-color: @ACCENT_25@; selection-color: palette(text);
 }
-QLineEdit:focus,
-QPlainTextEdit:focus,
-QTextEdit:focus,
-QComboBox:focus {
-    border: 1px solid #205ca8;
-}
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus, QComboBox:focus { border: 1px solid @ACCENT@; }
 QComboBox::drop-down { border: none; width: 22px; }
 QComboBox QAbstractItemView {
-    background: palette(base);
-    border: 1px solid palette(mid);
-    border-radius: 8px;
-    padding: 4px;
-    selection-background-color: rgba(32, 92, 168, 0.15);
-    selection-color: palette(text);
+    background: palette(base); border: 1px solid palette(mid); border-radius: 8px; padding: 4px;
+    selection-background-color: @ACCENT_12@; selection-color: palette(text);
 }
 
-/* GroupBox — používáme jako neviditelný container ----------------- */
-QGroupBox {
-    border: none;
-    margin-top: 10px;
-    padding-top: 0;
-    font-weight: 600;
-}
+/* GroupBox jako neviditelný container --------------------------------- */
+QGroupBox { border: none; margin-top: 10px; padding-top: 0; font-weight: 600; }
 QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left;
-    padding: 0 0 6px 0;
-    color: palette(mid);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 1px;
+    subcontrol-origin: margin; subcontrol-position: top left; padding: 0 0 6px 0;
+    color: @ACCENT@; font-size: 11px; font-weight: 700; letter-spacing: 1px;
 }
 
 /* Progress bar -------------------------------------------------------- */
 QProgressBar {
-    background: palette(midlight);
-    border: none;
-    border-radius: 4px;
-    height: 8px;
-    text-align: center;
-    color: transparent;
-    font-size: 0px;
+    background: palette(midlight); border: none; border-radius: 4px; height: 8px;
+    text-align: center; color: transparent; font-size: 0px;
 }
-QProgressBar::chunk {
-    background: #205ca8;
-    border-radius: 4px;
-}
+QProgressBar::chunk { background: @ACCENT@; border-radius: 4px; }
 
-/* Tabulka ------------------------------------------------------------- */
+/* Tabulka zdrojů ------------------------------------------------------ */
 QTableWidget {
-    background: palette(base);
-    border: 1px solid palette(mid);
-    border-radius: 10px;
+    background: palette(base); border: 1px solid palette(mid); border-radius: 12px;
     gridline-color: transparent;
-    selection-background-color: rgba(32, 92, 168, 0.10);
-    selection-color: palette(text);
+    selection-background-color: @ACCENT_10@; selection-color: palette(text);
 }
-QTableWidget::item {
-    padding: 8px 8px;
-    border: none;
-    border-bottom: 1px solid palette(midlight);
-}
-QTableWidget::item:selected { background: rgba(32, 92, 168, 0.10); color: palette(text); }
+QTableWidget::item { padding: 8px 8px; border: none; border-bottom: 1px solid palette(midlight); }
+QTableWidget::item:selected { background: @ACCENT_10@; color: palette(text); }
 QHeaderView::section {
-    background: palette(window);
-    border: none;
-    border-bottom: 1px solid palette(mid);
-    padding: 8px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    color: palette(mid);
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    background: palette(window); border: none; border-bottom: 1px solid palette(mid);
+    padding: 8px 8px; font-size: 11px; font-weight: 700; color: palette(mid);
+    text-transform: uppercase; letter-spacing: 1px;
 }
 
-/* Scrollbars ---------------------------------------------------------- */
-QScrollBar:vertical {
-    background: transparent;
-    width: 10px;
-    margin: 4px 2px;
-}
-QScrollBar::handle:vertical {
-    background: palette(mid);
-    border-radius: 4px;
-    min-height: 30px;
-}
+/* Scrollbary ---------------------------------------------------------- */
+QScrollBar:vertical { background: transparent; width: 10px; margin: 4px 2px; }
+QScrollBar::handle:vertical { background: palette(mid); border-radius: 4px; min-height: 30px; }
 QScrollBar::handle:vertical:hover { background: palette(dark); }
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical { height: 0; }
-
-QScrollBar:horizontal {
-    background: transparent;
-    height: 10px;
-    margin: 2px 4px;
-}
-QScrollBar::handle:horizontal {
-    background: palette(mid);
-    border-radius: 4px;
-    min-width: 30px;
-}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px 4px; }
+QScrollBar::handle:horizontal { background: palette(mid); border-radius: 4px; min-width: 30px; }
 QScrollBar::handle:horizontal:hover { background: palette(dark); }
-QScrollBar::add-line:horizontal,
-QScrollBar::sub-line:horizontal { width: 0; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 
 /* CheckBox ------------------------------------------------------------ */
 QCheckBox { spacing: 10px; }
 QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
-    border: 1.5px solid palette(mid);
-    border-radius: 5px;
-    background: palette(base);
+    width: 18px; height: 18px; border: 1.5px solid palette(mid);
+    border-radius: 5px; background: palette(base);
 }
-QCheckBox::indicator:hover { border-color: #205ca8; }
-QCheckBox::indicator:checked {
-    background: #205ca8;
-    border-color: #205ca8;
-}
-QCheckBox::indicator:checked:hover {
-    background: #1a4d8f;
-    border-color: #1a4d8f;
-}
+QCheckBox::indicator:hover { border-color: @ACCENT@; }
+QCheckBox::indicator:checked { background: @ACCENT@; border-color: @ACCENT@; }
+QCheckBox::indicator:checked:hover { background: @ACCENT_STRONG@; border-color: @ACCENT_STRONG@; }
 
-/* GDPR consent box (objectName="Consent") --------------------------- */
+/* GDPR consent box (objectName="Consent") ----------------------------- */
 QCheckBox#Consent {
-    padding: 14px 16px;
-    background: rgba(243, 196, 60, 0.16);
-    border: 1px solid rgba(243, 196, 60, 0.55);
-    border-radius: 10px;
-    color: palette(text);
-    font-weight: 500;
+    padding: 14px 16px; background: @CONSENT_BG@; border: 1px solid @CONSENT_BORDER@;
+    border-radius: 10px; color: palette(text); font-weight: 500;
 }
 
-/* Drop zone — idle / active přes objectName="DropZone" -------------- */
-QFrame#DropZone {
-    border: 1.5px dashed palette(mid);
-    border-radius: 12px;
-    background: palette(base);
-}
-QFrame#DropZone[active="true"] {
-    border: 1.5px solid #205ca8;
-    background: rgba(32, 92, 168, 0.06);
+/* Drop zone — idle / active přes property active ---------------------- */
+QFrame#DropZone { border: 1.5px solid palette(mid); border-radius: 12px; background: palette(base); }
+QFrame#DropZone[active="true"] { border: 1.5px solid @ACCENT@; background: @ACCENT_06@; }
+
+/* Role badge ("Učitelský režim") — objectName="RoleBadge" ------------- */
+QLabel#RoleBadge {
+    background: @ACCENT@; color: #ffffff; border-radius: 999px;
+    padding: 5px 13px; font-size: 12px; font-weight: 700;
 }
 
-/* Log viewport ------------------------------------------------------- */
+/* Karta projektu (Projects home) — objectName="ProjectCard" ----------- */
+QPushButton#ProjectCard {
+    text-align: left;
+    background: palette(base); border: 1px solid palette(mid); border-radius: 12px;
+    padding: 14px 16px; color: palette(text); font-weight: 500;
+}
+QPushButton#ProjectCard:hover {
+    background: @ACCENT_06@; border-color: @ACCENT@;
+}
+QPushButton#NewProjectCard {
+    text-align: center;
+    background: transparent; color: @ACCENT@;
+    border: 1.5px dashed palette(mid); border-radius: 12px;
+    padding: 14px 16px; font-weight: 600;
+}
+QPushButton#NewProjectCard:hover {
+    border-color: @ACCENT@; background: @ACCENT_06@;
+}
+
+/* Teacher action karty — objectName="ActionCard" --------------------- */
+QFrame#ActionCard {
+    background: palette(base); border: 1px solid palette(mid); border-radius: 12px;
+}
+QFrame#ActionCard[disabled="true"] {
+    background: palette(window); border: 1.5px dashed palette(mid);
+}
+
+/* Segmented control — objectName="SegmentedBtn" ---------------------- */
+QPushButton#SegmentedBtn {
+    background: palette(base); border: 1px solid palette(mid); border-radius: 999px;
+    padding: 7px 16px; font-size: 13px; font-weight: 500; color: palette(text);
+}
+QPushButton#SegmentedBtn:hover { background: palette(midlight); }
+QPushButton#SegmentedBtn[checked="true"] {
+    background: @ACCENT@; color: #ffffff; border-color: @ACCENT@;
+}
+
+/* Log viewport -------------------------------------------------------- */
 QTextEdit#Log {
-    background: palette(alternate-base);
-    border: 1px solid palette(mid);
-    border-radius: 8px;
-    font-family: "JetBrains Mono", "Cascadia Code", "Consolas", "Menlo", monospace;
-    font-size: 11px;
-    padding: 8px 10px;
+    background: palette(alternate-base); border: 1px solid palette(mid); border-radius: 8px;
+    font-family: @FONT_MONO@; font-size: 11px; padding: 8px 10px;
 }
 
-/* Status pills ------------------------------------------------------- */
+/* Status pills -------------------------------------------------------- */
 QLabel#StatusPill {
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: palette(alternate-base);
-    border: 1px solid palette(mid);
-    font-size: 12px;
-    font-weight: 500;
+    padding: 4px 10px; border-radius: 999px; background: palette(alternate-base);
+    border: 1px solid palette(mid); font-size: 12px; font-weight: 500;
 }
 
-/* Tooltip ----------------------------------------------------------- */
+/* Tooltip ------------------------------------------------------------- */
 QToolTip {
-    background: palette(window-text);
-    color: palette(window);
-    border: none;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 12px;
+    background: palette(window-text); color: palette(window); border: none;
+    border-radius: 6px; padding: 6px 10px; font-size: 12px;
 }
