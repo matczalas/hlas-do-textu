@@ -226,13 +226,15 @@ QFrame#ActionCard[disabled="true"] {
 }
 
 /* Segmented control — objectName="SegmentedBtn" ---------------------- */
+/* Indikátor (accent bg) je samostatný overlay widget, který se animuje
+   pod tlačítka. Tlačítka jsou průhledná, jen text se barví. */
 QPushButton#SegmentedBtn {
-    background: palette(base); border: 1px solid palette(mid); border-radius: 999px;
+    background: transparent; border: 1px solid palette(mid); border-radius: 999px;
     padding: 7px 16px; font-size: 13px; font-weight: 500; color: palette(text);
 }
-QPushButton#SegmentedBtn:hover { background: palette(midlight); }
+QPushButton#SegmentedBtn:hover { color: @ACCENT@; }
 QPushButton#SegmentedBtn[checked="true"] {
-    background: @ACCENT@; color: #ffffff; border-color: @ACCENT@;
+    color: #ffffff; border-color: transparent;
 }
 
 /* Log viewport -------------------------------------------------------- */
