@@ -165,6 +165,34 @@ class MainWindow(QMainWindow):
         self._update_banner.restart_requested.connect(self._on_update_restart)
         root.addWidget(self._update_banner)
 
+        # ---- Stack: Projects home (page 0) + Editor (page 1) ---------
+        # Vstupní bod aplikace je Projects home — uživatel vidí svoje
+        # dříve vyrobené projekty a má důvod se vrátit. "Nový projekt"
+        # nebo klik na existující projekt přepne na editor.
+        from app.gui.widgets.projects_home import ProjectsHome
+
+        self._page_stack = QStackedWidget()
+
+        self._projects_home = ProjectsHome()
+        self._projects_home.new_project_requested.connect(self._enter_editor)
+        self._projects_home.project_opened.connect(self._open_file)
+        self._page_stack.addWidget(self._projects_home)  # index 0
+
+        self._editor_page = QWidget()
+        editor_root = QVBoxLayout(self._editor_page)
+        editor_root.setContentsMargins(0, 0, 0, 0)
+        editor_root.setSpacing(14)
+        self._page_stack.addWidget(self._editor_page)  # index 1
+
+        root.addWidget(self._page_stack, 1)
+
+        # Default na home — refresh načte recent_outputs.
+        self._page_stack.setCurrentIndex(0)
+        self._projects_home.refresh(self._settings.recent_outputs)
+
+        # Použít alias 'root' pro zbytek build_ui (přesměrováno na editor_root)
+        root = editor_root
+
         # ---- Učitel: section label "1 · Nahrávka hodiny" --------------
         # V učitel módu se nad drop zone přidá očíslovaný section label
         # (sekce 1). Sekce 2 a 3 jsou pod source_stack jako TeacherActions.
@@ -173,7 +201,7 @@ class MainWindow(QMainWindow):
         self._section_1_label.setVisible(self._settings.app_role == "teacher")
         root.addWidget(self._section_1_label)
 
-        # ---- Drop zone (vždy nahoře) ----------------------------------
+        # ---- Drop zone (vždy nahoře v editoru) ------------------------
         self._drop_zone = FileDropZone()
         self._drop_zone.set_last_dir(self._settings.last_used_sources_dir)
         root.addWidget(self._drop_zone)
@@ -226,6 +254,14 @@ class MainWindow(QMainWindow):
     def _build_header(self) -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(12)
+
+        # Back tlačítko "← Moje projekty" — viditelné jen v editoru.
+        self._back_btn = QPushButton("←  Moje projekty")
+        self._back_btn.setObjectName("Back")
+        self._back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._back_btn.clicked.connect(self._back_to_home)
+        self._back_btn.hide()  # výchozí page je home, back nepotřebujeme
+        row.addWidget(self._back_btn)
 
         title = QLabel("Hlas do textu")
         f = QFont()
@@ -290,6 +326,38 @@ class MainWindow(QMainWindow):
             self._prompt_editor.set_text(prompt_text)
         # Plný režim — přepis + AI body podle vybrané šablony
         self._run_pipeline(JobMode.FULL)
+
+    # ------ Navigace mezi home a editorem ------
+
+    def _enter_editor(self) -> None:
+        """Přepne na editor (Projects home → editor). Vyresetuje zdroje."""
+        # Čistý projekt — uživatel právě klikl 'Nový projekt'
+        self._table.clear_all()
+        if self._page_stack.currentIndex() != 1:
+            self._page_stack.setCurrentIndex(1)
+        self._back_btn.show()
+
+    def _back_to_home(self) -> None:
+        """Návrat na Projects home — uloží stav a aktualizuje seznam."""
+        # Pokud běží pipeline, ptáme se uživatele (jinak by se job ztratil
+        # ze zobrazení, ale stále by běžel na pozadí — matoucí UX).
+        if self._pipeline_worker.is_running():
+            reply = QMessageBox.question(
+                self,
+                "Zpracování stále běží",
+                "Pipeline ještě běží. Vrátit se na seznam projektů?\n"
+                "Zpracování pokračuje dál, hotový dokument se objeví "
+                "v seznamu projektů.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        self._page_stack.setCurrentIndex(0)
+        self._back_btn.hide()
+        # Refresh recent_outputs (mohlo přibýt po dokončení pipeline)
+        self._projects_home.refresh(self._settings.recent_outputs)
 
     # ---- Output row -------------------------------------------------------
 
@@ -635,6 +703,9 @@ class MainWindow(QMainWindow):
         self._settings.recent_outputs = recents[:10]
         save_settings(self._settings)
         self._refresh_recent_menu()
+        # Refresh projektů na home — nový dokument se hned objeví v seznamu.
+        if hasattr(self, "_projects_home"):
+            self._projects_home.refresh(self._settings.recent_outputs)
 
     def _clear_recent_outputs(self) -> None:
         self._settings.recent_outputs = []
