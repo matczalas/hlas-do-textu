@@ -54,6 +54,11 @@ class AppSettings:
     # = skutečné_RTF / tabulkové_RTF z posledních běhů (1.0 = přesně podle tabulky,
     # >1 = počítač je pomalejší, <1 = rychlejší). Aktualizuje se po každém přepisu.
     cpu_speed_factor: float = 1.0
+    # Role aktivního uživatele — řídí accent (modrá/teal) a UI vrstvu (učitel = 3 akční karty).
+    # "student" = výchozí (Safe4Future modrá), "teacher" = pedagogický nástroj (teal).
+    app_role: str = "student"
+    # Tmavý režim UI (paleta + accent přes role); pokud false, světlý.
+    dark_mode: bool = False
 
 
 def load_settings() -> AppSettings:
