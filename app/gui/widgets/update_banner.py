@@ -77,7 +77,7 @@ class UpdateBanner(QFrame):
         self._action_btn.setMinimumHeight(34)
         self._action_btn.setStyleSheet(
             f"QPushButton {{ background: {accent}; color: white; border: none; "
-            "border-radius: 8px; padding: 6px 16px; font-weight: 600; font-size: 12.5px; }}"
+            "border-radius: 8px; padding: 6px 16px; font-weight: 600; font-size: 12.5px; }"
             f"QPushButton:hover {{ background: {accent_strong}; }}"
             "QPushButton:disabled { background: #8a9fb8; color: rgba(255,255,255,150); }"
         )

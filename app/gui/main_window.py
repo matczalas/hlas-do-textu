@@ -38,7 +38,6 @@ from app.core.pipeline import estimate_total_processing_seconds, format_duration
 from app.gui.styles import tokens
 from app.gui.widgets.empty_state import EmptyStateWidget
 from app.gui.widgets.file_drop_zone import FileDropZone
-from app.gui.widgets.first_run_dialog import FirstRunDialog
 from app.gui.widgets.icons import icon, icon_size, pixmap
 from app.gui.widgets.ollama_status import StatusBar
 from app.gui.widgets.progress_panel import ProgressPanel
@@ -531,34 +530,8 @@ class MainWindow(QMainWindow):
     # ------ Lifecycle ------
 
     def _post_show_init(self) -> None:
-        if not self._settings.first_run_done:
-            # 1) Role picker — student / učitel (jen poprvé)
-            from app.gui.widgets.role_picker_dialog import RolePickerDialog
-
-            picker = RolePickerDialog(self)
-            if picker.exec() == picker.DialogCode.Accepted:
-                self._settings.app_role = picker.chosen_role()
-                # Aplikuj novou roli okamžitě, ať FirstRunDialog už používá správný accent
-                from PySide6.QtWidgets import QApplication
-
-                from app.gui.styles import theme
-
-                qapp = QApplication.instance()
-                if qapp is not None:
-                    theme.apply_theme(
-                        qapp,
-                        role=self._settings.app_role,
-                        dark=self._settings.dark_mode,
-                    )
-
-            # 2) Standardní first-run (Gemini klíč, souhlas, AI služba)
-            dlg = FirstRunDialog(self._settings, self)
-            dlg.exec()
-            save_settings(self._settings)
-            # Po first-run znovu obnov role badge (může se změnit, pokud uživatel
-            # vrátí role picker; jinak no-op)
-            self._refresh_role_badge()
-
+        # Role picker + first-run jsou teď v entrypointu (app/__main__.py)
+        # PŘED konstrukcí MainWindow. Tady už jen pokračujeme s další logikou.
         self._maybe_offer_model_download()
         self._status_bar.refresh(get_gemini_api_key())
 
