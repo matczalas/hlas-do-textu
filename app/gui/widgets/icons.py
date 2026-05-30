@@ -5,8 +5,9 @@ palette() role textu. Vrací buď QIcon nebo QPixmap.
 
 Použití:
     from app.gui.widgets.icons import icon, pixmap
+    from app.gui.styles import tokens
     btn.setIcon(icon("mic", size=18))
-    label.setPixmap(pixmap("sparkles", size=24, color="#205ca8"))
+    label.setPixmap(pixmap("sparkles", size=24, color=tokens.accent()))
 """
 
 from __future__ import annotations

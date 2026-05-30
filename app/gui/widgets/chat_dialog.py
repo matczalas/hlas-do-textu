@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 
 from app.core.ai.chat import ChatProposal, ChatResponse, ChatSession
 from app.core.models import StudyMaterial
+from app.gui.styles import tokens
 
 
 class _MessageBubble(QFrame):
@@ -63,8 +64,8 @@ class _MessageBubble(QFrame):
         self.setObjectName("MessageBubble")
         is_user = role == "user"
 
-        bg = "rgba(32,92,168,0.10)" if is_user else "rgba(120,120,120,0.10)"
-        border = "rgba(32,92,168,0.30)" if is_user else "rgba(120,120,120,0.30)"
+        bg = tokens.accent_soft(0.10) if is_user else "rgba(120,120,120,0.10)"
+        border = tokens.accent_soft(0.30) if is_user else "rgba(120,120,120,0.30)"
         self.setStyleSheet(
             f"QFrame#MessageBubble {{ background: {bg}; "
             f"border: 1px solid {border}; border-radius: 10px; padding: 4px; }}"
@@ -77,7 +78,7 @@ class _MessageBubble(QFrame):
         label = QLabel("Ty" if is_user else "Asistent")
         label.setStyleSheet(
             "font-size: 11px; font-weight: 600; "
-            f"color: {'#205ca8' if is_user else '#6a6a6a'};"
+            f"color: {tokens.accent() if is_user else '#6a6a6a'};"
         )
         layout.addWidget(label)
 
@@ -96,11 +97,13 @@ class _MessageBubble(QFrame):
             apply_btn.setObjectName("Primary")
             apply_btn.setMinimumHeight(30)
             apply_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            accent = tokens.accent()
+            accent_strong = tokens.accent_strong()
             apply_btn.setStyleSheet(
-                "QPushButton#Primary { background: #205ca8; color: white; "
+                f"QPushButton#Primary {{ background: {accent}; color: white; "
                 "border: none; border-radius: 7px; padding: 4px 12px; "
                 "font-weight: 600; font-size: 12px; }"
-                "QPushButton#Primary:hover { background: #1a4d8f; }"
+                f"QPushButton#Primary:hover {{ background: {accent_strong}; }}"
                 "QPushButton#Primary:disabled { background: #8a9fb8; }"
             )
             apply_btn.clicked.connect(lambda: self._on_apply(proposal, apply_btn, cancel_btn))
@@ -210,11 +213,13 @@ class ChatDialog(QDialog):
         self._send_btn.setMinimumHeight(34)
         self._send_btn.setMinimumWidth(120)
         self._send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        accent = tokens.accent()
+        accent_strong = tokens.accent_strong()
         self._send_btn.setStyleSheet(
-            "QPushButton#Primary { background: #205ca8; color: white; "
+            f"QPushButton#Primary {{ background: {accent}; color: white; "
             "border: none; border-radius: 8px; padding: 6px 16px; "
             "font-weight: 600; font-size: 13px; }"
-            "QPushButton#Primary:hover { background: #1a4d8f; }"
+            f"QPushButton#Primary:hover {{ background: {accent_strong}; }}"
             "QPushButton#Primary:disabled { background: #8a9fb8; }"
         )
         self._send_btn.clicked.connect(self._on_send)

@@ -19,10 +19,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.config import GEMINI_API_KEY_URL
+from app.gui.styles import tokens
 from app.gui.widgets.icons import icon, icon_size, pixmap
 from app.settings import AppSettings, set_gemini_api_key
-
-ACCENT = "#205ca8"
 
 
 class FirstRunDialog(QDialog):
@@ -36,15 +35,19 @@ class FirstRunDialog(QDialog):
         root.setContentsMargins(32, 28, 32, 24)
         root.setSpacing(14)
 
+        accent = tokens.accent()
+        accent_strong = tokens.accent_strong()
+        accent_soft = tokens.accent_soft(0.10)
+
         # Hero
         hero = QHBoxLayout()
         hero.setSpacing(14)
         avatar = QLabel()
-        avatar.setPixmap(pixmap("graduation", size=28, color=ACCENT))
+        avatar.setPixmap(pixmap("graduation", size=28, color=accent))
         avatar.setFixedSize(52, 52)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet(
-            "QLabel { background: rgba(32,92,168,0.10); border-radius: 13px; }"
+            f"QLabel {{ background: {accent_soft}; border-radius: 13px; }}"
         )
         hero.addWidget(avatar)
 
@@ -77,10 +80,10 @@ class FirstRunDialog(QDialog):
         get_key_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         get_key_btn.clicked.connect(self._open_gemini_keys_page)
         get_key_btn.setStyleSheet(
-            "QPushButton#Primary { background:" + ACCENT + "; color:white; "
-            "border:1px solid " + ACCENT + "; border-radius:8px; "
+            f"QPushButton#Primary {{ background:{accent}; color:white; "
+            f"border:1px solid {accent}; border-radius:8px; "
             "padding:10px 18px; font-weight:600; }"
-            "QPushButton#Primary:hover { background:#1a4d8f; }"
+            f"QPushButton#Primary:hover {{ background:{accent_strong}; }}"
         )
         root.addWidget(get_key_btn)
 

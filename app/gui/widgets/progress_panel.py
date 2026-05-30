@@ -28,9 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.styles import tokens
 from app.gui.widgets.icons import icon, icon_size
-
-ACCENT = "#205ca8"
 
 
 class ProgressPanel(QGroupBox):
@@ -72,8 +71,8 @@ class ProgressPanel(QGroupBox):
         # Indikátor pozice v dávce ("2 / 5") — viditelný jen při více nahrávkách
         self._batch = QLabel("")
         self._batch.setStyleSheet(
-            "font-size: 11px; font-weight: 700; color: #205ca8; "
-            "background: rgba(32,92,168,0.12); border-radius: 8px; padding: 3px 9px;"
+            f"font-size: 11px; font-weight: 700; color: {tokens.accent()}; "
+            f"background: {tokens.accent_soft(0.12)}; border-radius: 8px; padding: 3px 9px;"
         )
         self._batch.hide()
         top.addWidget(self._batch)
@@ -84,7 +83,7 @@ class ProgressPanel(QGroupBox):
         top.addWidget(self._eta)
 
         self._percent = QLabel("")
-        self._percent.setStyleSheet(f"color: {ACCENT}; font-size: 13px; font-weight: 600;")
+        self._percent.setStyleSheet(f"color: {tokens.accent()}; font-size: 13px; font-weight: 600;")
         top.addWidget(self._percent)
 
         self._cancel_btn = QPushButton("Zrušit")
@@ -178,7 +177,7 @@ class ProgressPanel(QGroupBox):
         low = label.lower()
         # (text badge, barva) podle klíčových slov v labelu
         if "přepis" in low or "transcrib" in low:
-            text, color = "Přepis řeči", "#205ca8"   # modrá = Whisper/cloud přepis
+            text, color = "Přepis řeči", tokens.accent()   # role accent = Whisper/cloud přepis
         elif "body" in low or "generuj" in low or " ai" in low or "ai " in low:
             text, color = "AI zpracování", "#7c3aed"  # fialová = AI
         elif "prezentac" in low or "slid" in low or "čtu" in low:
@@ -249,7 +248,7 @@ class ProgressPanel(QGroupBox):
         safe_text = escape(text)
         self._log.append(
             f'<span style="color:#888;">[{time_str}]</span> '
-            f'<span style="color:{ACCENT}; font-weight:600;">{safe_label}</span>'
+            f'<span style="color:{tokens.accent()}; font-weight:600;">{safe_label}</span>'
             f'&nbsp;&nbsp;<span style="color:palette(text);">{safe_text}</span>'
         )
         self._scroll_to_end()

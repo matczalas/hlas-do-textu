@@ -15,9 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.styles import tokens
 from app.gui.widgets.icons import pixmap
-
-ACCENT = "#205ca8"
 
 
 class EmptyStateWidget(QWidget):
@@ -71,11 +70,11 @@ class _FlowIcon(QWidget):
         v.setSpacing(8)
 
         bubble = QLabel()
-        bubble.setPixmap(pixmap(name, size=24, color=ACCENT))
+        bubble.setPixmap(pixmap(name, size=24, color=tokens.accent()))
         bubble.setFixedSize(56, 56)
         bubble.setAlignment(Qt.AlignmentFlag.AlignCenter)
         bubble.setStyleSheet(
-            "QLabel { background: rgba(32,92,168,0.10); border-radius: 14px; }"
+            f"QLabel {{ background: {tokens.accent_soft(0.10)}; border-radius: 14px; }}"
         )
         v.addWidget(bubble, 0, Qt.AlignmentFlag.AlignHCenter)
 

@@ -25,10 +25,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.config import GEMINI_API_KEY_URL, WHISPER_MODEL_CHOICES
+from app.gui.styles import tokens
 from app.gui.widgets.icons import icon, icon_size
 from app.settings import AppSettings, get_gemini_api_key, set_gemini_api_key
-
-ACCENT = "#205ca8"
 
 
 def _field_label(text: str) -> QLabel:
@@ -85,14 +84,15 @@ class SettingsDialog(QDialog):
         self._show_btn.clicked.connect(self._toggle_api_visibility)
         api_row.addWidget(self._show_btn)
 
+        accent = tokens.accent()
         self._get_key_btn = QPushButton("Získat klíč")
-        self._get_key_btn.setIcon(icon("external", size=13, color=ACCENT))
+        self._get_key_btn.setIcon(icon("external", size=13, color=accent))
         self._get_key_btn.setIconSize(icon_size(13))
         self._get_key_btn.setStyleSheet(
             "QPushButton { padding: 8px 14px; font-weight: 600; "
-            "color: " + ACCENT + "; background: transparent; "
-            "border: 1px solid " + ACCENT + "; border-radius: 8px; }"
-            "QPushButton:hover { background: rgba(32,92,168,0.08); }"
+            f"color: {accent}; background: transparent; "
+            f"border: 1px solid {accent}; border-radius: 8px; }}"
+            f"QPushButton:hover {{ background: {tokens.accent_soft(0.08)}; }}"
         )
         self._get_key_btn.clicked.connect(self._open_gemini_keys_page)
         api_row.addWidget(self._get_key_btn)
@@ -269,7 +269,7 @@ class SettingsDialog(QDialog):
     def _toggle_api_visibility(self) -> None:
         if self._show_btn.isChecked():
             self._api_edit.setEchoMode(QLineEdit.EchoMode.Normal)
-            self._show_btn.setIcon(icon("eye-off", size=16, color=ACCENT))
+            self._show_btn.setIcon(icon("eye-off", size=16, color=tokens.accent()))
         else:
             self._api_edit.setEchoMode(QLineEdit.EchoMode.Password)
             self._show_btn.setIcon(icon("eye", size=16, color="#7a7a7a"))
