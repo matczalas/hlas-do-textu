@@ -19,8 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.ai.prompts import PROMPT_TEMPLATES
-
-ACCENT = "#205ca8"
+from app.gui.styles import tokens
 
 _CHIPS = [
     "Body ke zkoušce",
@@ -61,6 +60,9 @@ class PromptEditor(QGroupBox):
         tpl_row.addWidget(self._template_combo, 1)
         outer.addLayout(tpl_row)
 
+        accent = tokens.accent()
+        accent_soft = tokens.accent_soft(0.06)
+
         self._edit = QPlainTextEdit()
         self._edit.setPlaceholderText(
             "Volitelně: o čem ta přednáška je? Pomáhá to AI udělat lepší poznámky."
@@ -71,7 +73,7 @@ class PromptEditor(QGroupBox):
             "QPlainTextEdit { background: palette(base); "
             "border: 1px solid palette(midlight); border-radius: 10px; "
             "padding: 12px 14px; font-size: 13px; }"
-            "QPlainTextEdit:focus { border: 1px solid " + ACCENT + "; }"
+            f"QPlainTextEdit:focus {{ border: 1px solid {accent}; }}"
         )
         outer.addWidget(self._edit, 1)
 
@@ -85,8 +87,8 @@ class PromptEditor(QGroupBox):
                 "QPushButton { background: palette(alternate-base); "
                 "border: 1px solid palette(midlight); border-radius: 999px; "
                 "padding: 4px 12px; font-size: 11.5px; color: palette(text); }"
-                "QPushButton:hover { border-color: " + ACCENT + "; "
-                "color: " + ACCENT + "; background: rgba(32,92,168,0.06); }"
+                f"QPushButton:hover {{ border-color: {accent}; "
+                f"color: {accent}; background: {accent_soft}; }}"
             )
             chip.clicked.connect(lambda _checked=False, t=txt: self._append_hint(t))
             chips_row.addWidget(chip)

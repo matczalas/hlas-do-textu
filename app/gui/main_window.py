@@ -1,8 +1,9 @@
 """Hlavní okno aplikace — sestavuje widgety, řídí flow.
 
 Redesign: tři sekce v plynoucím layoutu (Zdroje · Kontext · Spuštění),
-globální QSS z app/gui/styles/app.qss, accent #205ca8, čisté typografie.
-Business logika nezměněna — všechny signály/sloty/atributy zůstávají.
+globální QSS z app/gui/styles/app.qss načtený přes theme.apply_theme()
+(role-aware: student modrá / učitel teal). Business logika nezměněna —
+všechny signály/sloty/atributy zůstávají.
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ from app.core.audio_extract import probe_duration_seconds
 from app.core.model_downloader import model_is_cached
 from app.core.models import JobConfig, JobMode, SourceFile, SourceKind, TranscribeBackend
 from app.core.pipeline import estimate_total_processing_seconds, format_duration_human
+from app.gui.styles import tokens
 from app.gui.widgets.empty_state import EmptyStateWidget
 from app.gui.widgets.file_drop_zone import FileDropZone
 from app.gui.widgets.first_run_dialog import FirstRunDialog
@@ -52,9 +54,6 @@ from app.settings import (
     load_settings,
     save_settings,
 )
-
-ACCENT = "#205ca8"
-
 
 # --------------------------------------------------------------------------- #
 # Helpers
@@ -226,7 +225,7 @@ class MainWindow(QMainWindow):
         settings_btn.setStyleSheet(
             "QPushButton#Ghost { padding: 7px 12px; border: 1px solid palette(midlight); "
             "border-radius: 8px; color: palette(text); background: palette(base); }"
-            "QPushButton#Ghost:hover { background: palette(midlight); border-color: " + ACCENT + "; }"
+            f"QPushButton#Ghost:hover {{ background: palette(midlight); border-color: {tokens.accent()}; }}"
         )
         row.addWidget(settings_btn)
 
@@ -255,7 +254,7 @@ class MainWindow(QMainWindow):
         change_out_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         change_out_btn.setStyleSheet(
             "QPushButton#Link { background: transparent; border: none; "
-            "color: " + ACCENT + "; padding: 4px 8px; font-weight: 600; }"
+            f"color: {tokens.accent()}; padding: 4px 8px; font-weight: 600; }}"
             "QPushButton#Link:hover { text-decoration: underline; }"
         )
         change_out_btn.clicked.connect(self._change_output_dir)
@@ -271,7 +270,7 @@ class MainWindow(QMainWindow):
 
         self._run_transcribe_btn = QPushButton("Přepis")
         self._run_transcribe_btn.setObjectName("Secondary")
-        self._run_transcribe_btn.setIcon(icon("document", size=16, color=ACCENT))
+        self._run_transcribe_btn.setIcon(icon("document", size=16, color=tokens.accent()))
         self._run_transcribe_btn.setIconSize(icon_size(16))
         self._run_transcribe_btn.setMinimumHeight(46)
         self._run_transcribe_btn.setMinimumWidth(160)

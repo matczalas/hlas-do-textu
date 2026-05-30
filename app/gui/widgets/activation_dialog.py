@@ -18,9 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.gui.styles import tokens
 from app.licensing import is_valid_format, store_key, validate_key
-
-ACCENT = "#205ca8"
 
 
 class ActivationDialog(QDialog):
@@ -68,11 +67,13 @@ class ActivationDialog(QDialog):
         mono_font.setPointSize(13)
         mono_font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.5)
         self._key_edit.setFont(mono_font)
+        accent = tokens.accent()
+        accent_strong = tokens.accent_strong()
         self._key_edit.setStyleSheet(
             "QLineEdit { background: palette(base); "
             "border: 1.5px solid palette(midlight); border-radius: 10px; "
             "padding: 10px 14px; }"
-            "QLineEdit:focus { border-color: " + ACCENT + "; }"
+            f"QLineEdit:focus {{ border-color: {accent}; }}"
         )
         self._key_edit.textChanged.connect(self._on_text_changed)
         root.addWidget(self._key_edit)
@@ -103,9 +104,9 @@ class ActivationDialog(QDialog):
         self._activate_btn.setDefault(True)
         self._activate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._activate_btn.setStyleSheet(
-            "QPushButton { background: " + ACCENT + "; color: white; border: none; "
+            f"QPushButton {{ background: {accent}; color: white; border: none; "
             "border-radius: 8px; padding: 8px 24px; font-weight: 600; font-size: 13px; }"
-            "QPushButton:hover { background: #1a4d8f; }"
+            f"QPushButton:hover {{ background: {accent_strong}; }}"
             "QPushButton:disabled { background: #5a7595; color: rgba(255,255,255,150); }"
         )
         self._activate_btn.clicked.connect(self._try_activate)

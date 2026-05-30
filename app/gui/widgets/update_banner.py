@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-ACCENT = "#205ca8"
+from app.gui.styles import tokens
 
 
 class UpdateBanner(QFrame):
@@ -31,10 +31,16 @@ class UpdateBanner(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        accent = tokens.accent()
+        accent_strong = tokens.accent_strong()
+        soft_10 = tokens.accent_soft(0.10)
+        soft_30 = tokens.accent_soft(0.30)
+        soft_40 = tokens.accent_soft(0.40)
+
         self.setObjectName("UpdateBanner")
         self.setStyleSheet(
-            "QFrame#UpdateBanner { background: rgba(32,92,168,0.10); "
-            "border: 1px solid rgba(32,92,168,0.30); border-radius: 10px; }"
+            f"QFrame#UpdateBanner {{ background: {soft_10}; "
+            f"border: 1px solid {soft_30}; border-radius: 10px; }}"
         )
         self.setFixedHeight(56)
         self.hide()
@@ -49,7 +55,7 @@ class UpdateBanner(QFrame):
 
         self._message = QLabel("")
         self._message.setStyleSheet(
-            f"color: {ACCENT}; font-size: 13px; font-weight: 500;"
+            f"color: {accent}; font-size: 13px; font-weight: 500;"
         )
         self._message.setWordWrap(False)
         layout.addWidget(self._message, 1)
@@ -59,9 +65,9 @@ class UpdateBanner(QFrame):
         self._progress.setTextVisible(True)
         self._progress.setRange(0, 100)
         self._progress.setStyleSheet(
-            "QProgressBar { border: 1px solid rgba(32,92,168,0.40); border-radius: 6px; "
+            f"QProgressBar {{ border: 1px solid {soft_40}; border-radius: 6px; "
             "background: rgba(255,255,255,0.5); text-align: center; font-size: 11px; }"
-            f"QProgressBar::chunk {{ background: {ACCENT}; border-radius: 5px; }}"
+            f"QProgressBar::chunk {{ background: {accent}; border-radius: 5px; }}"
         )
         self._progress.hide()
         layout.addWidget(self._progress)
@@ -70,9 +76,9 @@ class UpdateBanner(QFrame):
         self._action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._action_btn.setMinimumHeight(34)
         self._action_btn.setStyleSheet(
-            f"QPushButton {{ background: {ACCENT}; color: white; border: none; "
+            f"QPushButton {{ background: {accent}; color: white; border: none; "
             "border-radius: 8px; padding: 6px 16px; font-weight: 600; font-size: 12.5px; }}"
-            "QPushButton:hover { background: #1a4d8f; }"
+            f"QPushButton:hover {{ background: {accent_strong}; }}"
             "QPushButton:disabled { background: #8a9fb8; color: rgba(255,255,255,150); }"
         )
         self._action_btn.clicked.connect(self._on_action_clicked)

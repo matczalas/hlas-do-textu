@@ -23,9 +23,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.core.models import SourceFile, SourceKind
+from app.gui.styles import tokens
 from app.gui.widgets.icons import icon, icon_size, pixmap
-
-ACCENT = "#205ca8"
 
 
 class _TypePill(QWidget):
@@ -40,8 +39,8 @@ class _TypePill(QWidget):
         if kind == SourceKind.AUDIO_VIDEO:
             ico_name = "audio"
             text = "Nahrávka"
-            color = "#205ca8"
-            bg = "rgba(32,92,168,0.10)"
+            color = tokens.accent()
+            bg = tokens.accent_soft(0.10)
         else:
             ico_name = "document"
             text = "Slidy"
@@ -113,7 +112,7 @@ class SourceTable(QTableWidget):
 
         # Drobný hover hint na řádcích — barevný odstín
         self.setStyleSheet(self.styleSheet() + (
-            "QTableWidget::item:hover { background: rgba(32,92,168,0.04); }"
+            f"QTableWidget::item:hover {{ background: {tokens.accent_soft(0.04)}; }}"
         ))
 
     # ------ Public API ------

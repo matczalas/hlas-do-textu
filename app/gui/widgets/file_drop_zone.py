@@ -24,9 +24,8 @@ from PySide6.QtWidgets import (
 
 from app.config import AUDIO_VIDEO_EXTENSIONS, PRESENTATION_EXTENSIONS
 from app.core.models import SourceFile, SourceKind
+from app.gui.styles import tokens
 from app.gui.widgets.icons import icon, icon_size, pixmap
-
-ACCENT = "#205ca8"
 
 
 class FileDropZone(QFrame):
@@ -46,9 +45,11 @@ class FileDropZone(QFrame):
         outer.setContentsMargins(24, 26, 24, 22)
         outer.setSpacing(8)
 
+        accent = tokens.accent()
+
         # Velká ikona uploadu nahoře, centered
         icon_lbl = QLabel()
-        icon_lbl.setPixmap(pixmap("upload", size=44, color=ACCENT))
+        icon_lbl.setPixmap(pixmap("upload", size=44, color=accent))
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_lbl.setFixedHeight(60)
         icon_lbl.setStyleSheet("border: none; background: transparent;")
@@ -58,7 +59,7 @@ class FileDropZone(QFrame):
         title = QLabel("Přetáhni soubor sem")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(
-            f"font-size: 17px; font-weight: 600; color: {ACCENT}; "
+            f"font-size: 17px; font-weight: 600; color: {accent}; "
             "border: none; background: transparent;"
         )
         outer.addWidget(title)
@@ -84,14 +85,15 @@ class FileDropZone(QFrame):
         outer.addLayout(btn_row)
 
     def _make_button(self, text: str, ico_name: str, handler) -> QPushButton:
+        accent = tokens.accent()
         btn = QPushButton(text)
-        btn.setIcon(icon(ico_name, size=15, color=ACCENT))
+        btn.setIcon(icon(ico_name, size=15, color=accent))
         btn.setIconSize(icon_size(15))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(
             "QPushButton { padding: 8px 14px; font-weight: 600; color: palette(text); "
             "border: 1px solid palette(mid); border-radius: 8px; background: palette(base); }"
-            "QPushButton:hover { background: palette(midlight); border-color: " + ACCENT + "; }"
+            f"QPushButton:hover {{ background: palette(midlight); border-color: {accent}; }}"
         )
         btn.clicked.connect(handler)
         return btn
