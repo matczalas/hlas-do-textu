@@ -70,10 +70,6 @@ class ProgressPanel(QGroupBox):
 
         # Indikátor pozice v dávce ("2 / 5") — viditelný jen při více nahrávkách
         self._batch = QLabel("")
-        self._batch.setStyleSheet(
-            f"font-size: 11px; font-weight: 700; color: {tokens.accent()}; "
-            f"background: {tokens.accent_soft(0.12)}; border-radius: 8px; padding: 3px 9px;"
-        )
         self._batch.hide()
         top.addWidget(self._batch)
 
@@ -83,8 +79,8 @@ class ProgressPanel(QGroupBox):
         top.addWidget(self._eta)
 
         self._percent = QLabel("")
-        self._percent.setStyleSheet(f"color: {tokens.accent()}; font-size: 13px; font-weight: 600;")
         top.addWidget(self._percent)
+        self._apply_accent_to_badges()
 
         self._cancel_btn = QPushButton("Zrušit")
         self._cancel_btn.setIcon(icon("x", size=13, color="#c84444"))
@@ -120,6 +116,20 @@ class ProgressPanel(QGroupBox):
         # Starší řádky se automaticky odřezávají.
         self._log.document().setMaximumBlockCount(5000)
         outer.addWidget(self._log, 1)
+
+    def _apply_accent_to_badges(self) -> None:
+        """Přebarví batch badge a percent label podle aktuální role."""
+        self._batch.setStyleSheet(
+            f"font-size: 11px; font-weight: 700; color: {tokens.accent()}; "
+            f"background: {tokens.accent_soft(0.12)}; border-radius: 8px; padding: 3px 9px;"
+        )
+        self._percent.setStyleSheet(
+            f"color: {tokens.accent()}; font-size: 13px; font-weight: 600;"
+        )
+
+    def refresh_accent(self) -> None:
+        """Po změně role v Settings přebarví accent-stylované prvky."""
+        self._apply_accent_to_badges()
 
     @property
     def cancel_button(self) -> QPushButton:

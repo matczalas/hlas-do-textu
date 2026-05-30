@@ -316,6 +316,24 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_action_row_widget"):
             self._action_row_widget.setVisible(not is_teacher)
 
+    def _refresh_role_visuals(self) -> None:
+        """Po přepnutí role v Settings projeví accent change i u inline-stylovaných
+        widgetů (FileDropZone, EmptyState, UpdateBanner, PromptEditor, ProgressPanel,
+        atd.). Iteruje child widgety, hledá refresh_accent() metodu a volá ji.
+
+        Toto je tady, protože některé widgety mají inline setStyleSheet s natvrdo
+        zapsaným accentem cache-nutým v __init__. Globální QSS po theme.apply_theme()
+        už je aktuální, ale inline styly potřebují manuální refresh.
+        """
+        self._refresh_role_badge()
+        for widget in self.findChildren(QWidget):
+            refresh_fn = getattr(widget, "refresh_accent", None)
+            if callable(refresh_fn):
+                try:
+                    refresh_fn()
+                except Exception as exc:  # noqa: BLE001 — refresh nesmí položit appku
+                    logger.warning("refresh_accent failed for {}: {}", type(widget).__name__, exc)
+
     def _on_teacher_action(self, prompt_key: str) -> None:
         """Spustí pipeline s předvyplněnou šablonou promptu z dané karty."""
         from app.core.ai.prompts import template_prompt
@@ -845,8 +863,9 @@ class MainWindow(QMainWindow):
             save_settings(self._settings)
             self._output_value.setText(self._settings.output_dir)
             self._status_bar.refresh(get_gemini_api_key())
-            # Role mohla být změněna v Settings → projeví se v badge.
-            self._refresh_role_badge()
+            # Role mohla být změněna v Settings → projeví se v badge + refresh inline
+            # widgety (drop zone, flow ikony, banner, prompt editor, progress panel).
+            self._refresh_role_visuals()
             if self._settings.whisper_model != previous_model:
                 self._maybe_offer_model_download()
 
