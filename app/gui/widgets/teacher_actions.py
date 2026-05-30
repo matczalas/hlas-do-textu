@@ -117,22 +117,17 @@ class _ActionCard(QFrame):
         self.setProperty("disabled", False)
         self.setMinimumHeight(168)
 
-        accent = tokens.accent()
-        accent_soft = tokens.accent_soft(0.10)
+        self._icon_name = icon_name  # uloženo pro refresh_accent()
 
         outer = QHBoxLayout(self)
         outer.setContentsMargins(18, 18, 18, 18)
         outer.setSpacing(16)
 
-        # Ikona v accent kruhu
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(pixmap(icon_name, size=26, color=accent))
-        icon_lbl.setFixedSize(56, 56)
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet(
-            f"QLabel {{ background: {accent_soft}; border-radius: 14px; }}"
-        )
-        outer.addWidget(icon_lbl, 0, Qt.AlignmentFlag.AlignTop)
+        # Ikona v accent kruhu — _apply_inline_styles() nastaví pixmap a bg
+        self._icon_lbl = QLabel()
+        self._icon_lbl.setFixedSize(56, 56)
+        self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.addWidget(self._icon_lbl, 0, Qt.AlignmentFlag.AlignTop)
 
         # Texty
         text_col = QVBoxLayout()
@@ -150,13 +145,23 @@ class _ActionCard(QFrame):
         self._desc_lbl.setStyleSheet("color: palette(placeholder-text); font-size: 12.5px;")
         text_col.addWidget(self._desc_lbl)
 
-        # Disabled note (skrytý, dokud nedostaneme disabled)
+        # Disabled note (skrytý, dokud nedostaneme disabled) — info ikona + text
+        self._disabled_wrap = QWidget()
+        dwl = QHBoxLayout(self._disabled_wrap)
+        dwl.setContentsMargins(0, 4, 0, 0)
+        dwl.setSpacing(6)
+        self._disabled_icon = QLabel()
+        self._disabled_icon.setPixmap(pixmap("info", size=13, color="#9aa7b6"))
+        self._disabled_icon.setFixedSize(14, 14)
+        dwl.addWidget(self._disabled_icon)
         self._disabled_note = QLabel("Nejdřív přidej nahrávku hodiny.")
         self._disabled_note.setStyleSheet(
-            f"color: {tokens.WARNING}; font-size: 11.5px; font-weight: 600;"
+            "color: palette(placeholder-text); font-size: 11.5px; font-weight: 500;"
         )
-        self._disabled_note.hide()
-        text_col.addWidget(self._disabled_note)
+        dwl.addWidget(self._disabled_note)
+        dwl.addStretch(1)
+        self._disabled_wrap.hide()
+        text_col.addWidget(self._disabled_wrap)
 
         text_col.addStretch(1)
 
@@ -174,6 +179,28 @@ class _ActionCard(QFrame):
 
         outer.addLayout(text_col, 1)
 
+        # Inline styly s aktuálním accentem (re-volá refresh_accent())
+        self._apply_inline_styles()
+
+    def _apply_inline_styles(self) -> None:
+        """Re-aplikuje accent-závislé styly (ikona kruh) podle disabled stavu."""
+        if self._enabled_logical:
+            # Aktivní: accent ikona v accent-soft kruhu
+            icon_color = tokens.accent()
+            bg = tokens.accent_soft(0.10)
+        else:
+            # Disabled: šedá ikona v neutral midlight kruhu
+            icon_color = "#9aa7b6"
+            bg = "palette(midlight)"
+        self._icon_lbl.setPixmap(pixmap(self._icon_name, size=26, color=icon_color))
+        self._icon_lbl.setStyleSheet(
+            f"QLabel {{ background: {bg}; border-radius: 14px; }}"
+        )
+
+    def refresh_accent(self) -> None:
+        """Po role switch přebarví ikona accent kruh."""
+        self._apply_inline_styles()
+
     def set_card_enabled(self, enabled: bool) -> None:
         """Přepne kartu mezi normálním a "disabled" (no recording) stavem."""
         if enabled == self._enabled_logical:
@@ -181,7 +208,9 @@ class _ActionCard(QFrame):
         self._enabled_logical = enabled
         self.setProperty("disabled", not enabled)
         self._cta_btn.setEnabled(enabled)
-        self._disabled_note.setVisible(not enabled)
+        self._disabled_wrap.setVisible(not enabled)
+        # Re-apply ikona styly — disabled má šedou v neutral kruhu
+        self._apply_inline_styles()
         # Repolish, ať se app.qss [disabled="true"] varianta propíše
         self.style().unpolish(self)
         self.style().polish(self)

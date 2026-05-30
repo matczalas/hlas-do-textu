@@ -36,7 +36,7 @@ from app.gui.widgets.icons import icon, icon_size, pixmap
 
 
 class _ProjectCard(QPushButton):
-    """Klikatelná karta jednoho projektu — titul, datum, meta."""
+    """Klikatelná karta jednoho projektu — titul, datum, meta, file chips."""
 
     def __init__(
         self,
@@ -45,12 +45,13 @@ class _ProjectCard(QPushButton):
         date_str: str,
         meta: str,
         path: Path,
+        chips: list[tuple[str, str]] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("ProjectCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(130)
+        self.setMinimumHeight(160)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setToolTip(str(path))
 
@@ -58,19 +59,26 @@ class _ProjectCard(QPushButton):
         v.setContentsMargins(16, 14, 16, 14)
         v.setSpacing(6)
 
-        # Top: ikona + datum
+        # Top: document ikona vlevo + (vpravo) clock ikona + datum
         top = QHBoxLayout()
         top.setSpacing(8)
 
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(pixmap("document", size=18, color=tokens.accent()))
-        icon_lbl.setFixedSize(20, 20)
-        top.addWidget(icon_lbl)
+        self._doc_icon = QLabel()
+        self._doc_icon.setFixedSize(20, 20)
+        top.addWidget(self._doc_icon)
+        top.addStretch(1)
 
+        # Datum s clock ikonou (dle prototypu)
+        date_wrap = QHBoxLayout()
+        date_wrap.setSpacing(4)
+        clock_icon = QLabel()
+        clock_icon.setPixmap(pixmap("clock", size=11, color="#9aa7b6"))
+        clock_icon.setFixedSize(13, 13)
+        date_wrap.addWidget(clock_icon)
         date_lbl = QLabel(date_str)
         date_lbl.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
-        top.addStretch(1)
-        top.addWidget(date_lbl)
+        date_wrap.addWidget(date_lbl)
+        top.addLayout(date_wrap)
         v.addLayout(top)
 
         # Titul
@@ -88,7 +96,27 @@ class _ProjectCard(QPushButton):
         meta_lbl.setStyleSheet("color: palette(placeholder-text); font-size: 12px;")
         v.addWidget(meta_lbl)
 
+        # File-type chips (pill značky pro typy výstupních souborů)
+        if chips:
+            chips_row = QHBoxLayout()
+            chips_row.setSpacing(6)
+            for label, kind in chips:
+                chip = QLabel(label)
+                chip.setObjectName("ProjectChip")
+                chip.setProperty("kind", kind)
+                chips_row.addWidget(chip)
+            chips_row.addStretch(1)
+            v.addLayout(chips_row)
+
         v.addStretch(1)
+        self._apply_inline_styles()
+
+    def _apply_inline_styles(self) -> None:
+        """Re-aplikuje accent-závislé prvky (document ikonu) po role switch."""
+        self._doc_icon.setPixmap(pixmap("document", size=18, color=tokens.accent()))
+
+    def refresh_accent(self) -> None:
+        self._apply_inline_styles()
 
 
 class _NewProjectCard(QPushButton):
@@ -269,7 +297,47 @@ class ProjectsHome(QWidget):
         if title:
             title = title[0].upper() + title[1:]
 
-        card = _ProjectCard(title=title, date_str=date_str, meta=meta, path=path)
+        # Chip pro hlavní soubor + scan sourozenců (sdílený základ názvu).
+        # Mapování přípona → (label, kind):
+        #   .docx → "Studijní body"  | accent
+        #   .md   → "Prompt pro AI"  | teal
+        #   .txt  → "Přepis"          | neutral
+        chips: list[tuple[str, str]] = []
+        seen_kinds: set[str] = set()
+        chip_for = {
+            ".docx": ("Studijní body", "accent"),
+            ".md":   ("Prompt pro AI", "teal"),
+            ".txt":  ("Přepis", "neutral"),
+        }
+        main_chip = chip_for.get(path.suffix.lower())
+        if main_chip:
+            chips.append(main_chip)
+            seen_kinds.add(main_chip[0])
+
+        # Sourozenecké soubory se stejným base name (např. foo.docx + foo.txt)
+        try:
+            base_stem = path.stem
+            for sibling in path.parent.iterdir():
+                if not sibling.is_file() or sibling == path:
+                    continue
+                # Match: stejný stem (po odečtení časového razítka v názvu)
+                # nebo prefix shoda do podtržítka.
+                sib_stem = sibling.stem
+                if sib_stem == base_stem or sib_stem.startswith(base_stem):
+                    sib_chip = chip_for.get(sibling.suffix.lower())
+                    if sib_chip and sib_chip[0] not in seen_kinds:
+                        chips.append(sib_chip)
+                        seen_kinds.add(sib_chip[0])
+        except OSError:
+            pass
+
+        card = _ProjectCard(
+            title=title,
+            date_str=date_str,
+            meta=meta,
+            path=path,
+            chips=chips or None,
+        )
         card.clicked.connect(lambda _checked=False, p=path: self.project_opened.emit(p))
         return card
 
@@ -280,13 +348,13 @@ class ProjectsHome(QWidget):
         v.setContentsMargins(0, 0, 0, 0)
         v.addStretch(2)
 
-        # Velký kruh s ikonou audio
+        # Velký kruh s ikonou audio (88px dle prototypu, perfect circle)
         circle = QLabel()
-        circle.setPixmap(pixmap("audio", size=40, color=tokens.accent()))
-        circle.setFixedSize(110, 110)
+        circle.setPixmap(pixmap("audio", size=36, color=tokens.accent()))
+        circle.setFixedSize(88, 88)
         circle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         circle.setStyleSheet(
-            f"QLabel {{ background: {tokens.accent_soft(0.10)}; border-radius: 28px; }}"
+            f"QLabel {{ background: {tokens.accent_soft(0.10)}; border-radius: 44px; }}"
         )
         circle_row = QHBoxLayout()
         circle_row.addStretch(1)
