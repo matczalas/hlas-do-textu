@@ -14,7 +14,7 @@ from pathlib import Path
 
 from loguru import logger
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QFont, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -44,6 +44,7 @@ from app.gui.widgets.progress_panel import ProgressPanel
 from app.gui.widgets.prompt_editor import PromptEditor
 from app.gui.widgets.settings_dialog import SettingsDialog
 from app.gui.widgets.source_table import SourceTable
+from app.gui.widgets.wordmark import Wordmark
 from app.gui.workers.model_download_worker import ModelDownloadWorker
 from app.gui.workers.pipeline_worker import PipelineWorker
 from app.gui.workers.regenerate_worker import RegenerateWorker
@@ -238,8 +239,13 @@ class MainWindow(QMainWindow):
 
         # ---- CTA tlačítka ---------------------------------------------
         # V učitel módu skrýt — akce se spouští z karet.
-        self._action_row_widget = QWidget()
-        self._action_row_widget.setLayout(self._build_action_row())
+        # Wrapped do QFrame#ActionBar (border-top + padding) dle prototypu.
+        self._action_row_widget = QFrame()
+        self._action_row_widget.setObjectName("ActionBar")
+        action_outer = QVBoxLayout(self._action_row_widget)
+        action_outer.setContentsMargins(0, 10, 0, 0)
+        action_outer.setSpacing(0)
+        action_outer.addLayout(self._build_action_row())
         self._action_row_widget.setVisible(self._settings.app_role != "teacher")
         root.addWidget(self._action_row_widget)
 
@@ -262,12 +268,14 @@ class MainWindow(QMainWindow):
         self._back_btn.hide()  # výchozí page je home, back nepotřebujeme
         row.addWidget(self._back_btn)
 
-        title = QLabel("Hlas do textu")
-        f = QFont()
-        f.setPointSize(17)
-        f.setWeight(QFont.Weight.DemiBold)
-        title.setFont(f)
-        row.addWidget(title)
+        # Wordmark — glyph + (volitelně) textový pár.
+        # Compact mode (jen glyph) v editoru, full s subtitle na Projects home.
+        # Subtitle se mění dle role v _refresh_role_visuals().
+        self._wordmark = Wordmark(
+            subtitle=self._wordmark_subtitle_for_role(),
+            compact=False,  # výchozí page je home → ukázat full
+        )
+        row.addWidget(self._wordmark)
 
         # Role badge "Učitelský režim" — viditelný jen v teacher módu.
         # Stylováno přes objectName="RoleBadge" v app.qss (role-aware).
@@ -316,6 +324,12 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_action_row_widget"):
             self._action_row_widget.setVisible(not is_teacher)
 
+    def _wordmark_subtitle_for_role(self) -> str:
+        """Vrátí subtitle pro Wordmark dle aktuální role."""
+        if self._settings.app_role == "teacher":
+            return "Pedagogický nástroj"
+        return "Studijní poznámky z přednášek"
+
     def _refresh_role_visuals(self) -> None:
         """Po přepnutí role v Settings projeví accent change i u inline-stylovaných
         widgetů (FileDropZone, EmptyState, UpdateBanner, PromptEditor, ProgressPanel,
@@ -326,6 +340,9 @@ class MainWindow(QMainWindow):
         už je aktuální, ale inline styly potřebují manuální refresh.
         """
         self._refresh_role_badge()
+        # Subtitle Wordmarku se mění dle role
+        if hasattr(self, "_wordmark"):
+            self._wordmark.set_subtitle(self._wordmark_subtitle_for_role())
         for widget in self.findChildren(QWidget):
             refresh_fn = getattr(widget, "refresh_accent", None)
             if callable(refresh_fn):
@@ -353,6 +370,9 @@ class MainWindow(QMainWindow):
         if self._page_stack.currentIndex() != 1:
             self._page_stack.setCurrentIndex(1)
         self._back_btn.show()
+        # Wordmark v editoru compact (jen glyph)
+        if hasattr(self, "_wordmark"):
+            self._wordmark.set_compact(True)
 
     def _back_to_home(self) -> None:
         """Návrat na Projects home — uloží stav a aktualizuje seznam."""
@@ -373,6 +393,9 @@ class MainWindow(QMainWindow):
 
         self._page_stack.setCurrentIndex(0)
         self._back_btn.hide()
+        # Wordmark zpět do full módu s subtitle
+        if hasattr(self, "_wordmark"):
+            self._wordmark.set_compact(False)
         # Refresh recent_outputs (mohlo přibýt po dokončení pipeline)
         self._projects_home.refresh(self._settings.recent_outputs)
 
@@ -412,6 +435,23 @@ class MainWindow(QMainWindow):
     def _build_action_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(12)
+        row.setContentsMargins(0, 0, 0, 0)
+
+        # Hint vlevo — vysvětluje rozdíl mezi dvěma tlačítky (dle prototypu).
+        hint_wrap = QHBoxLayout()
+        hint_wrap.setSpacing(8)
+        hint_icon = QLabel()
+        hint_icon.setPixmap(pixmap("info", size=14, color="#9aa7b6"))
+        hint_icon.setFixedSize(16, 16)
+        hint_wrap.addWidget(hint_icon)
+
+        hint_text = QLabel(
+            "„Jen přepis\" je rychlý a offline. „Body z AI\" vytvoří strukturované poznámky."
+        )
+        hint_text.setObjectName("ActionBarHint")
+        hint_text.setWordWrap(True)
+        hint_wrap.addWidget(hint_text, 1)
+        row.addLayout(hint_wrap, 1)
 
         self._run_transcribe_btn = QPushButton("Přepis")
         self._run_transcribe_btn.setObjectName("Secondary")
@@ -435,7 +475,6 @@ class MainWindow(QMainWindow):
             "Přepis + strukturované poznámky od AI."
         )
 
-        row.addStretch(1)
         row.addWidget(self._run_transcribe_btn)
         row.addWidget(self._run_full_btn)
         return row

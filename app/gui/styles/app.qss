@@ -180,6 +180,24 @@ QLabel#RoleBadge {
     padding: 5px 13px; font-size: 12px; font-weight: 700;
 }
 
+/* File-type chip na ProjectCard — objectName="ProjectChip" + kind ---- */
+QLabel#ProjectChip {
+    padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+}
+QLabel#ProjectChip[kind="accent"]  { background: @ACCENT_12@; color: @ACCENT@; }
+QLabel#ProjectChip[kind="teal"]    { background: rgba(0, 137, 123, 0.14); color: #00695C; }
+QLabel#ProjectChip[kind="neutral"] { background: palette(alternate-base); color: palette(mid); }
+
+/* Action bar (student footer) ----------------------------------------- */
+QFrame#ActionBar {
+    border-top: 1px solid palette(mid);
+}
+QLabel#ActionBarHint {
+    color: palette(placeholder-text);
+    font-size: 12px;
+}
+
 /* Karta projektu (Projects home) — objectName="ProjectCard" ----------- */
 QPushButton#ProjectCard {
     text-align: left;

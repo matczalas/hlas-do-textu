@@ -9,6 +9,8 @@ from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
+from app.gui.styles import tokens
+
 
 class _HealthWorker(QObject):
     result_ready = Signal(bool, bool)
@@ -47,8 +49,9 @@ class _Dot(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         p.setPen(Qt.PenStyle.NoPen)
+        # Halo glow s alpha ~0.22 dle prototypu (předtím 60/255 ≈ 0.235)
         halo = QColor(self._color)
-        halo.setAlpha(60)
+        halo.setAlpha(56)
         p.setBrush(halo)
         p.drawEllipse(0, 0, 10, 10)
         p.setBrush(self._color)
@@ -79,10 +82,12 @@ class _Pill(QWidget):
             self._dot.set_color("#bdbdbd")
             self.setToolTip("Kontroluji…")
         elif ok:
-            self._dot.set_color("#3ba55d")
+            # tokens.SUCCESS — sjednoceno s prototypem (#2e7d32)
+            self._dot.set_color(tokens.SUCCESS)
             self.setToolTip(ok_text)
         else:
-            self._dot.set_color("#c97a2a")
+            # tokens.WARNING — "má alternativu, ne chyba" (#d68910)
+            self._dot.set_color(tokens.WARNING)
             self.setToolTip(bad_text)
 
 
