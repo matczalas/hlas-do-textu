@@ -170,8 +170,8 @@ QCheckBox#Consent {
     border-radius: 10px; color: palette(text); font-weight: 500;
 }
 
-/* Drop zone — idle / active přes property active ---------------------- */
-QFrame#DropZone { border: 1.5px solid palette(mid); border-radius: 12px; background: palette(base); }
+/* Drop zone — idle (dashed) / active (solid accent) přes property active */
+QFrame#DropZone { border: 1.5px dashed palette(mid); border-radius: 12px; background: palette(base); }
 QFrame#DropZone[active="true"] { border: 1.5px solid @ACCENT@; background: @ACCENT_06@; }
 
 /* Role badge ("Učitelský režim") — objectName="RoleBadge" ------------- */
