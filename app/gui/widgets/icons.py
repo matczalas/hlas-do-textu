@@ -94,6 +94,45 @@ _SVG: dict[str, str] = {
     "arrow-right": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
             stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>""",
+    # ---- Nové ikony pro redesign (učitel + nové obrazovky) ----
+    "school": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/>
+            <path d="M9 21v-5a3 3 0 0 1 6 0v5"/><path d="M12 4v4"/></svg>""",
+    "clipboard": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="8" y="3" width="8" height="4" rx="1"/>
+            <path d="M9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3"/>
+            <path d="M9 12h6"/><path d="M9 16h4"/></svg>""",
+    "reflect": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v18"/><path d="M16 7l4 5-4 5"/><path d="M8 7l-4 5 4 5"/></svg>""",
+    "send": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>""",
+    "library": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 4h3v16H5z"/><path d="M10 4h3v16h-3z"/>
+            <path d="M16 5l3 .8-3.5 14.5-3-.8z"/></svg>""",
+    "clock": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>""",
+    "shield": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>
+            <path d="M9 12l2 2 4-4"/></svg>""",
+    "plus": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 5v14"/><path d="M5 12h14"/></svg>""",
+    "play": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="{stroke}"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 4l13 8-13 8z"/></svg>""",
+    "search": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>""",
+    "pencil": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>""",
 }
 
 

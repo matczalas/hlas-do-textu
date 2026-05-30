@@ -229,6 +229,34 @@ class SettingsDialog(QDialog):
         out_row.addWidget(self._output_browse)
         root.addLayout(out_row)
 
+        root.addWidget(_divider())
+
+        # ----- Role + vzhled (light/dark) -----
+        # Přepíná barevný accent celé appky: student = Safe4Future modrá,
+        # učitel = Original Teal. Po Uložit se přerenderuje theme.
+        root.addWidget(_field_label("Role"))
+        self._role_combo = QComboBox()
+        self._role_combo.setMinimumHeight(36)
+        self._role_combo.addItem("Student / žák (modrá)", userData="student")
+        self._role_combo.addItem("Učitel/ka (teal)", userData="teacher")
+        for i in range(self._role_combo.count()):
+            if self._role_combo.itemData(i) == settings.app_role:
+                self._role_combo.setCurrentIndex(i)
+                break
+        self._role_combo.setToolTip(
+            "Učitelský režim přidá visačku v hlavičce a teal barvu místo "
+            "Safe4Future modré. Změna se projeví hned po Uložit."
+        )
+        root.addWidget(self._role_combo)
+
+        self._dark_cb = QCheckBox("Tmavý režim")
+        self._dark_cb.setChecked(settings.dark_mode)
+        self._dark_cb.setToolTip(
+            "Přepne paletu na tmavé pozadí. Některé inline-stylované widgety "
+            "mohou vyžadovat restart aplikace pro plný efekt."
+        )
+        root.addWidget(self._dark_cb)
+
         root.addStretch(1)
 
         # ----- Buttons -----
@@ -264,6 +292,21 @@ class SettingsDialog(QDialog):
         self._settings.transcribe_backend = (
             self._backend_combo.currentData() or "local_whisper"
         )
+        # Role + dark mode — pokud se změnily, aplikuj theme znovu (live switch).
+        new_role = self._role_combo.currentData() or "student"
+        new_dark = self._dark_cb.isChecked()
+        role_changed = new_role != self._settings.app_role
+        dark_changed = new_dark != self._settings.dark_mode
+        self._settings.app_role = new_role
+        self._settings.dark_mode = new_dark
+        if role_changed or dark_changed:
+            from PySide6.QtWidgets import QApplication
+
+            from app.gui.styles import theme
+
+            qapp = QApplication.instance()
+            if qapp is not None:
+                theme.apply_theme(qapp, role=new_role, dark=new_dark)
         super().accept()
 
     def _toggle_api_visibility(self) -> None:

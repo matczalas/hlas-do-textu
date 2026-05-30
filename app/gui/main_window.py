@@ -209,6 +209,13 @@ class MainWindow(QMainWindow):
         title.setFont(f)
         row.addWidget(title)
 
+        # Role badge "Učitelský režim" — viditelný jen v teacher módu.
+        # Stylováno přes objectName="RoleBadge" v app.qss (role-aware).
+        self._role_badge = QLabel("Učitelský režim")
+        self._role_badge.setObjectName("RoleBadge")
+        self._role_badge.setVisible(self._settings.app_role == "teacher")
+        row.addWidget(self._role_badge)
+
         row.addStretch(1)
 
         # Status pills
@@ -230,6 +237,11 @@ class MainWindow(QMainWindow):
         row.addWidget(settings_btn)
 
         return row
+
+    def _refresh_role_badge(self) -> None:
+        """Synchronizuje viditelnost role badge se settings.app_role."""
+        if hasattr(self, "_role_badge"):
+            self._role_badge.setVisible(self._settings.app_role == "teacher")
 
     # ---- Output row -------------------------------------------------------
 
@@ -404,9 +416,32 @@ class MainWindow(QMainWindow):
 
     def _post_show_init(self) -> None:
         if not self._settings.first_run_done:
+            # 1) Role picker — student / učitel (jen poprvé)
+            from app.gui.widgets.role_picker_dialog import RolePickerDialog
+
+            picker = RolePickerDialog(self)
+            if picker.exec() == picker.DialogCode.Accepted:
+                self._settings.app_role = picker.chosen_role()
+                # Aplikuj novou roli okamžitě, ať FirstRunDialog už používá správný accent
+                from PySide6.QtWidgets import QApplication
+
+                from app.gui.styles import theme
+
+                qapp = QApplication.instance()
+                if qapp is not None:
+                    theme.apply_theme(
+                        qapp,
+                        role=self._settings.app_role,
+                        dark=self._settings.dark_mode,
+                    )
+
+            # 2) Standardní first-run (Gemini klíč, souhlas, AI služba)
             dlg = FirstRunDialog(self._settings, self)
             dlg.exec()
             save_settings(self._settings)
+            # Po first-run znovu obnov role badge (může se změnit, pokud uživatel
+            # vrátí role picker; jinak no-op)
+            self._refresh_role_badge()
 
         self._maybe_offer_model_download()
         self._status_bar.refresh(get_gemini_api_key())
@@ -714,6 +749,8 @@ class MainWindow(QMainWindow):
             save_settings(self._settings)
             self._output_value.setText(self._settings.output_dir)
             self._status_bar.refresh(get_gemini_api_key())
+            # Role mohla být změněna v Settings → projeví se v badge.
+            self._refresh_role_badge()
             if self._settings.whisper_model != previous_model:
                 self._maybe_offer_model_download()
 
