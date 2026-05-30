@@ -165,6 +165,14 @@ class MainWindow(QMainWindow):
         self._update_banner.restart_requested.connect(self._on_update_restart)
         root.addWidget(self._update_banner)
 
+        # ---- Učitel: section label "1 · Nahrávka hodiny" --------------
+        # V učitel módu se nad drop zone přidá očíslovaný section label
+        # (sekce 1). Sekce 2 a 3 jsou pod source_stack jako TeacherActions.
+        self._section_1_label = QLabel("1 · Nahrávka hodiny")
+        self._section_1_label.setObjectName("SectionLabel")
+        self._section_1_label.setVisible(self._settings.app_role == "teacher")
+        root.addWidget(self._section_1_label)
+
         # ---- Drop zone (vždy nahoře) ----------------------------------
         self._drop_zone = FileDropZone()
         self._drop_zone.set_last_dir(self._settings.last_used_sources_dir)
@@ -179,8 +187,21 @@ class MainWindow(QMainWindow):
         self._source_stack.setCurrentIndex(0)
         root.addWidget(self._source_stack, 1)
 
+        # ---- Učitel: 3 akční karty + segmented "Režim testu" ---------
+        # Vyrobí se vždy, ale pod source_stack a viditelnost se řídí podle
+        # role. Klik na kartu vyemituje prompt_key, MainWindow z něj
+        # předvyplní prompt_editor a spustí pipeline.
+        from app.gui.widgets.teacher_actions import TeacherActionsWidget
+
+        self._teacher_actions = TeacherActionsWidget()
+        self._teacher_actions.action_requested.connect(self._on_teacher_action)
+        self._teacher_actions.setVisible(self._settings.app_role == "teacher")
+        root.addWidget(self._teacher_actions)
+
         # ---- Kontext pro AI -------------------------------------------
+        # V učitel módu skrýt — kartám stačí vestavěné šablony promptů.
         self._prompt_editor = PromptEditor()
+        self._prompt_editor.setVisible(self._settings.app_role != "teacher")
         root.addWidget(self._prompt_editor)
 
         # ---- Output + Progress ----------------------------------------
@@ -189,7 +210,11 @@ class MainWindow(QMainWindow):
         root.addWidget(self._progress, 1)
 
         # ---- CTA tlačítka ---------------------------------------------
-        root.addLayout(self._build_action_row())
+        # V učitel módu skrýt — akce se spouští z karet.
+        self._action_row_widget = QWidget()
+        self._action_row_widget.setLayout(self._build_action_row())
+        self._action_row_widget.setVisible(self._settings.app_role != "teacher")
+        root.addWidget(self._action_row_widget)
 
         # Backward compatible alias
         self._run_btn = self._run_full_btn
@@ -239,9 +264,32 @@ class MainWindow(QMainWindow):
         return row
 
     def _refresh_role_badge(self) -> None:
-        """Synchronizuje viditelnost role badge se settings.app_role."""
+        """Synchronizuje role-závislé UI prvky se settings.app_role.
+
+        Při přepnutí role v Settings projeví okamžitě: badge, section label
+        nad drop zone, učitelské karty, prompt editor a action row.
+        """
+        is_teacher = self._settings.app_role == "teacher"
         if hasattr(self, "_role_badge"):
-            self._role_badge.setVisible(self._settings.app_role == "teacher")
+            self._role_badge.setVisible(is_teacher)
+        if hasattr(self, "_section_1_label"):
+            self._section_1_label.setVisible(is_teacher)
+        if hasattr(self, "_teacher_actions"):
+            self._teacher_actions.setVisible(is_teacher)
+        if hasattr(self, "_prompt_editor"):
+            self._prompt_editor.setVisible(not is_teacher)
+        if hasattr(self, "_action_row_widget"):
+            self._action_row_widget.setVisible(not is_teacher)
+
+    def _on_teacher_action(self, prompt_key: str) -> None:
+        """Spustí pipeline s předvyplněnou šablonou promptu z dané karty."""
+        from app.core.ai.prompts import template_prompt
+
+        prompt_text = template_prompt(prompt_key)
+        if prompt_text:
+            self._prompt_editor.set_text(prompt_text)
+        # Plný režim — přepis + AI body podle vybrané šablony
+        self._run_pipeline(JobMode.FULL)
 
     # ---- Output row -------------------------------------------------------
 
@@ -730,6 +778,10 @@ class MainWindow(QMainWindow):
         self._run_full_btn.setEnabled(has_any and not running)
 
         self._source_stack.setCurrentIndex(1 if has_any else 0)
+
+        # Učitelské akční karty: aktivní jen když je v zdrojích nahrávka.
+        if hasattr(self, "_teacher_actions"):
+            self._teacher_actions.set_has_recording(has_audio and not running)
 
     def _change_output_dir(self) -> None:
         from PySide6.QtWidgets import QFileDialog
