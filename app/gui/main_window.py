@@ -1429,6 +1429,8 @@ class MainWindow(QMainWindow):
     def _maybe_offer_model_download(self) -> None:
         if model_is_cached(self._settings.whisper_model):
             return
+        # Redesign v1.1.2: vlastní dialog místo QMessageBox.
+        # Zeptáme se, jestli stáhnout teď, a pak otevřeme standalone download dialog.
         msg = (
             f"Whisper model '{self._settings.whisper_model}' není zatím stažený.\n"
             f"Velikost ~{self._model_size_hint(self._settings.whisper_model)}. "
@@ -1442,11 +1444,19 @@ class MainWindow(QMainWindow):
     def _start_model_download(self) -> None:
         if self._model_worker.is_running():
             return
-        self._progress.reset()
-        self._progress.append_message(f"Stahuji model {self._settings.whisper_model}…")
-        self._progress.set_busy(True)
-        self._run_btn.setEnabled(False)
+        # Spustí worker a otevře standalone dialog s 3-krokovým progressem.
+        # Dialog je modal — uživatel může počkat nebo zavřít (stopne worker).
+        from app.gui.widgets.model_download_dialog import ModelDownloadDialog
+
         self._model_worker.start(self._settings.whisper_model)
+        self._run_btn.setEnabled(False)
+        dlg = ModelDownloadDialog(
+            self._settings.whisper_model,
+            self._model_worker,
+            self,
+        )
+        dlg.exec()
+        self._refresh_run_button()
 
     def _on_model_progress(self, status: str, fraction: float) -> None:
         if fraction < 0:
