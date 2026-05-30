@@ -13,7 +13,7 @@ předvyplní prompt editor a spustí pipeline (JobMode.FULL).
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -46,7 +46,14 @@ class _SectionLabel(QLabel):
 
 
 class _Segmented(QWidget):
-    """Pill-style segmentovaný přepínač. Emit value_changed(text)."""
+    """Pill-style segmentovaný přepínač s animovaným indikátorem.
+
+    Overlay widget (`_indicator`) má accent background + 999px radius
+    a animuje svoji geometry mezi tlačítky při změně volby. Buttony
+    nemají vlastní accent bg — jen bílý text v [checked="true"] stavu.
+
+    Emit value_changed(text).
+    """
 
     value_changed = Signal(str)
 
@@ -54,6 +61,13 @@ class _Segmented(QWidget):
         super().__init__(parent)
         self._buttons: list[QPushButton] = []
         self._value: str = options[0] if options else ""
+
+        # Indikátor — pod buttony, animuje geometry. Child widget aby pluje uvnitř.
+        self._indicator = QWidget(self)
+        self._indicator.setObjectName("SegmentedIndicator")
+        # Inline style se přepíše v _apply_indicator_style() (refresh_accent hook)
+        self._indicator.lower()  # pod tlačítka
+        self._indicator_anim: QPropertyAnimation | None = None
 
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
@@ -70,15 +84,21 @@ class _Segmented(QWidget):
             self._buttons.append(btn)
         row.addStretch(1)
         self._restyle()
+        self._apply_indicator_style()
 
     def value(self) -> str:
         return self._value
+
+    def set_value(self, option: str) -> None:
+        """Veřejná API pro programové přepnutí (mimo klik)."""
+        self._pick(option)
 
     def _pick(self, option: str) -> None:
         if option == self._value:
             return
         self._value = option
         self._restyle()
+        self._animate_indicator_to_current()
         self.value_changed.emit(option)
 
     def _restyle(self) -> None:
@@ -89,6 +109,62 @@ class _Segmented(QWidget):
             btn.setChecked(is_on)
             btn.style().unpolish(btn)
             btn.style().polish(btn)
+
+    def _current_button(self) -> QPushButton | None:
+        for btn in self._buttons:
+            if btn.text() == self._value:
+                return btn
+        return self._buttons[0] if self._buttons else None
+
+    def _apply_indicator_style(self) -> None:
+        """Aplikuje accent na indikátor (volá se i z refresh_accent())."""
+        accent = tokens.accent()
+        self._indicator.setStyleSheet(
+            f"QWidget#SegmentedIndicator {{ background: {accent}; border-radius: 999px; }}"
+        )
+
+    def _animate_indicator_to_current(self) -> None:
+        btn = self._current_button()
+        if btn is None:
+            return
+        target_geo = btn.geometry()
+        # Spustit animaci jen pokud má smysl (button už byl renderován)
+        if target_geo.width() == 0:
+            self._indicator.setGeometry(target_geo)
+            return
+        if self._indicator_anim is not None and self._indicator_anim.state() == QPropertyAnimation.State.Running:
+            self._indicator_anim.stop()
+        self._indicator_anim = QPropertyAnimation(self._indicator, b"geometry", self)
+        self._indicator_anim.setDuration(tokens.DUR_BASE)
+        self._indicator_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._indicator_anim.setStartValue(self._indicator.geometry())
+        self._indicator_anim.setEndValue(target_geo)
+        self._indicator_anim.start()
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        """Při prvním zobrazení nastavit indikátor pod aktivní tlačítko."""
+        super().showEvent(event)
+        btn = self._current_button()
+        if btn is not None:
+            self._indicator.setGeometry(btn.geometry())
+            self._indicator.raise_()
+            for b in self._buttons:
+                b.raise_()  # tlačítka musí zůstat nad indikátorem
+            self._indicator.lower()
+            # Tlačítka raise nad indikátor, ať text není překryt
+            for b in self._buttons:
+                b.raise_()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        """Po resize přepočítat pozici indikátoru bez animace."""
+        super().resizeEvent(event)
+        btn = self._current_button()
+        if btn is not None and btn.width() > 0:
+            self._indicator.setGeometry(btn.geometry())
+
+    def refresh_accent(self) -> None:
+        """Hook pro role switch — přebarví indikátor."""
+        self._apply_indicator_style()
 
 
 class _ActionCard(QFrame):
@@ -181,6 +257,11 @@ class _ActionCard(QFrame):
 
         # Inline styly s aktuálním accentem (re-volá refresh_accent())
         self._apply_inline_styles()
+
+        # Hover lift + drop shadow (jen pro enabled karty)
+        from app.gui.widgets._animations import attach_lift_effect
+
+        self._lift = attach_lift_effect(self)
 
     def _apply_inline_styles(self) -> None:
         """Re-aplikuje accent-závislé styly (ikona kruh) podle disabled stavu."""

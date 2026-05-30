@@ -111,6 +111,11 @@ class _ProjectCard(QPushButton):
         v.addStretch(1)
         self._apply_inline_styles()
 
+        # Hover lift + drop shadow přes QPropertyAnimation
+        from app.gui.widgets._animations import attach_lift_effect
+
+        self._lift = attach_lift_effect(self)
+
     def _apply_inline_styles(self) -> None:
         """Re-aplikuje accent-závislé prvky (document ikonu) po role switch."""
         self._doc_icon.setPixmap(pixmap("document", size=18, color=tokens.accent()))
