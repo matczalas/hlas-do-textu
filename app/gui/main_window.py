@@ -237,6 +237,13 @@ class MainWindow(QMainWindow):
         self._progress = ProgressPanel()
         root.addWidget(self._progress, 1)
 
+        # ---- Fact card "Než to doběhne" — viditelná během běhu pipeline -
+        from app.gui.widgets.fact_card import FactCard
+
+        self._fact_card = FactCard(role=self._settings.app_role)
+        self._fact_card.hide()
+        root.addWidget(self._fact_card)
+
         # ---- CTA tlačítka ---------------------------------------------
         # V učitel módu skrýt — akce se spouští z karet.
         # Wrapped do QFrame#ActionBar (border-top + padding) dle prototypu.
@@ -330,6 +337,15 @@ class MainWindow(QMainWindow):
             return "Pedagogický nástroj"
         return "Studijní poznámky z přednášek"
 
+    def _show_fact_card_during_pipeline(self, running: bool) -> None:
+        """Zobrazí/skryje FactCard při startu / konci pipeline.
+
+        Volá se z _set_pipeline_running() — viditelná když pipeline běží
+        a uživatel čeká. Timer rotace se pauzuje sám přes showEvent/hideEvent.
+        """
+        if hasattr(self, "_fact_card"):
+            self._fact_card.setVisible(running)
+
     def _refresh_role_visuals(self) -> None:
         """Po přepnutí role v Settings projeví accent change i u inline-stylovaných
         widgetů (FileDropZone, EmptyState, UpdateBanner, PromptEditor, ProgressPanel,
@@ -343,6 +359,9 @@ class MainWindow(QMainWindow):
         # Subtitle Wordmarku se mění dle role
         if hasattr(self, "_wordmark"):
             self._wordmark.set_subtitle(self._wordmark_subtitle_for_role())
+        # FactCard se přepne na role-specific faktové pole
+        if hasattr(self, "_fact_card"):
+            self._fact_card.set_role(self._settings.app_role)
         for widget in self.findChildren(QWidget):
             refresh_fn = getattr(widget, "refresh_accent", None)
             if callable(refresh_fn):
@@ -1052,6 +1071,7 @@ class MainWindow(QMainWindow):
         self._progress.reset()
         self._progress.set_batch_position(self._queue_index, self._queue_total)
         self._progress.set_busy(True)
+        self._show_fact_card_during_pipeline(True)
         self._run_btn.setEnabled(False)
         self._run_current_job(job)
 
@@ -1104,6 +1124,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_ok(self, result) -> None:
         self._progress.set_busy(False)
+        self._show_fact_card_during_pipeline(False)
         self._refresh_run_button()
         self._progress.append_message(f"✅ Hotovo. Výstup: {result.output_path}")
         self._add_to_recents(result.output_path)
@@ -1278,6 +1299,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_error(self, message: str, cancelled: bool) -> None:
         self._progress.set_busy(False)
+        self._show_fact_card_during_pipeline(False)
         self._refresh_run_button()
 
         # Cancel zastaví celou dávku (uživatel to chtěl).
