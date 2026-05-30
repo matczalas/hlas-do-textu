@@ -1,4 +1,12 @@
-"""Settings — tři sekce, bez hint textů pod každým polem.
+"""Nastavení — tabbed sidebar layout dle redesign handoff.
+
+Čtyři taby:
+  - AI       — Gemini klíč, souhlas, offline Ollama, .md export, AI služba, role + tmavý
+  - Přepis   — backend (lokálně/cloud), Whisper model
+  - Výstup   — výstupní složka
+  - Licence  — info o aktivaci
+
+Vlevo sidebar s ikonami, vpravo content stack. Bottom bar s Uložit/Zrušit.
 
 Veřejné API: __init__(settings, parent), accept()
 """
@@ -7,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QSize, Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -19,7 +27,10 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -29,6 +40,10 @@ from app.gui.styles import tokens
 from app.gui.widgets.icons import icon, icon_size
 from app.settings import AppSettings, get_gemini_api_key, set_gemini_api_key
 
+# --------------------------------------------------------------------------- #
+# Pomocné helpers
+# --------------------------------------------------------------------------- #
+
 
 def _field_label(text: str) -> QLabel:
     lbl = QLabel(text)
@@ -36,7 +51,7 @@ def _field_label(text: str) -> QLabel:
     return lbl
 
 
-def _divider() -> QWidget:
+def _section_divider() -> QWidget:
     f = QFrame()
     f.setFrameShape(QFrame.Shape.HLine)
     f.setStyleSheet("background: palette(midlight); max-height: 1px; border: none;")
@@ -44,28 +59,166 @@ def _divider() -> QWidget:
     return f
 
 
+# --------------------------------------------------------------------------- #
+# Sidebar tabs widget
+# --------------------------------------------------------------------------- #
+
+
+class _SettingsSidebar(QListWidget):
+    """Vertikální sidebar s ikonami + textem pro přepínání tabů.
+
+    Položky jsou klikatelné, vybraná dostane accent border (přes QSS objectName).
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("SettingsSidebar")
+        self.setFixedWidth(180)
+        self.setSpacing(2)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setIconSize(QSize(18, 18))
+        self.setStyleSheet(
+            "QListWidget#SettingsSidebar {"
+            "  background: palette(alternate-base);"
+            "  border-right: 1px solid palette(midlight);"
+            "  border-top-left-radius: 12px; border-bottom-left-radius: 12px;"
+            "  padding: 12px 8px;"
+            "  font-size: 13px;"
+            "}"
+            "QListWidget#SettingsSidebar::item {"
+            "  padding: 9px 10px;"
+            "  border-radius: 8px;"
+            "  color: palette(text);"
+            "}"
+            "QListWidget#SettingsSidebar::item:hover {"
+            "  background: palette(midlight);"
+            "}"
+            f"QListWidget#SettingsSidebar::item:selected {{"
+            f"  background: {tokens.accent_soft(0.12)};"
+            f"  color: {tokens.accent()};"
+            f"  font-weight: 700;"
+            f"}}"
+        )
+
+    def add_tab(self, label: str, icon_name: str) -> None:
+        item = QListWidgetItem(icon(icon_name, size=18, color=tokens.accent()), label)
+        item.setSizeHint(QSize(0, 36))
+        self.addItem(item)
+
+
+# --------------------------------------------------------------------------- #
+# SettingsDialog
+# --------------------------------------------------------------------------- #
+
+
 class SettingsDialog(QDialog):
+    """Tabbed Settings dialog dle redesignu (sidebar + content stack)."""
+
     def __init__(self, settings: AppSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Nastavení")
-        self.setMinimumWidth(540)
+        self.setMinimumSize(820, 560)
         self._settings = settings
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(28, 24, 28, 20)
-        root.setSpacing(12)
+        # Outer layout: header + body (sidebar + stack) + footer
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
+        # ----- Header (titulek) ------------------------------------------
+        header = QWidget()
+        header.setStyleSheet(
+            "background: palette(base); "
+            "border-bottom: 1px solid palette(midlight); "
+            "border-top-left-radius: 12px; border-top-right-radius: 12px;"
+        )
+        header_lay = QVBoxLayout(header)
+        header_lay.setContentsMargins(28, 18, 28, 14)
         title = QLabel("Nastavení")
         f = QFont()
-        f.setPointSize(17)
+        f.setPointSize(18)
         f.setWeight(QFont.Weight.DemiBold)
         title.setFont(f)
-        root.addWidget(title)
+        header_lay.addWidget(title)
+        outer.addWidget(header)
 
-        root.addWidget(_divider())
+        # ----- Body: sidebar | stack -------------------------------------
+        body = QWidget()
+        body_lay = QHBoxLayout(body)
+        body_lay.setContentsMargins(0, 0, 0, 0)
+        body_lay.setSpacing(0)
 
-        # ----- Gemini -----
-        root.addWidget(_field_label("Gemini klíč"))
+        self._sidebar = _SettingsSidebar()
+        self._sidebar.add_tab("AI",      "sparkles")
+        self._sidebar.add_tab("Přepis",  "audio")
+        self._sidebar.add_tab("Výstup",  "folder")
+        self._sidebar.add_tab("Licence", "shield")
+        self._sidebar.setCurrentRow(0)
+        body_lay.addWidget(self._sidebar)
+
+        self._stack = QStackedWidget()
+        self._stack.setObjectName("SettingsStack")
+        self._stack.setStyleSheet(
+            "QStackedWidget#SettingsStack { background: palette(base); }"
+        )
+        body_lay.addWidget(self._stack, 1)
+
+        # Build content pages
+        self._stack.addWidget(self._build_ai_page())
+        self._stack.addWidget(self._build_transcribe_page())
+        self._stack.addWidget(self._build_output_page())
+        self._stack.addWidget(self._build_license_page())
+
+        self._sidebar.currentRowChanged.connect(self._stack.setCurrentIndex)
+        outer.addWidget(body, 1)
+
+        # ----- Footer (Zrušit / Uložit) ----------------------------------
+        footer = QWidget()
+        footer.setStyleSheet(
+            "background: palette(base); "
+            "border-top: 1px solid palette(midlight); "
+            "border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;"
+        )
+        footer_lay = QHBoxLayout(footer)
+        footer_lay.setContentsMargins(28, 14, 28, 14)
+        footer_lay.addStretch(1)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        ok_btn.setText("Uložit")
+        ok_btn.setObjectName("Primary")
+        ok_btn.setMinimumHeight(38)
+        ok_btn.setMinimumWidth(120)
+        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        cancel_btn.setText("Zrušit")
+        cancel_btn.setMinimumHeight(38)
+        cancel_btn.setMinimumWidth(96)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        footer_lay.addWidget(buttons)
+        outer.addWidget(footer)
+
+    # ====================================================================
+    # Tab content builders
+    # ====================================================================
+
+    def _page_container(self) -> tuple[QWidget, QVBoxLayout]:
+        """Vrátí scrollovatelný container pro tab content + jeho layout."""
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(12)
+        return page, lay
+
+    # ---- AI tab ---------------------------------------------------------
+
+    def _build_ai_page(self) -> QWidget:
+        page, lay = self._page_container()
+
+        # ----- Gemini klíč -----
+        lay.addWidget(_field_label("Gemini klíč"))
 
         api_row = QHBoxLayout()
         api_row.setSpacing(8)
@@ -96,13 +249,15 @@ class SettingsDialog(QDialog):
         )
         self._get_key_btn.clicked.connect(self._open_gemini_keys_page)
         api_row.addWidget(self._get_key_btn)
-        root.addLayout(api_row)
+        lay.addLayout(api_row)
 
+        # ----- Souhlas s odesíláním -----
         self._consent_cb = QCheckBox(
-            "Souhlasím s odesíláním přepisu a audia do Gemini Free."
+            "Souhlasím s odesíláním přepisu a audia do Gemini Free. "
+            "Free tier používá texty k tréninku modelů."
         )
         self._consent_cb.setObjectName("Consent")
-        self._consent_cb.setChecked(settings.ai_consent_gemini)
+        self._consent_cb.setChecked(self._settings.ai_consent_gemini)
         self._consent_cb.setStyleSheet(
             "QCheckBox#Consent { padding: 11px 14px; "
             "background: rgba(243, 196, 60, 0.16); "
@@ -110,22 +265,25 @@ class SettingsDialog(QDialog):
             "border-radius: 10px; color: palette(text); font-weight: 500; }"
             "QCheckBox#Consent::indicator { width: 18px; height: 18px; }"
         )
-        root.addWidget(self._consent_cb)
+        lay.addWidget(self._consent_cb)
 
+        # ----- Offline Ollama -----
         self._offline_cb = QCheckBox("Používat offline Ollamu místo Gemini")
-        self._offline_cb.setChecked(settings.prefer_offline)
-        root.addWidget(self._offline_cb)
+        self._offline_cb.setChecked(self._settings.prefer_offline)
+        lay.addWidget(self._offline_cb)
 
-        # .md export pro AI agenta
-        self._md_cb = QCheckBox("Po přepisu uložit také .md soubor (prompt pro AI)")
-        self._md_cb.setChecked(settings.create_md_export)
-        self._md_cb.setToolTip(
-            "Vyrobí Markdown soubor s přepisem připravený jako prompt pro ChatGPT/Claude/Gemini. "
-            "Otevři ho v AI a získej studijní materiál na míru."
+        # ----- .md export -----
+        self._md_cb = QCheckBox(
+            "Učit se z přednášky přes AI — uložit i .md soubor (prompt pro AI)"
         )
-        root.addWidget(self._md_cb)
+        self._md_cb.setChecked(self._settings.create_md_export)
+        self._md_cb.setToolTip(
+            "Vyrobí Markdown soubor s přepisem připravený jako prompt pro "
+            "ChatGPT/Claude/Gemini. Otevři ho v AI a získej studijní materiál na míru."
+        )
+        lay.addWidget(self._md_cb)
 
-        # AI služba pro custom prompts
+        # ----- AI služba (chip-style row) -----
         ai_row = QHBoxLayout()
         ai_row.setSpacing(8)
         ai_row.addWidget(_field_label("AI služba"))
@@ -136,18 +294,49 @@ class SettingsDialog(QDialog):
         self._ai_service_combo.addItem("Claude", userData="claude")
         self._ai_service_combo.addItem("Gemini", userData="gemini")
         self._ai_service_combo.addItem("Jiná", userData="other")
-        # Vybrat aktuální
         for i in range(self._ai_service_combo.count()):
-            if self._ai_service_combo.itemData(i) == settings.user_ai_service:
+            if self._ai_service_combo.itemData(i) == self._settings.user_ai_service:
                 self._ai_service_combo.setCurrentIndex(i)
                 break
         ai_row.addWidget(self._ai_service_combo, 1)
-        root.addLayout(ai_row)
+        lay.addLayout(ai_row)
 
-        root.addWidget(_divider())
+        lay.addWidget(_section_divider())
 
-        # ----- Backend přepisu -----
-        root.addWidget(_field_label("Způsob přepisu"))
+        # ----- Role + tmavý režim (vzhled) -----
+        lay.addWidget(_field_label("Role aplikace"))
+        self._role_combo = QComboBox()
+        self._role_combo.setMinimumHeight(36)
+        self._role_combo.addItem("Student / žák (Safe4Future modrá)", userData="student")
+        self._role_combo.addItem("Učitel/ka (Original Teal)", userData="teacher")
+        for i in range(self._role_combo.count()):
+            if self._role_combo.itemData(i) == self._settings.app_role:
+                self._role_combo.setCurrentIndex(i)
+                break
+        self._role_combo.setToolTip(
+            "Učitelský režim přidá visačku v hlavičce a teal barvu místo "
+            "Safe4Future modré. Změna se projeví hned po Uložit (drop zone "
+            "a flow ikony mohou vyžadovat restart pro plnou aktualizaci)."
+        )
+        lay.addWidget(self._role_combo)
+
+        self._dark_cb = QCheckBox("Tmavý režim")
+        self._dark_cb.setChecked(self._settings.dark_mode)
+        self._dark_cb.setToolTip(
+            "Přepne paletu na tmavé pozadí (Deep Ink). Některé inline-stylované "
+            "widgety mohou vyžadovat restart pro plný efekt."
+        )
+        lay.addWidget(self._dark_cb)
+
+        lay.addStretch(1)
+        return page
+
+    # ---- Přepis tab -----------------------------------------------------
+
+    def _build_transcribe_page(self) -> QWidget:
+        page, lay = self._page_container()
+
+        lay.addWidget(_field_label("Způsob přepisu"))
         self._backend_combo = QComboBox()
         self._backend_combo.setMinimumHeight(36)
         self._backend_combo.addItem(
@@ -157,67 +346,51 @@ class SettingsDialog(QDialog):
             "Rychlý cloud (Gemini, vyžaduje internet)", userData="cloud_gemini"
         )
         for i in range(self._backend_combo.count()):
-            if self._backend_combo.itemData(i) == settings.transcribe_backend:
+            if self._backend_combo.itemData(i) == self._settings.transcribe_backend:
                 self._backend_combo.setCurrentIndex(i)
                 break
         self._backend_combo.setToolTip(
             "Lokálně: faster-whisper na CPU, plně offline, 5–15 min na 15 min audia.\n"
             "Cloud: pošle audio Googlu (Gemini), ~1 min na 15 min audia. "
-            "Vyžaduje API klíč nahoře a souhlas s odesíláním dat."
+            "Vyžaduje API klíč v záložce AI a souhlas s odesíláním dat."
         )
-        root.addWidget(self._backend_combo)
+        lay.addWidget(self._backend_combo)
 
-        root.addWidget(_divider())
+        lay.addWidget(_section_divider())
 
-        # ----- Whisper -----
-        root.addWidget(_field_label("Kvalita lokálního přepisu (Whisper model)"))
+        lay.addWidget(_field_label("Kvalita lokálního přepisu (Whisper model)"))
         self._model_combo = QComboBox()
         self._model_combo.setMinimumHeight(36)
         for m in WHISPER_MODEL_CHOICES:
             self._model_combo.addItem(self._whisper_label(m), userData=m)
         try:
-            current_idx = list(WHISPER_MODEL_CHOICES).index(settings.whisper_model)
+            current_idx = list(WHISPER_MODEL_CHOICES).index(self._settings.whisper_model)
         except ValueError:
             current_idx = 1
         self._model_combo.setCurrentIndex(max(0, current_idx))
-        root.addWidget(self._model_combo)
+        lay.addWidget(self._model_combo)
 
-        root.addWidget(_divider())
+        hint = QLabel(
+            "Rychlá ~250 MB je doporučená pro běžné použití. Střední ~770 MB "
+            "vyžaduje 16 GB RAM. Nejlepší ~1,5 GB má nejvyšší kvalitu, ale přepis "
+            "trvá několikanásobně déle."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
+        lay.addWidget(hint)
 
-        # ----- Aktivace info -----
-        from app.licensing import get_activation_info
-        info = get_activation_info()
-        if info:
-            root.addWidget(_field_label("Aktivace"))
-            activated = info.get("activated_at", "?")
-            if activated and "T" in activated:
-                # ISO timestamp → lidsky čitelný formát
-                try:
-                    from datetime import datetime
-                    dt = datetime.fromisoformat(activated)
-                    activated = dt.strftime("%d. %m. %Y v %H:%M")
-                except (ValueError, TypeError):
-                    pass
-            machine = info.get("machine_display", "?")
-            fingerprint = info.get("machine_fingerprint", "")[:8]
-            activation_label = QLabel(
-                f"Aktivováno {activated}<br>"
-                f"<span style='color: palette(mid); font-size: 11px;'>"
-                f"Zařízení: {machine} (ID: {fingerprint})</span>"
-            )
-            activation_label.setTextFormat(Qt.TextFormat.RichText)
-            activation_label.setStyleSheet(
-                "padding: 8px 12px; background: palette(alternate-base); "
-                "border-radius: 6px; font-size: 12.5px; color: palette(text);"
-            )
-            root.addWidget(activation_label)
-            root.addWidget(_divider())
+        lay.addStretch(1)
+        return page
 
-        # ----- Output -----
-        root.addWidget(_field_label("Výstupní složka"))
+    # ---- Výstup tab -----------------------------------------------------
+
+    def _build_output_page(self) -> QWidget:
+        page, lay = self._page_container()
+
+        lay.addWidget(_field_label("Výstupní složka"))
         out_row = QHBoxLayout()
         out_row.setSpacing(8)
-        self._output_edit = QLineEdit(settings.output_dir)
+        self._output_edit = QLineEdit(self._settings.output_dir)
         self._output_edit.setMinimumHeight(36)
         out_row.addWidget(self._output_edit, 1)
 
@@ -227,54 +400,95 @@ class SettingsDialog(QDialog):
         self._output_browse.setMinimumHeight(36)
         self._output_browse.clicked.connect(self._pick_output_dir)
         out_row.addWidget(self._output_browse)
-        root.addLayout(out_row)
+        lay.addLayout(out_row)
 
-        root.addWidget(_divider())
-
-        # ----- Role + vzhled (light/dark) -----
-        # Přepíná barevný accent celé appky: student = Safe4Future modrá,
-        # učitel = Original Teal. Po Uložit se přerenderuje theme.
-        root.addWidget(_field_label("Role"))
-        self._role_combo = QComboBox()
-        self._role_combo.setMinimumHeight(36)
-        self._role_combo.addItem("Student / žák (modrá)", userData="student")
-        self._role_combo.addItem("Učitel/ka (teal)", userData="teacher")
-        for i in range(self._role_combo.count()):
-            if self._role_combo.itemData(i) == settings.app_role:
-                self._role_combo.setCurrentIndex(i)
-                break
-        self._role_combo.setToolTip(
-            "Učitelský režim přidá visačku v hlavičce a teal barvu místo "
-            "Safe4Future modré. Změna se projeví hned po Uložit."
+        hint = QLabel(
+            "Sem se ukládají hotové .docx dokumenty se studijními body. "
+            "Soubory se roztřídí podle tématu do podsložek."
         )
-        root.addWidget(self._role_combo)
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
+        lay.addWidget(hint)
 
-        self._dark_cb = QCheckBox("Tmavý režim")
-        self._dark_cb.setChecked(settings.dark_mode)
-        self._dark_cb.setToolTip(
-            "Přepne paletu na tmavé pozadí. Některé inline-stylované widgety "
-            "mohou vyžadovat restart aplikace pro plný efekt."
-        )
-        root.addWidget(self._dark_cb)
+        lay.addStretch(1)
+        return page
 
-        root.addStretch(1)
+    # ---- Licence tab ----------------------------------------------------
 
-        # ----- Buttons -----
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok_btn.setText("Uložit")
-        ok_btn.setObjectName("Primary")
-        ok_btn.setMinimumHeight(38)
-        ok_btn.setMinimumWidth(110)
-        ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
-        cancel_btn.setText("Zrušit")
-        cancel_btn.setMinimumHeight(38)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
+    def _build_license_page(self) -> QWidget:
+        page, lay = self._page_container()
+
+        from app.licensing import get_activation_info
+
+        info = get_activation_info()
+        if info:
+            # Hezky strukturovaná tabulka s aktivačními údaji
+            activated = info.get("activated_at", "?")
+            if activated and "T" in activated:
+                try:
+                    from datetime import datetime
+
+                    dt = datetime.fromisoformat(activated)
+                    activated = dt.strftime("%d. %m. %Y v %H:%M")
+                except (ValueError, TypeError):
+                    pass
+            machine = info.get("machine_display", "?")
+            fingerprint = info.get("machine_fingerprint", "")[:8]
+
+            box = QFrame()
+            box.setObjectName("LicenseInfoBox")
+            box.setStyleSheet(
+                "QFrame#LicenseInfoBox { "
+                "background: palette(alternate-base); "
+                "border: 1px solid palette(midlight); "
+                "border-radius: 10px; padding: 6px; }"
+            )
+            box_lay = QVBoxLayout(box)
+            box_lay.setSpacing(8)
+            box_lay.setContentsMargins(16, 14, 16, 14)
+
+            for label_text, value_text in [
+                ("Stav", "✓ Aktivováno"),
+                ("Aktivováno", activated),
+                ("Zařízení", f"{machine} (ID: {fingerprint})"),
+            ]:
+                row = QHBoxLayout()
+                row.setSpacing(8)
+                k = QLabel(label_text)
+                k.setFixedWidth(110)
+                k.setStyleSheet(
+                    "color: palette(placeholder-text); font-size: 12.5px; font-weight: 500;"
+                )
+                row.addWidget(k)
+                v = QLabel(value_text)
+                v.setStyleSheet("color: palette(text); font-size: 12.5px;")
+                v.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                row.addWidget(v, 1)
+                box_lay.addLayout(row)
+
+            lay.addWidget(box)
+
+            note = QLabel(
+                "Klíč je uložený bezpečně v systémovém trezoru "
+                "(macOS Keychain / Windows Credential Manager). "
+                "Není v žádném textovém souboru."
+            )
+            note.setWordWrap(True)
+            note.setStyleSheet(
+                "color: palette(placeholder-text); font-size: 11.5px; padding-top: 4px;"
+            )
+            lay.addWidget(note)
+        else:
+            no_info = QLabel("Informace o aktivaci nejsou dostupné.")
+            no_info.setStyleSheet("color: palette(placeholder-text);")
+            lay.addWidget(no_info)
+
+        lay.addStretch(1)
+        return page
+
+    # ====================================================================
+    # Lifecycle
+    # ====================================================================
 
     def accept(self) -> None:  # type: ignore[override]
         new_key = self._api_edit.text().strip()
@@ -292,6 +506,7 @@ class SettingsDialog(QDialog):
         self._settings.transcribe_backend = (
             self._backend_combo.currentData() or "local_whisper"
         )
+
         # Role + dark mode — pokud se změnily, aplikuj theme znovu (live switch).
         new_role = self._role_combo.currentData() or "student"
         new_dark = self._dark_cb.isChecked()
@@ -330,7 +545,7 @@ class SettingsDialog(QDialog):
     @staticmethod
     def _whisper_label(name: str) -> str:
         return {
-            "small": "Rychlá  ·  ~250 MB",
-            "medium": "Doporučená  ·  ~770 MB",
-            "large-v3": "Nejlepší  ·  ~1.5 GB",
+            "small": "Rychlá  ·  ~250 MB  ·  doporučená",
+            "medium": "Střední  ·  ~770 MB",
+            "large-v3": "Nejlepší  ·  ~1.5 GB  ·  trvá fakt dlouho",
         }.get(name, name)
