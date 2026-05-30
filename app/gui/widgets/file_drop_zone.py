@@ -45,24 +45,17 @@ class FileDropZone(QFrame):
         outer.setContentsMargins(24, 26, 24, 22)
         outer.setSpacing(8)
 
-        accent = tokens.accent()
-
         # Velká ikona uploadu nahoře, centered
-        icon_lbl = QLabel()
-        icon_lbl.setPixmap(pixmap("upload", size=44, color=accent))
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setFixedHeight(60)
-        icon_lbl.setStyleSheet("border: none; background: transparent;")
-        outer.addWidget(icon_lbl)
+        self._icon_lbl = QLabel()
+        self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._icon_lbl.setFixedHeight(60)
+        self._icon_lbl.setStyleSheet("border: none; background: transparent;")
+        outer.addWidget(self._icon_lbl)
 
         # Hlavní text "Přetáhni soubor nebo vyber..."
-        title = QLabel("Přetáhni soubor sem")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet(
-            f"font-size: 17px; font-weight: 600; color: {accent}; "
-            "border: none; background: transparent;"
-        )
-        outer.addWidget(title)
+        self._title = QLabel("Přetáhni soubor sem")
+        self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        outer.addWidget(self._title)
 
         # Subtitle "or"
         subtitle = QLabel("nebo klikni na tlačítko níže")
@@ -77,26 +70,52 @@ class FileDropZone(QFrame):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
         btn_row.addStretch(1)
-        btn_audio = self._make_button("Vybrat nahrávku", "mic", self._pick_audio)
-        btn_slides = self._make_button("Vybrat slidy", "slides", self._pick_slides)
-        btn_row.addWidget(btn_audio)
-        btn_row.addWidget(btn_slides)
+        self._btn_audio = self._make_button("Vybrat nahrávku", "mic", self._pick_audio)
+        self._btn_slides = self._make_button("Vybrat slidy", "slides", self._pick_slides)
+        btn_row.addWidget(self._btn_audio)
+        btn_row.addWidget(self._btn_slides)
         btn_row.addStretch(1)
         outer.addLayout(btn_row)
 
+        # Aplikuj inline styly s aktuálním accentem (volá se i při role switch).
+        self._apply_inline_styles()
+
     def _make_button(self, text: str, ico_name: str, handler) -> QPushButton:
-        accent = tokens.accent()
         btn = QPushButton(text)
-        btn.setIcon(icon(ico_name, size=15, color=accent))
         btn.setIconSize(icon_size(15))
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet(
-            "QPushButton { padding: 8px 14px; font-weight: 600; color: palette(text); "
-            "border: 1px solid palette(mid); border-radius: 8px; background: palette(base); }"
-            f"QPushButton:hover {{ background: palette(midlight); border-color: {accent}; }}"
-        )
+        # Uložit jméno ikony pro pozdější restyle
+        btn.setProperty("icon_name", ico_name)
         btn.clicked.connect(handler)
         return btn
+
+    def _apply_inline_styles(self) -> None:
+        """Re-aplikuje inline styly s aktuálním tokens.accent(). Volá se v __init__
+        a při změně role z theme.apply_theme() přes refresh_accent()."""
+        accent = tokens.accent()
+
+        # Ikona uploadu
+        self._icon_lbl.setPixmap(pixmap("upload", size=44, color=accent))
+
+        # Titulek
+        self._title.setStyleSheet(
+            f"font-size: 17px; font-weight: 600; color: {accent}; "
+            "border: none; background: transparent;"
+        )
+
+        # Tlačítka
+        for btn in (self._btn_audio, self._btn_slides):
+            ico_name = btn.property("icon_name") or "mic"
+            btn.setIcon(icon(ico_name, size=15, color=accent))
+            btn.setStyleSheet(
+                "QPushButton { padding: 8px 14px; font-weight: 600; color: palette(text); "
+                "border: 1px solid palette(mid); border-radius: 8px; background: palette(base); }"
+                f"QPushButton:hover {{ background: palette(midlight); border-color: {accent}; }}"
+            )
+
+    def refresh_accent(self) -> None:
+        """Veřejné API — MainWindow zavolá po změně role v Settings."""
+        self._apply_inline_styles()
 
     # ------ API ------
 

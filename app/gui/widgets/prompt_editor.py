@@ -60,29 +60,40 @@ class PromptEditor(QGroupBox):
         tpl_row.addWidget(self._template_combo, 1)
         outer.addLayout(tpl_row)
 
-        accent = tokens.accent()
-        accent_soft = tokens.accent_soft(0.06)
-
         self._edit = QPlainTextEdit()
         self._edit.setPlaceholderText(
             "Volitelně: o čem ta přednáška je? Pomáhá to AI udělat lepší poznámky."
         )
         self._edit.setMinimumHeight(80)
         self._edit.setMaximumHeight(120)
-        self._edit.setStyleSheet(
-            "QPlainTextEdit { background: palette(base); "
-            "border: 1px solid palette(midlight); border-radius: 10px; "
-            "padding: 12px 14px; font-size: 13px; }"
-            f"QPlainTextEdit:focus {{ border: 1px solid {accent}; }}"
-        )
         outer.addWidget(self._edit, 1)
 
+        self._chips: list[QPushButton] = []
         chips_row = QHBoxLayout()
         chips_row.setSpacing(6)
         for txt in _CHIPS:
             chip = QPushButton(txt)
             chip.setCursor(Qt.CursorShape.PointingHandCursor)
             chip.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+            chip.clicked.connect(lambda _checked=False, t=txt: self._append_hint(t))
+            chips_row.addWidget(chip)
+            self._chips.append(chip)
+        chips_row.addStretch(1)
+        outer.addLayout(chips_row)
+
+        # Aplikuj inline styly s aktuálním accentem.
+        self._apply_inline_styles()
+
+    def _apply_inline_styles(self) -> None:
+        accent = tokens.accent()
+        accent_soft = tokens.accent_soft(0.06)
+        self._edit.setStyleSheet(
+            "QPlainTextEdit { background: palette(base); "
+            "border: 1px solid palette(midlight); border-radius: 10px; "
+            "padding: 12px 14px; font-size: 13px; }"
+            f"QPlainTextEdit:focus {{ border: 1px solid {accent}; }}"
+        )
+        for chip in self._chips:
             chip.setStyleSheet(
                 "QPushButton { background: palette(alternate-base); "
                 "border: 1px solid palette(midlight); border-radius: 999px; "
@@ -90,10 +101,9 @@ class PromptEditor(QGroupBox):
                 f"QPushButton:hover {{ border-color: {accent}; "
                 f"color: {accent}; background: {accent_soft}; }}"
             )
-            chip.clicked.connect(lambda _checked=False, t=txt: self._append_hint(t))
-            chips_row.addWidget(chip)
-        chips_row.addStretch(1)
-        outer.addLayout(chips_row)
+
+    def refresh_accent(self) -> None:
+        self._apply_inline_styles()
 
     def _on_template_changed(self, _index: int) -> None:
         """Po výběru šablony předvyplní zadání. Prázdná volba ('vlastní') nic nemění."""

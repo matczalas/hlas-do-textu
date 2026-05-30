@@ -31,17 +31,8 @@ class UpdateBanner(QFrame):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        accent = tokens.accent()
-        accent_strong = tokens.accent_strong()
-        soft_10 = tokens.accent_soft(0.10)
-        soft_30 = tokens.accent_soft(0.30)
-        soft_40 = tokens.accent_soft(0.40)
 
         self.setObjectName("UpdateBanner")
-        self.setStyleSheet(
-            f"QFrame#UpdateBanner {{ background: {soft_10}; "
-            f"border: 1px solid {soft_30}; border-radius: 10px; }}"
-        )
         self.setFixedHeight(56)
         self.hide()
 
@@ -54,9 +45,6 @@ class UpdateBanner(QFrame):
         layout.addWidget(self._icon)
 
         self._message = QLabel("")
-        self._message.setStyleSheet(
-            f"color: {accent}; font-size: 13px; font-weight: 500;"
-        )
         self._message.setWordWrap(False)
         layout.addWidget(self._message, 1)
 
@@ -64,27 +52,47 @@ class UpdateBanner(QFrame):
         self._progress.setFixedWidth(160)
         self._progress.setTextVisible(True)
         self._progress.setRange(0, 100)
-        self._progress.setStyleSheet(
-            f"QProgressBar {{ border: 1px solid {soft_40}; border-radius: 6px; "
-            "background: rgba(255,255,255,0.5); text-align: center; font-size: 11px; }"
-            f"QProgressBar::chunk {{ background: {accent}; border-radius: 5px; }}"
-        )
         self._progress.hide()
         layout.addWidget(self._progress)
 
         self._action_btn = QPushButton("Aktualizovat")
         self._action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._action_btn.setMinimumHeight(34)
+        self._action_btn.clicked.connect(self._on_action_clicked)
+        layout.addWidget(self._action_btn)
+
+        self._state: str = "hidden"  # hidden | available | downloading | ready
+
+        # Aplikuj inline styly s aktuálním accentem.
+        self._apply_inline_styles()
+
+    def _apply_inline_styles(self) -> None:
+        accent = tokens.accent()
+        accent_strong = tokens.accent_strong()
+        soft_10 = tokens.accent_soft(0.10)
+        soft_30 = tokens.accent_soft(0.30)
+        soft_40 = tokens.accent_soft(0.40)
+        self.setStyleSheet(
+            f"QFrame#UpdateBanner {{ background: {soft_10}; "
+            f"border: 1px solid {soft_30}; border-radius: 10px; }}"
+        )
+        self._message.setStyleSheet(
+            f"color: {accent}; font-size: 13px; font-weight: 500;"
+        )
+        self._progress.setStyleSheet(
+            f"QProgressBar {{ border: 1px solid {soft_40}; border-radius: 6px; "
+            "background: rgba(255,255,255,0.5); text-align: center; font-size: 11px; }"
+            f"QProgressBar::chunk {{ background: {accent}; border-radius: 5px; }}"
+        )
         self._action_btn.setStyleSheet(
             f"QPushButton {{ background: {accent}; color: white; border: none; "
             "border-radius: 8px; padding: 6px 16px; font-weight: 600; font-size: 12.5px; }"
             f"QPushButton:hover {{ background: {accent_strong}; }}"
             "QPushButton:disabled { background: #8a9fb8; color: rgba(255,255,255,150); }"
         )
-        self._action_btn.clicked.connect(self._on_action_clicked)
-        layout.addWidget(self._action_btn)
 
-        self._state: str = "hidden"  # hidden | available | downloading | ready
+    def refresh_accent(self) -> None:
+        self._apply_inline_styles()
 
     # ------ Public API ------
 
