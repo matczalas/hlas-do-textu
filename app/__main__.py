@@ -172,6 +172,34 @@ def main() -> int:
             return 0
         logger.info("Aktivace úspěšná")
 
+    # Role picker + first-run MUSÍ být PŘED MainWindow(), aby všechny widgety
+    # v _build_ui četly tokens.accent() až s finální rolí. Jinak by FileDropZone,
+    # PromptEditor a TeacherActions cache-ly student modrou v __init__ a po
+    # výběru učitele by zůstaly modré, dokud se app nerestartuje.
+    try:
+        from app.settings import load_settings, save_settings
+
+        _settings = load_settings()
+        if not _settings.first_run_done:
+            from app.gui.styles import theme
+            from app.gui.widgets.first_run_dialog import FirstRunDialog
+            from app.gui.widgets.role_picker_dialog import RolePickerDialog
+
+            picker = RolePickerDialog()
+            if picker.exec() == picker.DialogCode.Accepted:
+                _settings.app_role = picker.chosen_role()
+                # Přebarvit theme s novou rolí PŘED first-run dialogem.
+                theme.apply_theme(
+                    app, role=_settings.app_role, dark=_settings.dark_mode
+                )
+
+            first_run = FirstRunDialog(_settings)
+            first_run.exec()
+            save_settings(_settings)
+            logger.info("Onboarding dokončen, role={}", _settings.app_role)
+    except Exception as exc:  # noqa: BLE001 — onboarding chyba nesmí zabít app
+        logger.exception("Onboarding selhal, pokračuji s defaulty: {}", exc)
+
     try:
         window = MainWindow()
         window.show()
