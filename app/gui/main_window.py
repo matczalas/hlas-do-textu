@@ -240,7 +240,9 @@ class MainWindow(QMainWindow):
 
         # ---- Kontext pro AI -------------------------------------------
         # V učitel módu skrýt — kartám stačí vestavěné šablony promptů.
-        self._prompt_editor = PromptEditor()
+        # Předáme role, ať dropdown "Co vyrobit" obsahuje jen relevantní
+        # šablony (student nevidí teacher_* prompts).
+        self._prompt_editor = PromptEditor(role=self._settings.app_role)
         self._prompt_editor.setVisible(self._settings.app_role != "teacher")
         root.addWidget(self._prompt_editor)
 
@@ -384,6 +386,9 @@ class MainWindow(QMainWindow):
         # FactCard se přepne na role-specific faktové pole
         if hasattr(self, "_fact_card"):
             self._fact_card.set_role(self._settings.app_role)
+        # Prompt editor přefiltruje dropdown podle role
+        if hasattr(self, "_prompt_editor"):
+            self._prompt_editor.set_role(self._settings.app_role)
         for widget in self.findChildren(QWidget):
             refresh_fn = getattr(widget, "refresh_accent", None)
             if callable(refresh_fn):

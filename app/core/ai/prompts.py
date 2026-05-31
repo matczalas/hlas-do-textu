@@ -229,3 +229,20 @@ PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
 def template_prompt(key: str) -> str:
     """Vrátí předvyplněný text zadání pro danou šablonu (nebo prázdný řetězec)."""
     return PROMPT_TEMPLATES.get(key, {}).get("prompt", "")
+
+
+def templates_for_role(role: str) -> dict[str, dict[str, str]]:
+    """Vrátí jen šablony relevantní pro danou roli aplikace.
+
+    - "student": šablony bez prefixu "teacher_" — studijní materiály,
+      otázky k procvičení, shrnutí. (Student nevyužije "Reflexe hodiny"
+      nebo "Materiály k zaslání pro studenty" — to jsou učitelské akce.)
+    - "teacher": všechny šablony včetně teacher_* (učitel je v editoru
+      sice vidí přes akční karty, ale prompt_editor je v učitelském
+      režimu skrytý; vrátit všechno je tu defenzivní default).
+    """
+    if role == "teacher":
+        return PROMPT_TEMPLATES
+    return {
+        k: v for k, v in PROMPT_TEMPLATES.items() if not k.startswith("teacher_")
+    }

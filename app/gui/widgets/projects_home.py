@@ -111,10 +111,9 @@ class _ProjectCard(QPushButton):
         v.addStretch(1)
         self._apply_inline_styles()
 
-        # Hover lift + drop shadow přes QPropertyAnimation
-        from app.gui.widgets._animations import attach_lift_effect
-
-        self._lift = attach_lift_effect(self)
+        # Hover lift přes QPropertyAnimation byl odebrán v v1.4.1 — kolidoval
+        # s parent QGridLayout a způsoboval seking layoutu. Hover je teď
+        # čistě v QSS (#ProjectCard:hover v app.qss).
 
     def _apply_inline_styles(self) -> None:
         """Re-aplikuje accent-závislé prvky (document ikonu) po role switch."""
