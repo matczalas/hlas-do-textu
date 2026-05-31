@@ -418,6 +418,45 @@ class SettingsDialog(QDialog):
     def _build_license_page(self) -> QWidget:
         page, lay = self._page_container()
 
+        # Verze aplikace nahoře — pro support a kontrolu po update
+        from app import __version__
+
+        version_box = QFrame()
+        version_box.setObjectName("VersionBox")
+        version_box.setStyleSheet(
+            f"QFrame#VersionBox {{ background: {tokens.accent_soft(0.08)}; "
+            f"border: 1px solid {tokens.accent_soft(0.20)}; "
+            "border-radius: 10px; padding: 4px; }"
+        )
+        vb_lay = QHBoxLayout(version_box)
+        vb_lay.setContentsMargins(14, 10, 14, 10)
+        vb_lay.setSpacing(10)
+
+        version_icon = QLabel()
+        version_icon.setPixmap(icon("sparkles", size=16, color=tokens.accent()).pixmap(16, 16))
+        version_icon.setFixedSize(18, 18)
+        vb_lay.addWidget(version_icon)
+
+        version_label = QLabel(f"Hlas do textu  ·  verze <b>{__version__}</b>")
+        version_label.setTextFormat(Qt.TextFormat.RichText)
+        version_label.setStyleSheet(
+            f"color: {tokens.accent()}; font-size: 12.5px; font-weight: 500;"
+        )
+        vb_lay.addWidget(version_label, 1)
+
+        check_btn = QPushButton("Zkontrolovat update")
+        check_btn.setObjectName("Link")
+        check_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        check_btn.setStyleSheet(
+            "QPushButton#Link { background: transparent; border: none; "
+            f"color: {tokens.accent()}; padding: 2px 4px; "
+            "font-weight: 600; font-size: 12px; }"
+        )
+        check_btn.clicked.connect(self._open_releases_page)
+        vb_lay.addWidget(check_btn)
+
+        lay.addWidget(version_box)
+
         from app.licensing import get_activation_info
 
         info = get_activation_info()
@@ -535,6 +574,13 @@ class SettingsDialog(QDialog):
     @staticmethod
     def _open_gemini_keys_page() -> None:
         QDesktopServices.openUrl(QUrl(GEMINI_API_KEY_URL))
+
+    @staticmethod
+    def _open_releases_page() -> None:
+        """Otevře GitHub Releases stránku v defaultním prohlížeči."""
+        QDesktopServices.openUrl(
+            QUrl("https://github.com/matczalas/hlas-do-textu/releases")
+        )
 
     def _pick_output_dir(self) -> None:
         start = self._output_edit.text() or str(Path.home())
