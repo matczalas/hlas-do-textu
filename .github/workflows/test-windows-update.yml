@@ -1,0 +1,245 @@
+name: Test Windows update flow
+
+# Integration test pro Windows auto-update.
+# Vyrobí dva installery (HEAD = např. v1.7.2 + fake v99.0.0), nainstaluje
+# první, spustí app v test-mode, pak spustí silent upgrade druhým installerem
+# a ověří, že:
+#   1. Silent upgrade prošel beze chyby (exit code 0)
+#   2. Soubory v {app} jsou přepsány na novou verzi (file version 99.0.0)
+#   3. Aplikace byla auto-restartována přes [Run] Check: WizardSilent
+#
+# Spouští se manuálně přes workflow_dispatch nebo na pushi do PR větve
+# specifické pro tento test (claude/test-windows-update*).
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - "claude/test-windows-update*"
+      - "claude/windows-autoupdate*"
+
+permissions:
+  contents: read
+
+jobs:
+  test-update:
+    runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      HDT_TEST_MODE: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Cache vendored FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: app/vendor/ffmpeg/win64
+          key: ffmpeg-win64-v1
+
+      - name: Download FFmpeg static build
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: python scripts/download_ffmpeg_windows.py
+
+      - name: Generate placeholder icon
+        run: python scripts/generate_icon.py
+
+      - name: Inject production HMAC secret
+        env:
+          HDT_HMAC_SECRET: ${{ secrets.HDT_HMAC_SECRET }}
+        shell: pwsh
+        run: |
+          if (-not $env:HDT_HMAC_SECRET) {
+            Write-Error "HDT_HMAC_SECRET not set in GitHub Actions secrets"
+            exit 1
+          }
+          $content = @"
+          from __future__ import annotations
+          KEY_PREFIX: str = "S4F1"
+          HMAC_SECRET: bytes = b"$($env:HDT_HMAC_SECRET)"
+          "@
+          $content | Out-File -FilePath app/licensing/_secret.py -Encoding ascii -NoNewline
+
+      # ---- Build version A (current HEAD) ----------------------------
+      - name: Build PyInstaller bundle (version A)
+        run: |
+          pyinstaller --noconfirm --clean ^
+            --onedir --windowed ^
+            --name HlasDoTextu ^
+            --icon app/resources/icon.ico ^
+            --add-data "app/vendor/ffmpeg/win64;vendor/ffmpeg/win64" ^
+            --add-data "app/resources;resources" ^
+            --add-data "app/gui/styles;app/gui/styles" ^
+            --collect-all ctranslate2 ^
+            --collect-all faster_whisper ^
+            --collect-all tiktoken ^
+            --collect-all tiktoken_ext ^
+            --hidden-import=tiktoken_ext.openai_public ^
+            --hidden-import=tiktoken_ext ^
+            --collect-all yt_dlp ^
+            --collect-data certifi ^
+            app/__main__.py
+        shell: cmd
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Read HEAD version
+        id: head_version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path app/__init__.py -Pattern '__version__\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+          Write-Host "HEAD version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Compile installer A (HEAD version)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\HlasDoTextu.iss
+          Copy-Item installer/Output/*.exe installer-A.exe
+          Get-ChildItem installer-A.exe
+        shell: pwsh
+
+      # ---- Build version B (99.0.0 = fake "newer") -------------------
+      - name: Bump version to 99.0.0 for test
+        shell: pwsh
+        run: |
+          (Get-Content app/__init__.py) -replace '__version__\s*=\s*"[^"]+"', '__version__ = "99.0.0"' | Set-Content app/__init__.py
+          (Get-Content installer/HlasDoTextu.iss) -replace 'MyAppVersion "[^"]+"', 'MyAppVersion "99.0.0"' | Set-Content installer/HlasDoTextu.iss
+          Write-Host "Bumped to 99.0.0"
+
+      - name: Rebuild PyInstaller bundle (version B)
+        run: |
+          pyinstaller --noconfirm --clean ^
+            --onedir --windowed ^
+            --name HlasDoTextu ^
+            --icon app/resources/icon.ico ^
+            --add-data "app/vendor/ffmpeg/win64;vendor/ffmpeg/win64" ^
+            --add-data "app/resources;resources" ^
+            --add-data "app/gui/styles;app/gui/styles" ^
+            --collect-all ctranslate2 ^
+            --collect-all faster_whisper ^
+            --collect-all tiktoken ^
+            --collect-all tiktoken_ext ^
+            --hidden-import=tiktoken_ext.openai_public ^
+            --hidden-import=tiktoken_ext ^
+            --collect-all yt_dlp ^
+            --collect-data certifi ^
+            app/__main__.py
+        shell: cmd
+
+      - name: Compile installer B (99.0.0)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\HlasDoTextu.iss
+          Copy-Item installer/Output/HlasDoTextu-Setup-99.0.0.exe installer-B.exe
+          Get-ChildItem installer-B.exe
+        shell: pwsh
+
+      # ---- Test: install A → run → upgrade to B → verify -------------
+      - name: Step 1 — install installer A silently
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath installer-A.exe `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" `
+            -PassThru -Wait
+          if ($proc.ExitCode -ne 0) { throw "Install A failed with exit $($proc.ExitCode)" }
+          Write-Host "✓ Installer A succeeded"
+
+      - name: Step 2 — verify installation
+        shell: pwsh
+        run: |
+          $appExe = "$env:LOCALAPPDATA\Programs\HlasDoTextu\HlasDoTextu.exe"
+          if (-not (Test-Path $appExe)) { throw "App not installed at $appExe" }
+          $ver = (Get-Item $appExe).VersionInfo.FileVersion
+          Write-Host "✓ App installed: $appExe (file version: $ver)"
+          "app_exe=$appExe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Step 3 — launch app in test mode (drží mutex)
+        shell: pwsh
+        run: |
+          # Test mode: app drží mutex registrovaný, NEUKONČÍ sám sebe — Inno
+          # ji musí zavřít přes CloseApplications.
+          $proc = Start-Process -FilePath $env:app_exe -PassThru
+          Write-Host "App launched, PID: $($proc.Id)"
+          Start-Sleep -Seconds 8  # počkat až QApplication initialize + ukáže window
+          $running = Get-Process HlasDoTextu -ErrorAction SilentlyContinue
+          if (-not $running) { throw "App not running after launch" }
+          Write-Host "✓ App is running (PIDs: $($running.Id -join ', '))"
+          "initial_pid=$($proc.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Step 4 — silent upgrade to version B (with running app)
+        shell: pwsh
+        run: |
+          Write-Host "Launching installer B silently while app is running..."
+          # Tohle je co dělá `_apply_update_windows` v Python kódu —
+          # spustí installer s /VERYSILENT a Inno musí:
+          #   1. Detekovat mutex přes AppMutex
+          #   2. Zavřít běžící app přes CloseApplications=yes (WM_CLOSE)
+          #   3. Přepsat soubory
+          #   4. [Run] Check: WizardSilent → spustit novou .exe
+          $proc = Start-Process -FilePath installer-B.exe `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" `
+            -PassThru -Wait
+          Write-Host "Installer B exit code: $($proc.ExitCode)"
+          if ($proc.ExitCode -ne 0) { throw "Silent upgrade failed with exit $($proc.ExitCode)" }
+          Write-Host "✓ Installer B succeeded"
+
+      - name: Step 5 — verify files upgraded to 99.0.0
+        shell: pwsh
+        run: |
+          $appExe = "$env:LOCALAPPDATA\Programs\HlasDoTextu\HlasDoTextu.exe"
+          if (-not (Test-Path $appExe)) { throw "App missing after upgrade!" }
+          $ver = (Get-Item $appExe).VersionInfo.FileVersion
+          Write-Host "App version after upgrade: $ver"
+          # FileVersion ze .exe metadat má formát "99.0.0.0" (4 segmenty)
+          if (-not $ver.StartsWith("99.0.0")) {
+            throw "Expected file version 99.0.0.x, got $ver"
+          }
+          Write-Host "✓ Files upgraded to 99.0.0"
+
+      - name: Step 6 — verify auto-restart (Check WizardSilent)
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds 4  # dát [Run] entry čas spustit novou .exe
+          $running = Get-Process HlasDoTextu -ErrorAction SilentlyContinue
+          if (-not $running) {
+            Write-Host "❌ BUG: app není po silent upgrade spuštěna"
+            Write-Host "Expected: [Run] Check: WizardSilent v .iss měla spustit novou HlasDoTextu.exe"
+            throw "Auto-restart selhal"
+          }
+          $newPid = $running.Id | Select-Object -First 1
+          Write-Host "✓ App auto-restartována, nový PID: $newPid"
+          if ($newPid -eq $env:initial_pid) {
+            throw "PID se nezměnil — restart neproběhl"
+          }
+          Write-Host "✓ Nový PID ($newPid) ≠ původní PID ($env:initial_pid) — restart potvrzen"
+
+      - name: Step 7 — cleanup (kill app, uninstall)
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process HlasDoTextu -ErrorAction SilentlyContinue | Stop-Process -Force
+          $uninstaller = Get-ChildItem "$env:LOCALAPPDATA\Programs\HlasDoTextu\unins*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($uninstaller) {
+            Start-Process -FilePath $uninstaller.FullName -ArgumentList "/VERYSILENT" -Wait -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload installers as artifacts (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-installers
+          path: |
+            installer-A.exe
+            installer-B.exe

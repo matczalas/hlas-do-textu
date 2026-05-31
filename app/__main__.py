@@ -159,10 +159,18 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 — theme je nice-to-have, ne kritické
         logger.warning("apply_theme selhalo: {}", exc)
 
+    # Test mode bypass — používá CI workflow pro integration testy.
+    # Skipne activation/first-run dialogy a po 3 sekundách běhu sám ukončí
+    # aplikaci. Bezpečné: vyžaduje explicit HDT_TEST_MODE=1 env var, který
+    # production user nemá. Slouží POUZE k ověření update flow na CI.
+    test_mode = os.environ.get("HDT_TEST_MODE") == "1"
+    if test_mode:
+        logger.warning("HDT_TEST_MODE=1 — bypass activation + auto-quit po 3 s")
+
     # License gate — bez platného klíče se nikam nedostaneme
     from app.licensing import is_activated
 
-    if not is_activated():
+    if not test_mode and not is_activated():
         from app.gui.widgets.activation_dialog import ActivationDialog
 
         logger.info("Aplikace není aktivovaná, zobrazuji ActivationDialog")
@@ -180,7 +188,7 @@ def main() -> int:
         from app.settings import load_settings, save_settings
 
         _settings = load_settings()
-        if not _settings.first_run_done:
+        if not _settings.first_run_done and not test_mode:
             from app.gui.styles import theme
             from app.gui.widgets.first_run_dialog import FirstRunDialog
             from app.gui.widgets.role_picker_dialog import RolePickerDialog
@@ -203,6 +211,14 @@ def main() -> int:
     try:
         window = MainWindow()
         window.show()
+        # Test mode: app NEZAVŘE sám sebe, drží mutex registrovaný neomezeně.
+        # CI ji ukončí externě (Inno Setup CloseApplications nebo taskkill),
+        # nebo dosáhne 60s safety timeout (sanity proti zaseknutí v CI matrixu).
+        if test_mode:
+            from PySide6.QtCore import QTimer
+
+            logger.info("Test mode: app drží mutex, čeká externí ukončení")
+            QTimer.singleShot(60_000, app.quit)  # 60 s safety timeout
     except Exception as exc:
         logger.exception("Selhala inicializace hlavního okna: {}", exc)
         from PySide6.QtWidgets import QMessageBox
