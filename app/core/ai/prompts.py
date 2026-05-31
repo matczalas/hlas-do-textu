@@ -223,6 +223,57 @@ PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
             "co příště zkusit jinak."
         ),
     },
+    # --- Sales / finanční poradce (v1.6.0) ---
+    "sales_meeting": {
+        "label": "Kompletní zápis ze schůzky s klientem",
+        "prompt": (
+            "Jsem finanční poradce a tohle je nahrávka schůzky s klientem. "
+            "Vytvoř strukturovaný zápis ve formátu:\n\n"
+            "1) ÚKOLY PRO MĚ — co musím udělat já po této schůzce. "
+            "Pokud zazněl deadline / termín, uveď ho.\n\n"
+            "2) ÚKOLY PRO KLIENTA — co má udělat on, co mi má dodat, "
+            "jaké podklady. Pokud zazněl termín, uveď ho.\n\n"
+            "3) DATA O KLIENTOVI — všechny informace, které klient sdělil "
+            "(rodinný stav, děti, věk, příjmy, výdaje, závazky, úspory, "
+            "investice, životní situace, cíle, horizont).\n\n"
+            "4) TERMÍN DALŠÍ SCHŮZKY — kdy a kde se znova sejdeme, "
+            "případně před čím nebo po čem (např. „po doručení smlouvy"
+            "“ nebo „před koncem roku“).\n\n"
+            "5) DALŠÍ POZNÁMKY — cokoli důležitého, co nepatří výše "
+            "(klientův tón, neformální postřehy, otázky k vyjasnění "
+            "u kolegů).\n\n"
+            "Buď konkrétní a věrný. Žádné obecné fráze, žádné improvizace."
+        ),
+    },
+    "sales_actions_only": {
+        "label": "Jen akční úkoly (TODO list)",
+        "prompt": (
+            "Z této schůzky vypiš JEN konkrétní akční položky pro obě strany. "
+            "Žádný úvod, žádné komentáře — jen seznam:\n\n"
+            "• Co dělám JÁ — s deadlinem (pokud zazněl)\n"
+            "• Co dělá KLIENT — s deadlinem (pokud zazněl)\n\n"
+            "Pokud byl zmíněn termín další schůzky, uveď ho nahoře "
+            "(„Další schůzka: …“)."
+        ),
+    },
+    "sales_client_profile": {
+        "label": "Profil klienta (data ze schůzky)",
+        "prompt": (
+            "Extrahuj ze schůzky všechna konkrétní data o klientovi do "
+            "strukturovaného profilu:\n\n"
+            "• OSOBNÍ — věk, rodinný stav, děti (počet, věk), zaměstnání, "
+            "lokalita\n"
+            "• FINANČNÍ — příjmy (čisté/hrubé/měsíční/roční), výdaje, "
+            "závazky (úvěry, hypotéky), úspory, investice (typ, výše)\n"
+            "• ŽIVOTNÍ CÍLE — co klient chce řešit (důchod, koupě bytu, "
+            "vzdělání dětí, ochrana příjmu, …) + horizonty (kdy)\n"
+            "• POSTOJ K RIZIKU — co řekl o své toleranci ke kolísání\n"
+            "• OSTATNÍ — současné produkty, vztah s předchozím poradcem, "
+            "preference komunikace\n\n"
+            "Jen co bylo SKUTEČNĚ řečeno. Když data chybí, napiš „neuvedeno“ "
+            "— neimprovizuj."
+        ),
+    },
 }
 
 
@@ -234,15 +285,23 @@ def template_prompt(key: str) -> str:
 def templates_for_role(role: str) -> dict[str, dict[str, str]]:
     """Vrátí jen šablony relevantní pro danou roli aplikace.
 
-    - "student": šablony bez prefixu "teacher_" — studijní materiály,
-      otázky k procvičení, shrnutí. (Student nevyužije "Reflexe hodiny"
-      nebo "Materiály k zaslání pro studenty" — to jsou učitelské akce.)
-    - "teacher": všechny šablony včetně teacher_* (učitel je v editoru
-      sice vidí přes akční karty, ale prompt_editor je v učitelském
-      režimu skrytý; vrátit všechno je tu defenzivní default).
+    - "student": jen obecné (student, quiz, summary) — bez teacher_* a sales_*.
+    - "teacher": teacher_* + obecné, bez sales_*.
+    - "sales":  sales_* + obecné (summary), bez teacher_* a student.
     """
     if role == "teacher":
-        return PROMPT_TEMPLATES
+        return {
+            k: v for k, v in PROMPT_TEMPLATES.items() if not k.startswith("sales_")
+        }
+    if role == "sales":
+        return {
+            k: v
+            for k, v in PROMPT_TEMPLATES.items()
+            if k.startswith("sales_") or k == "summary"
+        }
+    # student (default)
     return {
-        k: v for k, v in PROMPT_TEMPLATES.items() if not k.startswith("teacher_")
+        k: v
+        for k, v in PROMPT_TEMPLATES.items()
+        if not k.startswith("teacher_") and not k.startswith("sales_")
     }

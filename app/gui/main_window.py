@@ -387,6 +387,8 @@ class MainWindow(QMainWindow):
         """Vrátí subtitle pro Wordmark dle aktuální role."""
         if self._settings.app_role == "teacher":
             return "Pedagogický nástroj"
+        if self._settings.app_role == "sales":
+            return "Poznámky ze schůzek s klienty"
         return "Studijní poznámky z přednášek"
 
     def _show_fact_card_during_pipeline(self, running: bool) -> None:

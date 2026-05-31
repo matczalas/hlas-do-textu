@@ -3,6 +3,8 @@
 Uživatel vybírá mezi rolemi:
 - student (Safe4Future modrá #205ca8) — výchozí, optimalizováno pro studium
 - učitel (Original Teal #00897B) — pedagogický nástroj se 3 akčními kartami
+- sales/poradce (Burnt Orange #C2410C) — schůzky s klienty, akční úkoly,
+  data o klientovi, termín další schůzky (v1.6.0)
 
 Výsledek se uloží do AppSettings.app_role a je možné ji kdykoliv změnit
 v Nastavení. Po výběru se zavolá theme.apply_theme() s novou rolí.
@@ -33,7 +35,10 @@ class RolePickerDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Kdo aplikaci používá?")
-        self.setMinimumWidth(640)
+        # 3 karty potřebují víc šířky než 2; min 900 pro pohodu, na úzkém
+        # okně Qt automaticky scrollne / wrappne layout (kartám v HBoxLayoutu
+        # se zmenší šířka rovnoměrně).
+        self.setMinimumWidth(900)
         self.setModal(True)
         # Bez křížku v rohu — uživatel musí vybrat
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
@@ -63,9 +68,9 @@ class RolePickerDialog(QDialog):
 
         root.addSpacing(12)
 
-        # Dvě hero karty
+        # Tři hero karty
         cards = QHBoxLayout()
-        cards.setSpacing(16)
+        cards.setSpacing(14)
 
         student_card = self._build_card(
             role="student",
@@ -87,9 +92,20 @@ class RolePickerDialog(QDialog):
                 "a reflexi svého projevu."
             ),
         )
+        sales_card = self._build_card(
+            role="sales",
+            icon_name="clipboard",
+            accent=tokens.SALES_ACCENT,
+            title_text="Jsem poradce / sales",
+            desc=(
+                "Ze schůzek s klienty chci akční úkoly, data o klientovi "
+                "a termín další schůzky."
+            ),
+        )
 
         cards.addWidget(student_card, 1)
         cards.addWidget(teacher_card, 1)
+        cards.addWidget(sales_card, 1)
         root.addLayout(cards)
 
     # ------ Public API ------
