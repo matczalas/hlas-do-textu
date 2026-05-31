@@ -54,17 +54,20 @@ LIGHT = {
 }
 
 # --- Neutrály: TMAVÝ režim --------------------------------------------------
+# v1.4.2: zvýšen kontrast mezi window/base/border, aby karty nesplývaly
+# s pozadím. Předtím byl base jen 5 % světlejší než window — karty
+# a tlačítka v dark mode prakticky zmizely v Deep Ink pozadí.
 DARK = {
-    "window":        "#0A1628",   # Deep Ink
-    "base":          "#142540",   # Midnight (karty)
-    "alt_base":      "#192e4d",
-    "surface_2":     "#192e4d",
-    "surface_3":     "#1d3357",
-    "border":        "#243651",
-    "border_strong": "#33496a",
+    "window":        "#0A1628",   # Deep Ink (background)
+    "base":          "#1c2e4f",   # Karty/inputy — výrazněji světlejší než window
+    "alt_base":      "#243a5e",   # Log / status pill
+    "surface_2":     "#243a5e",
+    "surface_3":     "#2d456b",
+    "border":        "#3a5278",   # Border viditelný na window i base
+    "border_strong": "#5a7194",
     "text":          "#eef2f8",
-    "text_2":        "#9fb0c4",
-    "text_3":        "#637791",
+    "text_2":        "#bccada",   # Sekundární text — lepší WCAG kontrast
+    "text_3":        "#8295b0",   # Placeholder — světlejší (z #637791)
 }
 
 
