@@ -49,6 +49,49 @@ FACTS_STUDENT: list[tuple[str, str]] = [
     ),
 ]
 
+FACTS_SALES: list[tuple[str, str]] = [
+    (
+        "Behaviorální finance",
+        "Lidé preferují jistou ztrátu před nejistým ziskem stejné velikosti — "
+        "averze ke ztrátě. Promítá se do volby konzervativních produktů. "
+        "(Kahneman & Tversky, 1979)",
+    ),
+    (
+        "Psychologie klienta",
+        "Klient, který sám popíše svou situaci, si lépe pamatuje doporučení. "
+        "Říká se tomu „efekt vlastní produkce“ — necháš ho mluvit, drží mu to "
+        "lépe v hlavě.",
+    ),
+    (
+        "Studie",
+        "85 % schůzek, kde poradce mluví víc než 60 % času, končí bez prodeje. "
+        "(Gong.io research, 2019)",
+    ),
+    (
+        "Efekt ukotvení",
+        "První číslo na schůzce ovlivňuje všechny další úvahy. Když dáš příklad "
+        "300 000 Kč horizont, klient pak hodnotí každou alternativu vůči téhle "
+        "kotvě. (Tversky & Kahneman)",
+    ),
+    (
+        "Praktický tip",
+        "Otázka „Co tě motivuje“ vrátí floskule. Otázka „Jak bys poznal, že "
+        "už to máš vyřešené?“ vrátí konkrétní cíl, na který se dá navázat.",
+    ),
+    (
+        "Compliance",
+        "ZČOP §117c (KYC): u nového klienta musíš zaznamenat investiční profil "
+        "a poznat jeho zkušenosti a cíle ještě před nabídkou produktu. Tahle "
+        "appka ti to z přepisu vytáhne automaticky.",
+    ),
+    (
+        "Sales lore",
+        "„Lidi nekupují produkty, kupují příběh proč to potřebují.“ — Když "
+        "klient v zápisu mluví víc o budoucnosti než o cifrách, jdeš správně.",
+    ),
+]
+
+
 FACTS_TEACHER: list[tuple[str, str]] = [
     (
         "Behaviorální ekonomie",
@@ -87,7 +130,9 @@ FACTS_TEACHER: list[tuple[str, str]] = [
 
 
 def facts_for_role(role: str) -> list[tuple[str, str]]:
-    """Vrátí seznam faktů pro danou roli ("student" / "teacher")."""
+    """Vrátí seznam faktů pro danou roli ("student" / "teacher" / "sales")."""
     if role == "teacher":
         return FACTS_TEACHER
+    if role == "sales":
+        return FACTS_SALES
     return FACTS_STUDENT

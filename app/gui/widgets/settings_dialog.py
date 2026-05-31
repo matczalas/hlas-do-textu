@@ -339,6 +339,7 @@ class SettingsDialog(QDialog):
         self._role_combo.setMinimumHeight(36)
         self._role_combo.addItem("Student / žák (Safe4Future modrá)", userData="student")
         self._role_combo.addItem("Učitel/ka (Original Teal)", userData="teacher")
+        self._role_combo.addItem("Poradce / Sales (Burnt Orange)", userData="sales")
         for i in range(self._role_combo.count()):
             if self._role_combo.itemData(i) == self._settings.app_role:
                 self._role_combo.setCurrentIndex(i)
