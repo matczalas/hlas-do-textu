@@ -255,6 +255,7 @@ def _apply_update_windows(installer_path: Path) -> None:
     Windows nedovolí přepsat běžící `.exe`. Potřebujeme tedy:
     1. Spustit installer jako proces NEZÁVISLÝ na naší aplikaci (přežije náš exit).
     2. Dát aplikaci čas se ukončit, NEŽ installer začne kopírovat soubory.
+    3. Po dokončení installeru AUTOMATICKY spustit novou verzi.
 
     Historie bugu: dřívější verze používala `cmd /c "timeout /t 3 & start ..."`
     s `creationflags=CREATE_BREAKAWAY_FROM_JOB`. Na reálném Windows to padalo
@@ -264,14 +265,25 @@ def _apply_update_windows(installer_path: Path) -> None:
       - `CREATE_BREAKAWAY_FROM_JOB` vyhodí "Access denied", když proces běží
         v Job Objectu bez povoleného breakaway (časté u PyInstaller bundlu).
 
-    Nové řešení:
-      - delay přes `ping` (funguje i bez konzole/stdin, narozdíl od `timeout`),
-      - installer spuštěn přes `ShellExecuteW` (nativní Windows API — spustí
-        proces mimo náš Job Object bez potřeby breakaway flagu),
+    Stav v v1.7.1 — tichý update + auto-restart:
+      - `/VERYSILENT` místo `/SILENT` — žádné progress okno během instalace,
+        uživatel uvidí jen "app zmizela → nová app se otevřela".
+      - `/SUPPRESSMSGBOXES` — žádné Inno chyby v okně, jen v logu.
+      - `/NORESTART` — pojistka, ať se Windows neptá na restart systému.
+      - `installer/HlasDoTextu.iss` má dvojici [Run] entries — druhý
+        s `Check: WizardSilent` spustí novou .exe po VERYSILENT upgrade.
+      - delay přes `ping` (spolehlivé bez konzole/stdin),
+      - installer spuštěn přes `ShellExecuteW` (nativní Windows API —
+        proces mimo náš Job Object bez breakaway flagu),
       - pojistka: Inno Setup má `CloseApplications=yes` + `AppMutex`, takže
         i kdyby naše app ještě běžela, installer ji sám korektně zavře.
     """
     installer_str = str(installer_path)
+
+    # Flagy pro tichý update (v1.7.1): žádné progress okno, žádné chybové
+    # message boxy, žádný systém-restart prompt. Auto-restart aplikace řeší
+    # [Run] entry s Check: WizardSilent v .iss.
+    silent_flags = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
 
     # Wrapper .bat: počká přes `ping` (spolehlivé bez konzole), spustí installer
     # a sám se smaže. `ping -n 4` = ~3 s prodleva.
@@ -279,7 +291,7 @@ def _apply_update_windows(installer_path: Path) -> None:
     bat_content = (
         "@echo off\r\n"
         "ping 127.0.0.1 -n 4 >nul\r\n"
-        f'start "" "{installer_str}" /SILENT /SUPPRESSMSGBOXES /NORESTART\r\n'
+        f'start "" "{installer_str}" {silent_flags}\r\n'
         'del "%~f0"\r\n'
     )
     try:
@@ -289,7 +301,7 @@ def _apply_update_windows(installer_path: Path) -> None:
         bat_path = None
 
     target = str(bat_path) if bat_path is not None else installer_str
-    params = "" if bat_path is not None else "/SILENT /SUPPRESSMSGBOXES /NORESTART"
+    params = "" if bat_path is not None else silent_flags
 
     # 1) Primární cesta: ShellExecuteW (nejnativnější, neřeší Job Object).
     launched = _shellexecute(target, params)
@@ -312,7 +324,7 @@ def _apply_update_windows(installer_path: Path) -> None:
                 )
             else:
                 subprocess.Popen(
-                    [installer_str, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                    [installer_str, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
                     creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
                     close_fds=True,
                     cwd=str(Path.home()),

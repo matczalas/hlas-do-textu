@@ -3,7 +3,7 @@
 ; Sestavovat pomocí ISCC v CI runneru.
 
 #define MyAppName "Hlas do textu"
-#define MyAppVersion "1.7.0"
+#define MyAppVersion "1.7.1"
 #define MyAppPublisher "Safe4Future z. u."
 #define MyAppExeName "HlasDoTextu.exe"
 #define MyAppId "{{C0FE4F50-AF60-4F7E-8C0F-2A5B0E0E6F7A}}"
@@ -55,7 +55,13 @@ Name: "{group}\Odinstalovat {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Comment: "Hlas do textu — přepis a body z přednášek"
 
 [Run]
+; Interaktivní install (uživatel ručně spustil .exe): checkbox "Spustit Hlas do textu"
+; na poslední stránce. Default zaškrtnuto.
 Filename: "{app}\{#MyAppExeName}"; Description: "Spustit Hlas do textu"; Flags: nowait postinstall skipifsilent
+; Silent upgrade přes auto-updater: nová verze se po dokončení instalace
+; sama spustí (bez ptaní, bez okna). Inno funkce WizardSilent() vrátí True
+; když je proběhne /VERYSILENT mód — to je náš auto-update flow.
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait runascurrentuser; Check: WizardSilent
 
 ; ---------------------------------------------------------------------------
 ; CODE — vlastní stránky a uninstall handlery

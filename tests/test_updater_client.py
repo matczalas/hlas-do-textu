@@ -46,7 +46,9 @@ def test_apply_update_windows_uses_shellexecute_with_bat(fake_installer: Path) -
     content = bat.read_text(encoding="ascii")
     assert "ping" in content
     assert "timeout" not in content
-    assert "/SILENT" in content
+    # v1.7.1: /VERYSILENT (žádné progress okno) místo /SILENT (s oknem)
+    assert "/VERYSILENT" in content
+    assert "/SUPPRESSMSGBOXES" in content
 
 
 def test_apply_update_windows_falls_back_to_popen_without_breakaway(fake_installer: Path) -> None:
