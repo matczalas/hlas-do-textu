@@ -109,6 +109,18 @@ class MainWindow(QMainWindow):
         self._queue_index = 0
         self._queue_results: list = []
         self._queue_api_key = None
+        # Paralelní list job_id v JobQueueControlleru — pro každý JobConfig
+        # existuje jedno id, které controller drží jako JobState.
+        self._job_queue_ids: list[str] = []
+        # ID právě běžícího jobu (None pokud žádný neběží)
+        self._current_queue_job_id: str | None = None
+
+        # Queue controller — passive tracker pro QueuePanel UI.
+        # Nehne pipeline business logikou, jen sleduje stavy přes add_job/
+        # start_job/update_progress/finish_job/error_job.
+        from app.gui.job_queue import JobQueueController
+
+        self._job_controller = JobQueueController(self)
 
         self._tray = self._init_tray()
 
@@ -236,6 +248,16 @@ class MainWindow(QMainWindow):
         root.addLayout(self._build_output_row())
         self._progress = ProgressPanel()
         root.addWidget(self._progress, 1)
+
+        # ---- Queue panel (sekvenční fronta dávkových jobů) -------------
+        # Zobrazí se sám, když controller.jobs() není prázdný. Pro single
+        # job je skrytý (ProgressPanel vyše stačí).
+        from app.gui.widgets.queue_panel import QueuePanel
+
+        self._queue_panel = QueuePanel(self._job_controller)
+        self._queue_panel.cancel_requested.connect(self._on_queue_cancel)
+        self._queue_panel.open_requested.connect(self._open_file)
+        root.addWidget(self._queue_panel)
 
         # ---- Fact card "Než to doběhne" — viditelná během běhu pipeline -
         from app.gui.widgets.fact_card import FactCard
@@ -580,7 +602,7 @@ class MainWindow(QMainWindow):
         )
         self._progress.cancel_button.clicked.connect(self._on_cancel_clicked)
 
-        self._pipeline_worker.progress.connect(self._progress.update)
+        self._pipeline_worker.progress.connect(self._on_pipeline_progress)
         self._pipeline_worker.transcript_text.connect(self._progress.append_transcript_line)
         self._pipeline_worker.cloud_fallback.connect(self._on_cloud_fallback)
         self._pipeline_worker.finished_ok.connect(self._on_pipeline_ok)
@@ -1036,7 +1058,7 @@ class MainWindow(QMainWindow):
         return None
 
     def _build_job_queue(self, sources, mode: JobMode, batch_mode: str) -> None:
-        """Naplní self._job_queue podle batch módu."""
+        """Naplní self._job_queue podle batch módu + paralelně controller IDs."""
         common = dict(
             user_prompt=self._prompt_editor.text(),
             output_dir=Path(self._settings.output_dir),
@@ -1057,11 +1079,31 @@ class MainWindow(QMainWindow):
         self._queue_index = 0
         self._queue_results = []
 
+        # Vyčistit předchozí "done" stavy v controlleru, ať nezůstávají v panelu
+        # mezi runy.
+        self._job_controller.clear_done()
+        # Pro každý JobConfig přidat record do controlleru (status="queued")
+        self._job_queue_ids = []
+        for job in self._job_queue:
+            # Label = první source (pro batch "jedna nahrávka = jeden job")
+            label = job.sources[0].label if job.sources else "Projekt"
+            file_path = job.sources[0].path if job.sources else Path("")
+            # Detekce reuse: existuje-li již .txt přepis vedle plánovaného .docx,
+            # můžeme pipeline jen regenerovat AI body (kratší, levnější).
+            # Pro v1.3.0 jen značíme — pipeline.py reuse zatím sám neimplementuje.
+            cached = self._detect_cached_transcript(file_path)
+            job_id = self._job_controller.add_job(label, file_path, cached=cached)
+            self._job_queue_ids.append(job_id)
+
     def _start_next_job(self) -> None:
         """Spustí další job z fronty, nebo finalizuje, když je prázdná."""
         if not self._job_queue:
             return
         job = self._job_queue.pop(0)
+        # Z paralelního listu vytáhnout odpovídající controller id
+        self._current_queue_job_id = (
+            self._job_queue_ids.pop(0) if self._job_queue_ids else None
+        )
         self._queue_index += 1
         if self._queue_total > 1:
             self._progress.append_message(
@@ -1072,6 +1114,8 @@ class MainWindow(QMainWindow):
         self._progress.set_batch_position(self._queue_index, self._queue_total)
         self._progress.set_busy(True)
         self._show_fact_card_during_pipeline(True)
+        if self._current_queue_job_id:
+            self._job_controller.start_job(self._current_queue_job_id)
         self._run_btn.setEnabled(False)
         self._run_current_job(job)
 
@@ -1122,10 +1166,59 @@ class MainWindow(QMainWindow):
                 8000,
             )
 
+    def _on_pipeline_progress(self, status: str, fraction: float) -> None:
+        """Wrapper progress → ProgressPanel + JobQueueController."""
+        self._progress.update(status, fraction)
+        if self._current_queue_job_id:
+            self._job_controller.update_progress(
+                self._current_queue_job_id, status, fraction
+            )
+
+    def _on_queue_cancel(self, job_id: str) -> None:
+        """Klik na X v QueueItem — buď zruší running job, nebo odebere z fronty."""
+        # Pokud je to právě běžící job → cancel přes pipeline_worker
+        if job_id == self._current_queue_job_id:
+            self._on_cancel_clicked()
+            return
+        # Jinak hledat v queued/budoucích jobech a odebrat
+        if job_id in self._job_queue_ids:
+            idx = self._job_queue_ids.index(job_id)
+            # Synchronní pop z obou paralelních listů
+            self._job_queue_ids.pop(idx)
+            if idx < len(self._job_queue):
+                self._job_queue.pop(idx)
+            # Update queue_total aby ProgressPanel ukazoval správně "X/N"
+            self._queue_total = max(0, self._queue_total - 1)
+        self._job_controller.cancel_job(job_id)
+
+    def _detect_cached_transcript(self, file_path: Path) -> bool:
+        """Heuristika: zkontroluje, jestli vedle plánovaného .docx existuje
+        sourozenecký .txt přepis ze předchozího runu. Když ano, mohli bychom
+        v budoucnu pipeline zkrátit. Pro v1.3.0 jen indikace v UI.
+        """
+        try:
+            output_dir = Path(self._settings.output_dir)
+            if not output_dir.is_dir():
+                return False
+            stem = file_path.stem
+            # Hledat v output dir libovolný .txt obsahující stem zdroje
+            for candidate in output_dir.glob("*.txt"):
+                if stem in candidate.stem:
+                    return True
+        except OSError:
+            pass
+        return False
+
     def _on_pipeline_ok(self, result) -> None:
         self._progress.set_busy(False)
         self._show_fact_card_during_pipeline(False)
         self._refresh_run_button()
+        # Označit aktuální controller job jako done
+        if self._current_queue_job_id:
+            self._job_controller.finish_job(
+                self._current_queue_job_id, result.output_path
+            )
+            self._current_queue_job_id = None
         self._progress.append_message(f"✅ Hotovo. Výstup: {result.output_path}")
         self._add_to_recents(result.output_path)
         # Uložíme si poslední výsledek pro chat (potřebuje plný kontext).
@@ -1301,6 +1394,18 @@ class MainWindow(QMainWindow):
         self._progress.set_busy(False)
         self._show_fact_card_during_pipeline(False)
         self._refresh_run_button()
+        # Označit aktuální controller job jako error / cancelled
+        if self._current_queue_job_id:
+            if cancelled:
+                self._job_controller.cancel_job(self._current_queue_job_id)
+            else:
+                self._job_controller.error_job(self._current_queue_job_id, message)
+            self._current_queue_job_id = None
+        # Pokud user zrušil dávku, označit i zbytek queued jobů jako cancelled
+        if cancelled:
+            for jid in self._job_queue_ids:
+                self._job_controller.cancel_job(jid)
+            self._job_queue_ids = []
 
         # Cancel zastaví celou dávku (uživatel to chtěl).
         if cancelled:
