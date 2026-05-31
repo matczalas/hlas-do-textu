@@ -77,3 +77,5 @@ test_samples/*.vtt
 test_samples/*.srt
 test_samples/whisper_output.txt
 test_samples/ground_truth_*.txt
+# Manuální výstupy z dev runů aplikace — .docx, .txt přepisy
+test_samples/manual_outputs/
