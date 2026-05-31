@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.core.ai.prompts import PROMPT_TEMPLATES
+from app.core.ai.prompts import templates_for_role
 from app.gui.styles import tokens
 
 _CHIPS = [
@@ -29,10 +29,19 @@ _CHIPS = [
 
 
 class PromptEditor(QGroupBox):
-    """Textarea + rychlé chipy. Žádný heading — placeholder vysvětluje."""
+    """Textarea + rychlé chipy. Žádný heading — placeholder vysvětluje.
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    Šablony v dropdownu se filtrují podle role aplikace — student nevidí
+    učitelské šablony (Reflexe hodiny, Materiály pro studenty, atd.).
+    """
+
+    def __init__(
+        self,
+        role: str = "student",
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__("", parent)
+        self._role = role
         self.setObjectName("PromptCard")
         self.setStyleSheet(
             "QGroupBox#PromptCard { background: transparent; border: none; "
@@ -53,9 +62,7 @@ class PromptEditor(QGroupBox):
 
         self._template_combo = QComboBox()
         self._template_combo.setMinimumHeight(32)
-        self._template_combo.addItem("— vlastní zadání —", userData="")
-        for key, tpl in PROMPT_TEMPLATES.items():
-            self._template_combo.addItem(tpl["label"], userData=key)
+        self._populate_templates()
         self._template_combo.currentIndexChanged.connect(self._on_template_changed)
         tpl_row.addWidget(self._template_combo, 1)
         outer.addLayout(tpl_row)
@@ -83,6 +90,22 @@ class PromptEditor(QGroupBox):
 
         # Aplikuj inline styly s aktuálním accentem.
         self._apply_inline_styles()
+
+    def _populate_templates(self) -> None:
+        """Naplní dropdown podle aktuální role."""
+        self._template_combo.blockSignals(True)
+        self._template_combo.clear()
+        self._template_combo.addItem("— vlastní zadání —", userData="")
+        for key, tpl in templates_for_role(self._role).items():
+            self._template_combo.addItem(tpl["label"], userData=key)
+        self._template_combo.blockSignals(False)
+
+    def set_role(self, role: str) -> None:
+        """Po změně role aplikace přefiltrovat dropdown."""
+        if role == self._role:
+            return
+        self._role = role
+        self._populate_templates()
 
     def _apply_inline_styles(self) -> None:
         accent = tokens.accent()
