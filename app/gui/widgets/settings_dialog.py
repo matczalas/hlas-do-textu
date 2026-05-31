@@ -117,7 +117,11 @@ class SettingsDialog(QDialog):
     def __init__(self, settings: AppSettings, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Nastavení")
-        self.setMinimumSize(820, 560)
+        # v1.5.0: min size sníženo (810x540 → 640x500) pro malé monitory
+        # a split-screen módy. QScrollArea v každém tabu zaručí, že content
+        # se neořeže — viz _page_container().
+        self.setMinimumSize(640, 500)
+        self.resize(820, 560)
         self._settings = settings
 
         # Outer layout: header + body (sidebar + stack) + footer
@@ -205,11 +209,37 @@ class SettingsDialog(QDialog):
     # ====================================================================
 
     def _page_container(self) -> tuple[QWidget, QVBoxLayout]:
-        """Vrátí scrollovatelný container pro tab content + jeho layout."""
+        """Vrátí scrollovatelný container pro tab content + jeho layout.
+
+        Obsah je QScrollArea (s viewport widgetem) — když má dialog menší
+        výšku než obsah taby, uživatel může scrollovat. Vrácený layout je
+        v inner widgetu scrollu.
+        """
+        from PySide6.QtCore import Qt as _Qt
+        from PySide6.QtWidgets import QScrollArea
+
+        # Outer page (vyplňuje stack)
         page = QWidget()
-        lay = QVBoxLayout(page)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # Scrollovatelný viewport
+        scroll = QScrollArea(page)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(_Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
+        outer.addWidget(scroll, 1)
+
+        inner = QWidget()
+        lay = QVBoxLayout(inner)
         lay.setContentsMargins(28, 22, 28, 22)
         lay.setSpacing(12)
+        scroll.setWidget(inner)
+
         return page, lay
 
     # ---- AI tab ---------------------------------------------------------

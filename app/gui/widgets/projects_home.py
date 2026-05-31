@@ -176,6 +176,11 @@ class ProjectsHome(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
+        # Stav pro responsive grid — drží poslední seznam path-ů, aby resizeEvent
+        # mohl re-render bez nutnosti znovu volat refresh() z venku.
+        self._last_paths: list[Path] = []
+        self._current_cols: int = 2
+
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(16)
@@ -232,14 +237,8 @@ class ProjectsHome(QWidget):
 
     def refresh(self, recent_outputs: list[str]) -> None:
         """Přerender mřížky podle aktuálních recent_outputs."""
-        # Vyčistit grid
-        while self._grid.count():
-            item = self._grid.takeAt(0)
-            widget = item.widget() if item is not None else None
-            if widget is not None:
-                widget.deleteLater()
-
         valid_paths = self._filter_valid(recent_outputs)
+        self._last_paths = valid_paths
 
         if not valid_paths:
             # Empty state
@@ -255,23 +254,61 @@ class ProjectsHome(QWidget):
         self._count_label.setText(
             f"{len(valid_paths)} projektů · vrať se ke kterémukoliv"
         )
+        self._render_grid()
 
-        # Karty do mřížky 2 sloupců
-        for index, path in enumerate(valid_paths):
+    def _render_grid(self) -> None:
+        """Vykreslí mřížku karet s aktuálním počtem sloupců.
+
+        Počet sloupců závisí na šířce widgetu (1/2/3) — responsive layout.
+        Volá se z refresh() i z resizeEvent() při změně velikosti okna.
+        """
+        # Vyčistit existující widgety
+        while self._grid.count():
+            item = self._grid.takeAt(0)
+            w = item.widget() if item is not None else None
+            if w is not None:
+                w.deleteLater()
+
+        cols = self._compute_columns()
+        # Karty
+        for index, path in enumerate(self._last_paths):
             card = self._make_project_card(path)
-            row = index // 2
-            col = index % 2
+            row = index // cols
+            col = index % cols
             self._grid.addWidget(card, row, col)
 
         # "Nový projekt" karta jako poslední
         new_card = _NewProjectCard()
         new_card.clicked.connect(self.new_project_requested.emit)
-        next_index = len(valid_paths)
-        self._grid.addWidget(new_card, next_index // 2, next_index % 2)
+        next_index = len(self._last_paths)
+        self._grid.addWidget(new_card, next_index // cols, next_index % cols)
 
-        # Stretch poslední sloupec aby karty nevisely na konci
-        self._grid.setColumnStretch(0, 1)
-        self._grid.setColumnStretch(1, 1)
+        # Stretch všechny použité sloupce rovnoměrně
+        for c in range(cols):
+            self._grid.setColumnStretch(c, 1)
+        # Reset stretch sloupců co už nepoužíváme
+        for c in range(cols, 4):
+            self._grid.setColumnStretch(c, 0)
+
+    def _compute_columns(self) -> int:
+        """Responsive: 1 sloupec pod 640px, 2 do 1100px, 3 nad 1100px."""
+        w = self.width()
+        if w < 640:
+            return 1
+        if w < 1100:
+            return 2
+        return 3
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        """Při resize widgetu přepočítat počet sloupců a re-render."""
+        super().resizeEvent(event)
+        # Re-render jen pokud máme co renderovat a počet sloupců se změnil
+        if not self._last_paths:
+            return
+        new_cols = self._compute_columns()
+        if new_cols != self._current_cols:
+            self._current_cols = new_cols
+            self._render_grid()
 
     # ------ Internal ------
 
