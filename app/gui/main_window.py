@@ -78,7 +78,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Hlas do textu — Safe4Future")
         self.resize(1080, 800)
-        self.setMinimumSize(960, 720)
+        # Min size sníženo v1.5.0, aby aplikace fungovala na 13" MacBooku
+        # při split-screen (zhruba 720×600). Vnitřní QScrollArea zaručí,
+        # že content nikdy nevypadne za viewport.
+        self.setMinimumSize(720, 560)
         # Drop zóna je explicitní v UI, ale uživatelé instinktivně přetahují
         # soubor kamkoliv. Akceptujeme drop i mimo zóny — pak je předáme
         # standardní cestou přes _on_sources_added.
@@ -190,10 +193,35 @@ class MainWindow(QMainWindow):
         self._projects_home.project_opened.connect(self._open_file)
         self._page_stack.addWidget(self._projects_home)  # index 0
 
+        # Editor page je QScrollArea obalující skutečný content — když má
+        # okno menší výšku než content (typicky učitel režim se 3 kartami
+        # + queue panel), uživatel může scrollovat. Bez tohoto se content
+        # ořeže a tlačítka pod fold nejsou dostupná.
+        from PySide6.QtWidgets import QScrollArea
+
         self._editor_page = QWidget()
-        editor_root = QVBoxLayout(self._editor_page)
-        editor_root.setContentsMargins(0, 0, 0, 0)
+        editor_outer = QVBoxLayout(self._editor_page)
+        editor_outer.setContentsMargins(0, 0, 0, 0)
+        editor_outer.setSpacing(0)
+
+        self._editor_scroll = QScrollArea()
+        self._editor_scroll.setWidgetResizable(True)
+        self._editor_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._editor_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._editor_scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+        )
+
+        editor_content = QWidget()
+        editor_root = QVBoxLayout(editor_content)
+        editor_root.setContentsMargins(0, 0, 4, 0)  # +4 right pro scrollbar
         editor_root.setSpacing(14)
+
+        self._editor_scroll.setWidget(editor_content)
+        editor_outer.addWidget(self._editor_scroll, 1)
+
         self._page_stack.addWidget(self._editor_page)  # index 1
 
         root.addWidget(self._page_stack, 1)
