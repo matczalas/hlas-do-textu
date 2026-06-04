@@ -27,6 +27,7 @@ class _Runner(QObject):
         gemini_api_key: str | None,
         ai_consent_gemini: bool,
         prefer_offline: bool,
+        template_key: str = "student",
     ) -> None:
         super().__init__()
         self._txt_path = txt_path
@@ -35,6 +36,7 @@ class _Runner(QObject):
         self._gemini_api_key = gemini_api_key
         self._ai_consent_gemini = ai_consent_gemini
         self._prefer_offline = prefer_offline
+        self._template_key = template_key
 
     def run(self) -> None:
         try:
@@ -45,6 +47,7 @@ class _Runner(QObject):
                 gemini_api_key=self._gemini_api_key,
                 ai_consent_gemini=self._ai_consent_gemini,
                 prefer_offline=self._prefer_offline,
+                template_key=self._template_key,
                 progress_cb=lambda lbl, frac: self.progress.emit(lbl, frac),
             )
             self.finished_ok.emit(result)
@@ -75,6 +78,7 @@ class RegenerateWorker(QObject):
         gemini_api_key: str | None,
         ai_consent_gemini: bool,
         prefer_offline: bool,
+        template_key: str = "student",
     ) -> None:
         if self._thread is not None and self._thread.isRunning():
             return
@@ -86,6 +90,7 @@ class RegenerateWorker(QObject):
             gemini_api_key,
             ai_consent_gemini,
             prefer_offline,
+            template_key,
         )
         self._runner.moveToThread(self._thread)
         self._thread.started.connect(self._runner.run)

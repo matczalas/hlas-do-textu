@@ -29,8 +29,9 @@ from typing import Literal
 
 from loguru import logger
 
+from app.core.ai.parsing import parse_sections, populate_legacy_aliases
 from app.core.ai.router import AIRouter
-from app.core.models import SlideText, StudyMaterial, Transcript
+from app.core.models import SlideText, StudyMaterial, StudySection, Transcript
 
 # ---------------------------------------------------------------------------
 # Datové struktury
@@ -71,33 +72,40 @@ class ChatResponse:
 # ---------------------------------------------------------------------------
 
 CHAT_SYSTEM_PROMPT = (
-    "Jsi asistent pro českou studentku, která pracuje s vyrobeným studijním "
-    "materiálem z přepisu přednášky. Tvým úkolem je pomoct jí upravovat tento "
-    "materiál na míru: stručnější body, otázky k procvičení, vysvětlení pojmů, "
-    "doplnění příkladů z přepisu, atd.\n\n"
-    "Máš v každé zprávě k dispozici plný přepis přednášky, slidy (pokud byly) "
-    "a aktuální studijní materiál. Drž se přepisu, nevymýšlej si.\n\n"
-    "Můžeš odpovědět dvěma způsoby:\n\n"
-    "1) **Jen text** — když se uživatelka ptá na něco, vysvětluješ pojem nebo "
-    "diskutuješ. Žádný JSON, jen normální česká věta(y).\n\n"
-    "2) **Návrh změny dokumentu** — když uživatelka žádá úpravu (\"stručněji\", "
-    "\"přidej otázky\", \"setřiď podle času\"). Pak vrať odpověď VÝHRADNĚ "
-    "ve formátu:\n\n"
+    "Jsi asistent, který pomáhá uživateli upravovat strukturovaný materiál "
+    "(studijní zápis, zápis ze schůzky, otázky ke zkoušení, reflexi hodiny). "
+    "V každé zprávě máš plný přepis zdroje, slidy (pokud byly) a aktuální "
+    "verzi materiálu rozdělenou do pojmenovaných sekcí.\n\n"
+    "Materiál má strukturu:\n"
+    '  - "title": název materiálu\n'
+    '  - "topic": téma (1-2 slova)\n'
+    '  - "sections": pole sekcí, každá má "title", "kind" a "items"\n\n'
+    "Možné hodnoty kind a tvary items:\n"
+    '  - "bullets"     → items = ["řádek 1", "řádek 2", ...]\n'
+    '  - "paragraph"   → items = ["odstavec 1", "odstavec 2", ...]\n'
+    '  - "definitions" → items = [["pojem", "definice"], ...]\n'
+    '  - "qa"          → items = [["otázka", "vzorová odpověď"], ...]\n'
+    '  - "key_value"   → items = [["klíč", "hodnota"], ...]\n\n'
+    "Odpovídej dvěma způsoby:\n\n"
+    "1) **Jen text** — když se uživatel ptá nebo diskutuje. Žádný JSON, jen "
+    "normální česká věta(y).\n\n"
+    "2) **Návrh změny dokumentu** — když uživatel žádá úpravu („přidej sekci“, "
+    "„zkrať body“, „doplň otázky“). Vrať odpověď VÝHRADNĚ ve formátu:\n\n"
     "```json\n"
     "{\n"
     '  "summary": "Co konkrétně se změnilo (1 česká věta).",\n'
     '  "updated_material": {\n'
     '    "title": "...",\n'
-    '    "bullets": ["bod 1", "bod 2", ...],\n'
-    '    "terms": [["pojem", "definice"], ...],\n'
-    '    "examples": ["příklad 1", ...],\n'
-    '    "further_study": ["doporučení 1", ...]\n'
+    '    "topic": "...",\n'
+    '    "sections": [\n'
+    '      { "title": "...", "kind": "bullets", "items": ["..."] }\n'
+    "    ]\n"
     "  }\n"
     "}\n"
     "```\n\n"
-    "Vrať **buď text NEBO JSON**, nikdy obojí v jedné odpovědi. JSON přesně "
-    "v tomto formátu, jinak ho uživatelka neuvidí.\n\n"
-    "Píšeš česky s diakritikou, stručně a přesně."
+    "Vrať **buď text NEBO JSON**, nikdy obojí naráz. JSON musí být validní, "
+    "jinak ho uživatel neuvidí. Drž se přepisu, nevymýšlej si fakta. "
+    "Píšeš česky s diakritikou, stručně a věcně."
 )
 
 
@@ -177,13 +185,7 @@ def build_chat_prompt(
     ).strip()
 
     material_json = json.dumps(
-        {
-            "title": current_material.title,
-            "bullets": list(current_material.bullets),
-            "terms": [list(t) for t in current_material.terms],
-            "examples": list(current_material.examples),
-            "further_study": list(current_material.further_study),
-        },
+        _material_to_payload(current_material),
         ensure_ascii=False,
         indent=2,
     )
@@ -213,6 +215,24 @@ def build_chat_prompt(
         parts.append(history_text)
     parts += ["", "NOVÝ POŽADAVEK UŽIVATELKY:", user_message]
     return "\n".join(parts)
+
+
+def _material_to_payload(material: StudyMaterial) -> dict:
+    """Seriálizuje material pro vložení do promptu — preferuje sections."""
+    sections_payload: list[dict] = []
+    for section in material.iter_sections():
+        sections_payload.append(
+            {
+                "title": section.title,
+                "kind": section.kind,
+                "items": [list(it) if isinstance(it, tuple) else it for it in section.items],
+            }
+        )
+    return {
+        "title": material.title,
+        "topic": material.topic,
+        "sections": sections_payload,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -303,8 +323,24 @@ def _extract_proposal_json(raw: str):
 
 
 def _parse_material(data: dict, *, fallback: StudyMaterial) -> StudyMaterial:
-    """Z dict (jak vrátil model) vyrobí StudyMaterial. Tolerantní k chybějícím polím."""
+    """Z dict (jak vrátil model) vyrobí StudyMaterial.
+
+    Akceptuje nový sekce-aware formát i starý plochý formát s bullets/terms.
+    Tolerantní k chybějícím polím.
+    """
     title = str(data.get("title") or fallback.title or "Studijní materiál").strip()
+    topic = str(data.get("topic") or fallback.topic or "").strip()
+
+    # Nový sekce formát?
+    sections_raw = data.get("sections")
+    if isinstance(sections_raw, list) and sections_raw:
+        sections = parse_sections(sections_raw)
+        material = StudyMaterial(title=title, topic=topic, sections=sections)
+        populate_legacy_aliases(material)
+        return material
+
+    # Starý plochý formát (zachováno kvůli backward compat — model může
+    # odpovědět starým schématem, zejména menší lokální modely).
     bullets_raw = data.get("bullets") or []
     bullets = [str(b).strip() for b in bullets_raw if str(b).strip()]
 
@@ -333,15 +369,24 @@ def _parse_material(data: dict, *, fallback: StudyMaterial) -> StudyMaterial:
     if not quiz:
         quiz = list(fallback.quiz_questions)
 
-    # Téma zachováme z fallbacku, pokud ho model nevrátil (chat ho obvykle nemění)
-    topic = str(data.get("topic") or fallback.topic or "").strip()
-
     return StudyMaterial(
         title=title,
+        topic=topic,
         bullets=bullets,
         terms=terms,
         examples=examples,
         further_study=further,
         quiz_questions=quiz,
-        topic=topic,
     )
+
+
+# Re-export pro testy
+__all__ = [
+    "ChatMessage",
+    "ChatProposal",
+    "ChatResponse",
+    "ChatSession",
+    "StudySection",
+    "build_chat_prompt",
+    "parse_chat_response",
+]

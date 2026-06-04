@@ -3,6 +3,16 @@
 from __future__ import annotations
 
 from app.core.ai.router import _parse_study_material, _safe_parse_json
+from app.core.models import (
+    SECTION_KIND_BULLETS,
+    SECTION_KIND_DEFINITIONS,
+    SECTION_KIND_KEY_VALUE,
+    SECTION_KIND_QA,
+)
+
+# ---------------------------------------------------------------------------
+# Starý plochý formát (backward compat)
+# ---------------------------------------------------------------------------
 
 
 def test_parse_clean_json():
@@ -70,8 +80,295 @@ def test_safe_parse_returns_none_for_garbage():
 
 
 def test_parse_fallback_when_no_json():
-    """Když AI vrátí nestrukturovaný text, dáme ho do bullets."""
+    """Když AI vrátí nestrukturovaný text, dáme ho jako jednu bullet sekci."""
     raw = "Nějaký dlouhý text bez JSON struktury."
     mat = _parse_study_material(raw)
-    assert mat.bullets == [raw.strip()[:1000]]
+    # Text musí být dosažitelný přes iter_sections
+    rendered = [it for sec in mat.iter_sections() for it in sec.items]
+    assert raw in rendered
     assert mat.title  # nějaký default titul
+
+
+# ---------------------------------------------------------------------------
+# Nový sekce-aware formát
+# ---------------------------------------------------------------------------
+
+
+def test_parse_sections_basic():
+    raw = """{
+        "title": "Sales schůzka",
+        "topic": "Finance",
+        "sections": [
+            {"title": "Úkoly pro mě", "kind": "key_value",
+             "items": [["Připravit nabídku", "do pátku"], ["Zavolat klientovi", "neuvedeno"]]},
+            {"title": "Profil klienta", "kind": "key_value",
+             "items": [["Věk", "42"], ["Děti", "2"]]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    assert mat.title == "Sales schůzka"
+    assert mat.topic == "Finance"
+    assert len(mat.sections) == 2
+    assert mat.sections[0].title == "Úkoly pro mě"
+    assert mat.sections[0].kind == SECTION_KIND_KEY_VALUE
+    assert mat.sections[0].items == [
+        ("Připravit nabídku", "do pátku"),
+        ("Zavolat klientovi", "neuvedeno"),
+    ]
+
+
+def test_parse_sections_all_kinds():
+    raw = """{
+        "title": "Test všech kindů",
+        "sections": [
+            {"title": "Body", "kind": "bullets", "items": ["a", "b"]},
+            {"title": "Pojmy", "kind": "definitions", "items": [["X", "význam X"]]},
+            {"title": "Otázky", "kind": "qa", "items": [["Co?", "Odpověď."]]},
+            {"title": "Klíče", "kind": "key_value", "items": [["k", "v"]]},
+            {"title": "Odstavec", "kind": "paragraph", "items": ["první odstavec"]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    assert len(mat.sections) == 5
+    assert [s.kind for s in mat.sections] == [
+        "bullets",
+        "definitions",
+        "qa",
+        "key_value",
+        "paragraph",
+    ]
+
+
+def test_parse_sections_tolerates_dict_items():
+    """Model může vrátit položky jako dict — parser je zploští na tuple."""
+    raw = """{
+        "title": "T",
+        "sections": [
+            {"title": "Pojmy", "kind": "definitions",
+             "items": [{"pojem": "alfa", "definice": "první"},
+                       {"term": "beta", "definition": "druhý"}]},
+            {"title": "Otázky", "kind": "qa",
+             "items": [{"question": "Q?", "answer": "A."},
+                       {"otázka": "Co?", "odpověď": "tak."}]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    defs = mat.sections[0]
+    assert defs.items == [("alfa", "první"), ("beta", "druhý")]
+    qa = mat.sections[1]
+    assert qa.items == [("Q?", "A."), ("Co?", "tak.")]
+
+
+def test_parse_sections_unknown_kind_falls_to_bullets():
+    raw = """{
+        "title": "T",
+        "sections": [
+            {"title": "Cokoli", "kind": "neexistuje_kind", "items": ["a", "b"]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    # __post_init__ normalizuje neznámý kind na bullets
+    assert mat.sections[0].kind == SECTION_KIND_BULLETS
+    assert mat.sections[0].items == ["a", "b"]
+
+
+def test_parse_sections_skips_empty_items():
+    """Prázdné items (např. {} v listu) se nevypíší do sekce."""
+    raw = """{
+        "title": "T",
+        "sections": [
+            {"title": "Body", "kind": "bullets", "items": ["valid", "", null]},
+            {"title": "Pojmy", "kind": "definitions", "items": [["", ""], ["A", "B"]]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    assert mat.sections[0].items == ["valid"]
+    # ("", "") odfiltruje coerce_pair (návrat None)
+    assert mat.sections[1].items == [("A", "B")]
+
+
+def test_parse_sections_populates_legacy_aliases():
+    """Sekce-aware výstup naplní i legacy `terms`/`quiz_questions` (kvůli chatu)."""
+    raw = """{
+        "title": "T",
+        "sections": [
+            {"title": "Klíčové pojmy", "kind": "definitions",
+             "items": [["foton", "kvant světla"]]},
+            {"title": "Otázky", "kind": "qa",
+             "items": [["Co je foton?", "Kvant elektromagnetického pole."]]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    assert mat.terms == [("foton", "kvant světla")]
+    assert mat.quiz_questions == ["Co je foton?"]
+
+
+def test_parse_empty_sections_fallback_to_notice():
+    """Sections array prázdný / všechny sekce bez items → informativní poznámka."""
+    raw = '{"title": "T", "sections": [{"title": "X", "kind": "bullets", "items": []}]}'
+    mat = _parse_study_material(raw)
+    # iter_sections musí vrátit aspoň informativní poznámku
+    items = [it for sec in mat.iter_sections() for it in sec.items]
+    assert items, "Fallback poznámka musí být přítomná"
+
+
+def test_parse_sections_with_qa_question_only():
+    """QA s prázdnou vzorovou odpovědí — má mít prázdný string místo errored hodnoty."""
+    raw = """{
+        "title": "T",
+        "sections": [
+            {"title": "Otázky", "kind": "qa",
+             "items": [["Co je síla?", ""]]}
+        ]
+    }"""
+    mat = _parse_study_material(raw)
+    assert mat.sections[0].items == [("Co je síla?", "")]
+
+
+# ---------------------------------------------------------------------------
+# Schémata sekcí jsou definovaná pro všechny šablony
+# ---------------------------------------------------------------------------
+
+
+def test_section_schemas_cover_all_templates():
+    """Každá šablona v PROMPT_TEMPLATES má vlastní schéma sekcí."""
+    from app.core.ai.prompts import PROMPT_TEMPLATES, SECTION_SCHEMAS
+
+    for key in PROMPT_TEMPLATES:
+        assert key in SECTION_SCHEMAS, (
+            f"Šablona '{key}' nemá schéma sekcí v SECTION_SCHEMAS"
+        )
+        assert SECTION_SCHEMAS[key], f"Schéma pro '{key}' je prázdné"
+
+
+def test_sales_schema_uses_key_value_and_paragraph():
+    """Sales schůzka má smysl jen s key_value a paragraph — žádné quiz/definice."""
+    from app.core.ai.prompts import SECTION_SCHEMAS
+
+    specs = SECTION_SCHEMAS["sales_meeting"]
+    kinds = {spec.kind for spec in specs}
+    # Musí být alespoň jedna key_value sekce a alespoň jedna paragraph
+    assert SECTION_KIND_KEY_VALUE in kinds
+    assert "paragraph" in kinds
+    # A naopak — pro sales nedává smysl QA/definice
+    assert SECTION_KIND_QA not in kinds
+    assert SECTION_KIND_DEFINITIONS not in kinds
+
+
+def test_build_reduce_prompt_includes_template_sections():
+    """Reduce prompt pro sales_meeting obsahuje sales-specifické sekce, ne studentské."""
+    from app.core.ai.prompts import build_reduce_prompt
+
+    prompt = build_reduce_prompt(
+        "test",
+        "mapped",
+        "slidy",
+        template_key="sales_meeting",
+    )
+    assert "Úkoly pro mě" in prompt
+    assert "Profil klienta" in prompt
+    # Studentské sekce tam být nesmí
+    assert "Hlavní body k zapamatování" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# Nové šablony — pokrytí jejich schémat
+# ---------------------------------------------------------------------------
+
+
+def test_new_templates_have_schemas():
+    """Nové šablony (v1.7) mají vlastní schéma sekcí."""
+    from app.core.ai.prompts import PROMPT_TEMPLATES, SECTION_SCHEMAS
+
+    new_keys = (
+        "sales_followup_email",
+        "sales_objection_log",
+        "student_flashcards",
+        "student_language_vocab",
+        "teacher_parent_summary",
+        "teacher_next_lesson_plan",
+        "meeting_minutes",
+    )
+    for key in new_keys:
+        assert key in PROMPT_TEMPLATES, f"Šablona '{key}' chybí v PROMPT_TEMPLATES"
+        assert key in SECTION_SCHEMAS, f"Schéma pro '{key}' chybí"
+        assert SECTION_SCHEMAS[key], f"Schéma pro '{key}' je prázdné"
+
+
+def test_sales_followup_email_has_email_structure():
+    """Follow-up e-mail musí mít předmět, tělo a přílohu."""
+    from app.core.ai.prompts import SECTION_SCHEMAS
+
+    titles = [s.title for s in SECTION_SCHEMAS["sales_followup_email"]]
+    assert any("předmět" in t.lower() for t in titles)
+    assert any("tělo" in t.lower() for t in titles)
+
+
+def test_student_flashcards_uses_definitions_and_qa():
+    """Karty na učení musí mít definice (pojem→def) i Q/A — pro Anki/Quizlet."""
+    from app.core.ai.prompts import SECTION_SCHEMAS
+    from app.core.models import SECTION_KIND_DEFINITIONS, SECTION_KIND_QA
+
+    kinds = {s.kind for s in SECTION_SCHEMAS["student_flashcards"]}
+    assert SECTION_KIND_DEFINITIONS in kinds
+    assert SECTION_KIND_QA in kinds
+
+
+def test_meeting_minutes_has_decisions_and_actions():
+    """Univerzální zápis musí mít rozhodnutí a akce/úkoly."""
+    from app.core.ai.prompts import SECTION_SCHEMAS
+
+    titles = [s.title.lower() for s in SECTION_SCHEMAS["meeting_minutes"]]
+    assert any("rozhodnut" in t for t in titles)
+    assert any("akce" in t or "úkol" in t for t in titles)
+
+
+# ---------------------------------------------------------------------------
+# templates_for_role — univerzální klíče (meeting_minutes) ve všech rolích
+# ---------------------------------------------------------------------------
+
+
+def test_templates_for_role_student_includes_universal():
+    from app.core.ai.prompts import templates_for_role
+
+    tpl = templates_for_role("student")
+    assert "student" in tpl
+    assert "student_flashcards" in tpl
+    assert "student_language_vocab" in tpl
+    assert "meeting_minutes" in tpl
+    assert "quiz" in tpl
+    assert "summary" in tpl
+    # Učitelské a sales šablony se studentovi nezobrazí
+    assert "teacher_lesson" not in tpl
+    assert "sales_meeting" not in tpl
+
+
+def test_templates_for_role_teacher_includes_universal_and_new():
+    from app.core.ai.prompts import templates_for_role
+
+    tpl = templates_for_role("teacher")
+    assert "teacher_lesson" in tpl
+    assert "teacher_parent_summary" in tpl
+    assert "teacher_next_lesson_plan" in tpl
+    assert "meeting_minutes" in tpl
+    assert "summary" in tpl
+    # Sales šablony se učiteli nezobrazí
+    assert "sales_meeting" not in tpl
+    assert "sales_followup_email" not in tpl
+    # A „student“ (student-specifická) taky ne
+    assert "student" not in tpl
+
+
+def test_templates_for_role_sales_includes_universal_and_new():
+    from app.core.ai.prompts import templates_for_role
+
+    tpl = templates_for_role("sales")
+    assert "sales_meeting" in tpl
+    assert "sales_followup_email" in tpl
+    assert "sales_objection_log" in tpl
+    assert "meeting_minutes" in tpl
+    assert "summary" in tpl
+    # Teacher a student šablony se prodejci nezobrazí
+    assert "teacher_lesson" not in tpl
+    assert "student" not in tpl
+    assert "student_flashcards" not in tpl

@@ -1,6 +1,15 @@
-"""Prompt editor — textarea + rychlé chipy. Bez heading, bez eyebrow.
+"""Prompt editor — dropdown šablony + info o sekcích + textarea pro doplnění.
 
-Veřejné API: text(), set_text(value)
+Veřejné API: text(), set_text(value), current_template_key(), set_template_key(key),
+set_role(role), refresh_accent().
+
+UX záměr:
+- Dropdown "Co vyrobit" je primární — uživatel si vybere typ výstupu.
+- Pod dropdown se okamžitě zobrazí, *jaké sekce* AI vyrobí ("Vyrobí: Hlavní body
+  · Klíčové pojmy · Otázky · …"). Uživatel ví, co dostane, bez toho aby musel
+  hádat z textu zadání.
+- Textarea slouží jen na *doplnění* (jméno klienta, předmět, téma kapitoly,
+  o čem to je). Šablonu nepřepisuje — pouze přidává kontext.
 """
 
 from __future__ import annotations
@@ -12,27 +21,19 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
-    QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from app.core.ai.prompts import templates_for_role
+from app.core.ai.prompts import sections_for_template, templates_for_role
 from app.gui.styles import tokens
-
-_CHIPS = [
-    "Body ke zkoušce",
-    "Souhrn",
-    "Definice pojmů",
-]
 
 
 class PromptEditor(QGroupBox):
-    """Textarea + rychlé chipy. Žádný heading — placeholder vysvětluje.
+    """Dropdown + info-lišta sekcí + textarea pro doplnění zadání.
 
-    Šablony v dropdownu se filtrují podle role aplikace — student nevidí
-    učitelské šablony (Reflexe hodiny, Materiály pro studenty, atd.).
+    Šablony v dropdownu se filtrují podle role aplikace (`student` / `teacher`
+    / `sales`) — viz `templates_for_role`.
     """
 
     def __init__(
@@ -53,7 +54,7 @@ class PromptEditor(QGroupBox):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(8)
 
-        # Combo šablon — předvyplní zadání podle toho, co uživatel chce vyrobit
+        # ---- Řada: "Co vyrobit:" + dropdown ----
         tpl_row = QHBoxLayout()
         tpl_row.setSpacing(8)
         tpl_label = QLabel("Co vyrobit:")
@@ -67,29 +68,70 @@ class PromptEditor(QGroupBox):
         tpl_row.addWidget(self._template_combo, 1)
         outer.addLayout(tpl_row)
 
+        # ---- Info-lišta: jaké sekce šablona vyrobí ----
+        # Updatuje se s každou změnou dropdown výběru. Uživatel hned vidí,
+        # co konkrétně AI vytvoří.
+        self._sections_info = QLabel("")
+        self._sections_info.setWordWrap(True)
+        self._sections_info.setTextFormat(Qt.TextFormat.RichText)
+        self._sections_info.setStyleSheet(
+            "color: palette(placeholder-text); font-size: 11.5px; "
+            "padding: 4px 10px; background: palette(alternate-base); "
+            "border-radius: 8px;"
+        )
+        outer.addWidget(self._sections_info)
+
+        # ---- Textarea pro doplnění zadání ----
         self._edit = QPlainTextEdit()
         self._edit.setPlaceholderText(
-            "Volitelně: o čem ta přednáška je? Pomáhá to AI udělat lepší poznámky."
+            "Doplnění zadání (volitelné) — kontext, který AI pomůže.\n"
+            "Např. „Klient se jmenuje Novák, řeší hypotéku.“\n"
+            "      „Hodina dějepisu, 8. třída, téma první světová válka.“\n"
+            "      „Zaměř se hlavně na statistické metody.“"
         )
-        self._edit.setMinimumHeight(80)
-        self._edit.setMaximumHeight(120)
+        self._edit.setMinimumHeight(96)
+        self._edit.setMaximumHeight(140)
         outer.addWidget(self._edit, 1)
 
-        self._chips: list[QPushButton] = []
-        chips_row = QHBoxLayout()
-        chips_row.setSpacing(6)
-        for txt in _CHIPS:
-            chip = QPushButton(txt)
-            chip.setCursor(Qt.CursorShape.PointingHandCursor)
-            chip.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-            chip.clicked.connect(lambda _checked=False, t=txt: self._append_hint(t))
-            chips_row.addWidget(chip)
-            self._chips.append(chip)
-        chips_row.addStretch(1)
-        outer.addLayout(chips_row)
-
-        # Aplikuj inline styly s aktuálním accentem.
+        # Apply inline styly + první update info-lišty
         self._apply_inline_styles()
+        self._refresh_sections_info()
+
+    # ------ Veřejné API ------
+
+    def text(self) -> str:
+        return self._edit.toPlainText().strip()
+
+    def set_text(self, value: str) -> None:
+        self._edit.setPlainText(value)
+
+    def current_template_key(self) -> str:
+        """Klíč aktuálně zvolené šablony z PROMPT_TEMPLATES.
+
+        Vrací "" pokud uživatel vybral "— vlastní zadání —". Volající typicky
+        spadne na "student" jako default.
+        """
+        return str(self._template_combo.currentData() or "")
+
+    def set_template_key(self, key: str) -> None:
+        """Vybere šablonu podle klíče. Pro neznámý klíč nic nedělá."""
+        for i in range(self._template_combo.count()):
+            if self._template_combo.itemData(i) == key:
+                self._template_combo.setCurrentIndex(i)
+                return
+
+    def set_role(self, role: str) -> None:
+        """Po změně role aplikace přefiltrovat dropdown."""
+        if role == self._role:
+            return
+        self._role = role
+        self._populate_templates()
+        self._refresh_sections_info()
+
+    def refresh_accent(self) -> None:
+        self._apply_inline_styles()
+
+    # ------ Internal ------
 
     def _populate_templates(self) -> None:
         """Naplní dropdown podle aktuální role."""
@@ -100,60 +142,45 @@ class PromptEditor(QGroupBox):
             self._template_combo.addItem(tpl["label"], userData=key)
         self._template_combo.blockSignals(False)
 
-    def set_role(self, role: str) -> None:
-        """Po změně role aplikace přefiltrovat dropdown."""
-        if role == self._role:
+    def _on_template_changed(self, _index: int) -> None:
+        """Po výběru šablony: předvyplní zadání + update info-lišty.
+
+        Prázdná volba („vlastní zadání“) text nemění, jen aktualizuje info.
+        """
+        key = self._template_combo.currentData()
+        if key:
+            from app.core.ai.prompts import template_prompt
+
+            prompt = template_prompt(key)
+            if prompt:
+                self._edit.setPlainText(prompt)
+        self._refresh_sections_info()
+
+    def _refresh_sections_info(self) -> None:
+        """Update info-lišty pod dropdown podle aktuální šablony."""
+        key = self.current_template_key()
+        if not key:
+            # Vlastní zadání — žádné garantované sekce
+            self._sections_info.setText(
+                "<i>Vlastní zadání — AI vytvoří strukturu podle tvého popisu níže.</i>"
+            )
             return
-        self._role = role
-        self._populate_templates()
+
+        specs = sections_for_template(key)
+        if not specs:
+            self._sections_info.setText("")
+            return
+
+        titles = " · ".join(spec.title for spec in specs)
+        self._sections_info.setText(
+            f"<b>Vyrobí ({len(specs)} sekcí):</b> {titles}"
+        )
 
     def _apply_inline_styles(self) -> None:
         accent = tokens.accent()
-        accent_soft = tokens.accent_soft(0.06)
         self._edit.setStyleSheet(
             "QPlainTextEdit { background: palette(base); "
             "border: 1px solid palette(midlight); border-radius: 10px; "
             "padding: 12px 14px; font-size: 13px; }"
             f"QPlainTextEdit:focus {{ border: 1px solid {accent}; }}"
         )
-        for chip in self._chips:
-            chip.setStyleSheet(
-                "QPushButton { background: palette(alternate-base); "
-                "border: 1px solid palette(midlight); border-radius: 999px; "
-                "padding: 4px 12px; font-size: 11.5px; color: palette(text); }"
-                f"QPushButton:hover {{ border-color: {accent}; "
-                f"color: {accent}; background: {accent_soft}; }}"
-            )
-
-    def refresh_accent(self) -> None:
-        self._apply_inline_styles()
-
-    def _on_template_changed(self, _index: int) -> None:
-        """Po výběru šablony předvyplní zadání. Prázdná volba ('vlastní') nic nemění."""
-        key = self._template_combo.currentData()
-        if not key:
-            return
-        from app.core.ai.prompts import template_prompt
-
-        prompt = template_prompt(key)
-        if prompt:
-            self._edit.setPlainText(prompt)
-
-    def text(self) -> str:
-        return self._edit.toPlainText().strip()
-
-    def set_text(self, value: str) -> None:
-        self._edit.setPlainText(value)
-
-    def _append_hint(self, hint: str) -> None:
-        existing = self._edit.toPlainText().strip()
-        if hint.lower() in existing.lower():
-            return
-        if existing:
-            self._edit.setPlainText(f"{existing}\n{hint}.")
-        else:
-            self._edit.setPlainText(f"{hint}.")
-        cursor = self._edit.textCursor()
-        cursor.movePosition(cursor.MoveOperation.End)
-        self._edit.setTextCursor(cursor)
-        self._edit.setFocus()

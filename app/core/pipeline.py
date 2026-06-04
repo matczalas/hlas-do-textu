@@ -263,6 +263,7 @@ def run_pipeline(
                 transcripts=transcripts,
                 slides=slides,
                 user_prompt=job.user_prompt,
+                template_key=job.prompt_template_key,
             )
             word_stage = stages[5]
 
@@ -284,8 +285,6 @@ def run_pipeline(
         export_docx(
             output_path=out_path,
             material=material,
-            transcripts=transcripts,
-            slides=slides,
             sources=job.sources,
             user_prompt=job.user_prompt if not transcribe_only else None,
         )
@@ -700,6 +699,7 @@ def regenerate_from_transcript(
     prefer_offline: bool,
     slides: list[SlideText] | None = None,
     progress_cb: Callable[[str, float], None] | None = None,
+    template_key: str = "student",
 ) -> PipelineResult:
     """Vytvoří nový .docx ze stávajícího .txt přepisu — přeskočí transkripci.
 
@@ -732,6 +732,7 @@ def regenerate_from_transcript(
         transcripts=transcripts,
         slides=slides,
         user_prompt=user_prompt,
+        template_key=template_key,
     )
 
     report("Ukládám Word…", 0.90)
@@ -739,8 +740,6 @@ def regenerate_from_transcript(
     export_docx(
         output_path=out_path,
         material=material,
-        transcripts=transcripts,
-        slides=slides,
         sources=[],
         user_prompt=user_prompt,
     )

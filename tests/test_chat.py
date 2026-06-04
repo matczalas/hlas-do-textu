@@ -211,6 +211,67 @@ def test_chat_session_rolls_back_user_message_on_router_error() -> None:
     assert session.history == []
 
 
+def test_parse_response_with_sections_proposal() -> None:
+    """Nový sekce-aware proposal: model vrátí updated_material.sections."""
+    raw = (
+        '```json\n'
+        '{\n'
+        '  "summary": "Přepracováno na sekce.",\n'
+        '  "updated_material": {\n'
+        '    "title": "Sales schůzka",\n'
+        '    "topic": "Finance",\n'
+        '    "sections": [\n'
+        '      {"title": "Úkoly pro mě", "kind": "key_value",\n'
+        '       "items": [["Připravit nabídku", "do středy"]]},\n'
+        '      {"title": "Další schůzka", "kind": "paragraph",\n'
+        '       "items": ["Příští týden v úterý ve 14:00."]}\n'
+        '    ]\n'
+        '  }\n'
+        '}\n'
+        '```'
+    )
+    response = parse_chat_response(raw, fallback_material=_make_material())
+    assert response.proposal is not None
+    updated = response.proposal.updated_material
+    assert updated.title == "Sales schůzka"
+    assert updated.topic == "Finance"
+    assert len(updated.sections) == 2
+    assert updated.sections[0].title == "Úkoly pro mě"
+    assert updated.sections[0].items == [("Připravit nabídku", "do středy")]
+    # Legacy aliases naplněné z sekcí (kvůli compat)
+    assert any("Úkoly pro mě" in b for b in updated.bullets)
+
+
+def test_build_chat_prompt_serializes_sections() -> None:
+    """Material s sections musí v promptu být jako sections, ne staré pole."""
+    from app.core.models import StudySection
+
+    material = StudyMaterial(
+        title="T",
+        topic="Finance",
+        sections=[
+            StudySection(
+                title="Úkoly pro mě",
+                kind="key_value",
+                items=[("Připravit nabídku", "do pátku")],
+            )
+        ],
+    )
+    prompt = build_chat_prompt(
+        user_message="přidej úkol",
+        history=[],
+        transcripts=[
+            Transcript(source_label="X", language="cs", duration_sec=1.0, text="x", segments=[])
+        ],
+        slides=[],
+        current_material=material,
+    )
+    # sections musí být v JSON dumpu materiálu uvnitř promptu
+    assert "sections" in prompt
+    assert "Úkoly pro mě" in prompt
+    assert "key_value" in prompt
+
+
 def test_chat_session_apply_proposal_replaces_material() -> None:
     from app.core.ai.chat import ChatProposal, ChatSession
 

@@ -5,10 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.core.models import (
+    SECTION_KIND_BULLETS,
+    SECTION_KIND_DEFINITIONS,
+    SECTION_KIND_KEY_VALUE,
+    SECTION_KIND_PARAGRAPH,
+    SECTION_KIND_QA,
     SlideText,
     SourceFile,
     SourceKind,
     StudyMaterial,
+    StudySection,
     Transcript,
     TranscriptSegment,
 )
@@ -121,6 +127,169 @@ def test_topic_folder_name_no_trailing_dot_or_space():
 def test_topic_folder_name_length_capped():
     long_topic = "A" * 100
     assert len(topic_folder_name(StudyMaterial(title="X", topic=long_topic))) <= 40
+
+
+def test_export_docx_renders_sections_format(tmp_path: Path) -> None:
+    """Nový sekce-aware materiál: každý kind se musí v dokumentu projevit."""
+    material = StudyMaterial(
+        title="Sales schůzka — klient Novák",
+        topic="Finance",
+        sections=[
+            StudySection(
+                title="Úkoly pro mě",
+                kind=SECTION_KIND_KEY_VALUE,
+                items=[
+                    ("Připravit srovnání tří fondů", "do pátku"),
+                    ("Zavolat klientovi zpět", "neuvedeno"),
+                ],
+            ),
+            StudySection(
+                title="Profil klienta",
+                kind=SECTION_KIND_KEY_VALUE,
+                items=[("Věk", "42"), ("Děti", "2 (8, 11)")],
+            ),
+            StudySection(
+                title="Termín další schůzky",
+                kind=SECTION_KIND_PARAGRAPH,
+                items=["Příští čtvrtek v 16:00, kancelář Praha 1."],
+            ),
+            StudySection(
+                title="Další poznámky",
+                kind=SECTION_KIND_BULLETS,
+                items=["Klient se rozhoduje pomalu", "Manželka pozve příště"],
+            ),
+        ],
+    )
+
+    out = tmp_path / "sales.docx"
+    export_docx(output_path=out, material=material, sources=[], user_prompt=None)
+
+    from docx import Document
+
+    doc = Document(str(out))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+
+    # Tituly všech sekcí
+    assert "Úkoly pro mě" in full_text
+    assert "Profil klienta" in full_text
+    assert "Termín další schůzky" in full_text
+    # Klíče i hodnoty key_value
+    assert "Připravit srovnání tří fondů" in full_text
+    assert "do pátku" in full_text
+    # Paragraph
+    assert "Příští čtvrtek" in full_text
+    # Bullet
+    assert "Klient se rozhoduje pomalu" in full_text
+
+
+def test_export_docx_renders_qa_with_answers(tmp_path: Path) -> None:
+    """QA sekce musí mít otázky tučně + vzorové odpovědi pod nimi."""
+    material = StudyMaterial(
+        title="Hodina dějepisu — opakování",
+        sections=[
+            StudySection(
+                title="Otázky ke zkoušení",
+                kind=SECTION_KIND_QA,
+                items=[
+                    ("Kdy začala 1. světová válka?", "V roce 1914."),
+                    ("Vyjmenuj hlavní mocnosti Trojspolku.", "Německo, Rakousko-Uhersko, Itálie."),
+                ],
+            ),
+        ],
+    )
+    out = tmp_path / "qa.docx"
+    export_docx(output_path=out, material=material, sources=[], user_prompt=None)
+
+    from docx import Document
+
+    doc = Document(str(out))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Kdy začala 1. světová válka?" in full_text
+    assert "V roce 1914." in full_text
+
+
+def test_export_docx_renders_definitions_with_bold_terms(tmp_path: Path) -> None:
+    material = StudyMaterial(
+        title="Fyzika — pojmy",
+        sections=[
+            StudySection(
+                title="Klíčové pojmy",
+                kind=SECTION_KIND_DEFINITIONS,
+                items=[("síla", "vektorová veličina měřená v Newtonech")],
+            )
+        ],
+    )
+    out = tmp_path / "defs.docx"
+    export_docx(output_path=out, material=material, sources=[], user_prompt=None)
+
+    from docx import Document
+
+    doc = Document(str(out))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "síla" in full_text
+    assert "vektorová veličina" in full_text
+
+
+def test_export_docx_omits_transcript_and_slides(tmp_path: Path) -> None:
+    """Plný přepis a obsah prezentací se do Wordu NEPÍŠOU — uživatel je má v .txt."""
+    material = StudyMaterial(
+        title="X",
+        bullets=["Pouze tenhle bod"],
+    )
+    transcripts = [
+        Transcript(
+            source_label="Část 1",
+            language="cs",
+            duration_sec=120.0,
+            text="UNIKATNI_PREPISOVY_TEXT_KTERY_BY_SE_NEMEL_OBJEVIT.",
+            segments=[],
+        )
+    ]
+    slides = [
+        SlideText(
+            source_label="Slidy",
+            text="UNIKATNI_TEXT_ZE_SLIDU_KTERY_BY_SE_NEMEL_OBJEVIT.",
+            slide_count=1,
+        )
+    ]
+    out = tmp_path / "no_transcript.docx"
+    export_docx(
+        output_path=out,
+        material=material,
+        sources=[],
+        user_prompt=None,
+        transcripts=transcripts,
+        slides=slides,
+    )
+
+    from docx import Document
+
+    doc = Document(str(out))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "UNIKATNI_PREPISOVY_TEXT" not in full_text
+    assert "UNIKATNI_TEXT_ZE_SLIDU" not in full_text
+    # Ale obsah materiálu tam být musí
+    assert "Pouze tenhle bod" in full_text
+
+
+def test_export_docx_renders_legacy_only_material(tmp_path: Path) -> None:
+    """Materiál bez sections, jen s legacy bullets/terms — pořád vyrenderuje."""
+    material = StudyMaterial(
+        title="Legacy",
+        bullets=["bod jedna", "bod dva"],
+        terms=[("alfa", "definice alfy")],
+        quiz_questions=["Co je alfa?"],
+    )
+    out = tmp_path / "legacy.docx"
+    export_docx(output_path=out, material=material, sources=[], user_prompt=None)
+
+    from docx import Document
+
+    doc = Document(str(out))
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "bod jedna" in full_text
+    assert "alfa" in full_text
+    assert "Co je alfa?" in full_text
 
 
 def test_export_docx_survives_control_characters(tmp_path: Path) -> None:

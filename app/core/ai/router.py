@@ -18,13 +18,23 @@ from app.core.ai.base import (
     AIRateLimitError,
 )
 from app.core.ai.chunker import count_tokens, split_into_chunks
+from app.core.ai.parsing import (
+    parse_sections,
+    populate_legacy_aliases,
+)
 from app.core.ai.prompts import (
     SYSTEM_PROMPT_CS,
     build_map_prompt,
     build_reduce_prompt,
     build_single_shot_prompt,
 )
-from app.core.models import SlideText, StudyMaterial, Transcript
+from app.core.models import (
+    SECTION_KIND_BULLETS,
+    SlideText,
+    StudyMaterial,
+    StudySection,
+    Transcript,
+)
 
 
 class AIRouter:
@@ -76,8 +86,12 @@ def generate_study_material(
     transcripts: list[Transcript],
     slides: list[SlideText],
     user_prompt: str,
+    template_key: str = "student",
 ) -> StudyMaterial:
-    """Spustí adaptivní map-reduce → vrátí StudyMaterial."""
+    """Spustí adaptivní map-reduce → vrátí StudyMaterial.
+
+    `template_key` určuje schéma sekcí (viz `prompts.SECTION_SCHEMAS`).
+    """
     if not transcripts and not slides:
         raise ValueError("Nejsou k dispozici žádné zdroje")
 
@@ -92,12 +106,22 @@ def generate_study_material(
     # thresholdem + obří prezentace pak přetekly kontext modelu v single-shotu.
     if total_tokens <= MAP_REDUCE_THRESHOLD_TOKENS:
         logger.info("Single-shot strategie (pod thresholdem)")
-        prompt = build_single_shot_prompt(user_prompt, full_transcript_text, slides_text)
+        prompt = build_single_shot_prompt(
+            user_prompt,
+            full_transcript_text,
+            slides_text,
+            template_key=template_key,
+        )
         raw = router.generate_with_failover(prompt, system=SYSTEM_PROMPT_CS)
     else:
         logger.info("Map-reduce strategie (nad thresholdem)")
         mapped = _map_phase(router, transcripts)
-        prompt = build_reduce_prompt(user_prompt, mapped, slides_text)
+        prompt = build_reduce_prompt(
+            user_prompt,
+            mapped,
+            slides_text,
+            template_key=template_key,
+        )
         raw = router.generate_with_failover(prompt, system=SYSTEM_PROMPT_CS)
 
     return _parse_study_material(raw)
@@ -123,13 +147,24 @@ def _map_phase(router: AIRouter, transcripts: list[Transcript]) -> str:
             bullets = parsed.get("bullets") or []
             terms = parsed.get("terms") or []
             examples = parsed.get("examples") or []
+            facts = parsed.get("facts") or []
             block = [f"### {label} (chunk {idx + 1})"]
             if bullets:
                 block.append("Body: " + "; ".join(str(b) for b in bullets))
             if terms:
-                block.append("Pojmy: " + "; ".join(f"{t[0]} – {t[1]}" if isinstance(t, list) and len(t) == 2 else str(t) for t in terms))
+                block.append(
+                    "Pojmy: "
+                    + "; ".join(
+                        f"{t[0]} – {t[1]}"
+                        if isinstance(t, list) and len(t) == 2
+                        else str(t)
+                        for t in terms
+                    )
+                )
             if examples:
                 block.append("Příklady: " + "; ".join(str(e) for e in examples))
+            if facts:
+                block.append("Důležité údaje: " + "; ".join(str(f) for f in facts))
             return idx, "\n".join(block)
         except AIError as exc:
             logger.error("Map chunk {} ({}) selhal: {}", idx, label, exc)
@@ -189,23 +224,64 @@ def _safe_parse_json(raw: str) -> dict | None:
 
 
 def _parse_study_material(raw: str) -> StudyMaterial:
+    """Z raw AI odpovědi vyrobí StudyMaterial.
+
+    Akceptuje dva tvary:
+    1) Nový sekce-aware: `{"title", "topic", "sections": [...]}`
+    2) Starý plochý:    `{"title", "topic", "bullets", "terms", ...}`
+    """
     data = _safe_parse_json(raw)
     if data is None:
         # poslední záchrana: dej celý text jako bullet
         return StudyMaterial(
             title="Studijní materiál (nestrukturovaný)",
-            bullets=[raw.strip()[:1000]],
+            sections=[
+                StudySection(
+                    title="Výstup AI",
+                    kind=SECTION_KIND_BULLETS,
+                    items=[raw.strip()[:1000]] if raw.strip() else [],
+                )
+            ],
         )
 
     title = str(data.get("title") or "Studijní materiál").strip()
     topic = str(data.get("topic") or "").strip()
+
+    # Nový sekce formát?
+    sections_raw = data.get("sections")
+    if isinstance(sections_raw, list) and sections_raw:
+        sections = parse_sections(sections_raw)
+        material = StudyMaterial(
+            title=title,
+            topic=topic,
+            sections=sections,
+        )
+        populate_legacy_aliases(material)
+        if not material.has_any_content():
+            logger.warning(
+                "AI vrátila prázdné sections (raw: {}…)", raw.strip()[:160]
+            )
+            material.sections = [
+                StudySection(
+                    title="Poznámka",
+                    kind=SECTION_KIND_BULLETS,
+                    items=[
+                        "AI z přepisu nevytěžila strukturovaný obsah. Zkus to "
+                        "znovu, uprav zadání, nebo použij chat o dokumentu."
+                    ],
+                )
+            ]
+        return material
+
+    # Starý plochý formát — naplníme legacy pole, iter_sections() z nich
+    # vyrobí defaultní sekce při exportu.
     bullets = [str(b).strip() for b in (data.get("bullets") or []) if str(b).strip()]
     examples = [str(e).strip() for e in (data.get("examples") or []) if str(e).strip()]
     quiz = [str(q).strip() for q in (data.get("quiz_questions") or []) if str(q).strip()]
     further = [str(f).strip() for f in (data.get("further_study") or []) if str(f).strip()]
     terms: list[tuple[str, str]] = []
     for item in data.get("terms") or []:
-        if isinstance(item, (list, tuple)) and len(item) == 2:
+        if isinstance(item, list | tuple) and len(item) == 2:
             term, definition = str(item[0]).strip(), str(item[1]).strip()
             if term:
                 terms.append((term, definition))
@@ -215,22 +291,23 @@ def _parse_study_material(raw: str) -> StudyMaterial:
             if term:
                 terms.append((term, definition))
 
-    # Pojistka: AI vrátila validní JSON, ale všechna pole prázdná → výsledný
-    # .docx by byl prázdný a uživatel by nevěděl proč. Vložíme aspoň
-    # informativní bod, ať je zřejmé, že AI nic nevytěžila.
-    if not bullets and not terms and not examples and not further and not quiz:
-        logger.warning("AI vrátila prázdný StudyMaterial (raw: {}…)", raw.strip()[:160])
-        bullets = [
-            "AI z přepisu nevytěžila strukturované body. Zkus to znovu, "
-            "uprav popis zadání, nebo použij chat o dokumentu."
-        ]
-
-    return StudyMaterial(
+    material = StudyMaterial(
         title=title,
+        topic=topic,
         bullets=bullets,
         terms=terms,
         examples=examples,
         further_study=further,
         quiz_questions=quiz,
-        topic=topic,
     )
+
+    if not material.has_any_content():
+        logger.warning("AI vrátila prázdný StudyMaterial (raw: {}…)", raw.strip()[:160])
+        material.bullets = [
+            "AI z přepisu nevytěžila strukturované body. Zkus to znovu, "
+            "uprav popis zadání, nebo použij chat o dokumentu."
+        ]
+
+    return material
+
+

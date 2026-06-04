@@ -1094,6 +1094,10 @@ class MainWindow(QMainWindow):
 
     def _build_job_queue(self, sources, mode: JobMode, batch_mode: str) -> None:
         """Naplní self._job_queue podle batch módu + paralelně controller IDs."""
+        # Klíč šablony rozhoduje, jaké sekce AI vyrobí. Když si uživatel vybral
+        # konkrétní šablonu ("sales_meeting", "teacher_reflection", …), schéma
+        # výstupu sedne na to, co zadání slibuje. "" = vlastní zadání → student.
+        template_key = self._prompt_editor.current_template_key() or "student"
         common = dict(
             user_prompt=self._prompt_editor.text(),
             output_dir=Path(self._settings.output_dir),
@@ -1105,6 +1109,7 @@ class MainWindow(QMainWindow):
             create_md_export=self._settings.create_md_export,
             user_ai_service=self._settings.user_ai_service,
             transcribe_backend=_parse_backend(self._settings.transcribe_backend),
+            prompt_template_key=template_key,
         )
         from app.core.pipeline import split_sources_for_batch
 
@@ -1529,6 +1534,7 @@ class MainWindow(QMainWindow):
                 gemini_api_key=api_key,
                 ai_consent_gemini=self._settings.ai_consent_gemini,
                 prefer_offline=self._settings.prefer_offline,
+                template_key=self._prompt_editor.current_template_key() or "student",
             )
         except Exception as exc:  # noqa: BLE001
             self._progress.set_busy(False)
