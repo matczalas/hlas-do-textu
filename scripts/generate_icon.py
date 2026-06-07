@@ -1,207 +1,108 @@
-"""Vygeneruje ikonu aplikace Hlas do textu.
+"""Vygeneruje ikony aplikace (PNG / ICO / ICNS) z bitmap zdroje.
 
-Design: rounded-square pozadí (macOS/iOS konvence), gradient modrá #1a4d8f → #205ca8,
-bílý stylizovaný mikrofon nahoře a tři textové řádky dole — vizuální metafora
-"hlas → text". Akcent v zlaté Safe4Future barvě jako záři kolem mikrofonu.
+Zdroj: `app/resources/logo_source.png` (commitnutý v repu).
+Výstupy: `app/resources/icon.png` / `.ico` / `.icns`.
 
-Generuje:
-- icon.png  512×512 (zdroj pro UI)
-- icon.ico  multi-size 16/32/48/64/128/256 (Windows)
-- icon.icns multi-size až 1024 (macOS, jen na macOS přes iconutil)
+Použití:
+    python scripts/generate_icon.py
+    python scripts/generate_icon.py --source ~/Downloads/nove_logo.png
 
-Závislost: Pillow (transitive dep PySide6).
+Závislost: Pillow (transitive dep PySide6). ICNS vyžaduje macOS + iconutil.
 """
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 RESOURCES = ROOT / "app" / "resources"
+DEFAULT_SOURCE = RESOURCES / "logo_source.png"
 PNG_PATH = RESOURCES / "icon.png"
 ICO_PATH = RESOURCES / "icon.ico"
 ICNS_PATH = RESOURCES / "icon.icns"
 
-# Barvy
-BG_TOP = (26, 77, 143, 255)        # #1a4d8f — tmavší modrá nahoře
-BG_BOTTOM = (32, 92, 168, 255)     # #205ca8 — světlejší modrá dole (S4F accent)
-WHITE = (255, 255, 255, 255)
-GLOW = (255, 196, 60, 90)          # zlatá záře (Safe4Future second color), poloprůhledná
+# Výstupní rozlišení master PNG (jdou z něj všechny menší velikosti)
+MASTER_SIZE = 1024
+UI_PNG_SIZE = 512  # pro app/resources/icon.png (UI, tray)
+ICO_SIZES = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=DEFAULT_SOURCE,
+        help=f"Vstupní logo (PNG). Default: {DEFAULT_SOURCE.relative_to(ROOT)}",
+    )
+    args = parser.parse_args()
+
+    source_path: Path = args.source.expanduser().resolve()
+    if not source_path.is_file():
+        print(f"CHYBA: Zdrojový obrázek neexistuje: {source_path}")
+        return 1
+
     RESOURCES.mkdir(parents=True, exist_ok=True)
+    print(f"Zdroj: {source_path}")
 
-    size = 1024  # generujeme ve vysokém rozlišení, downscale do PNG/ICO/ICNS
-    img = _render_icon(size)
+    master = _prepare_master(source_path, MASTER_SIZE)
 
-    # 512×512 PNG pro UI a tray
-    img.resize((512, 512), Image.Resampling.LANCZOS).save(PNG_PATH, format="PNG")
-    print(f"Vytvořeno: {PNG_PATH}")
+    # icon.png — pro UI a tray
+    master.resize((UI_PNG_SIZE, UI_PNG_SIZE), Image.Resampling.LANCZOS).save(
+        PNG_PATH, format="PNG", optimize=True
+    )
+    print(f"Vytvořeno: {PNG_PATH}  ({UI_PNG_SIZE}×{UI_PNG_SIZE})")
 
-    # ICO multi-size pro Windows
-    ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    img.save(ICO_PATH, format="ICO", sizes=ico_sizes)
-    print(f"Vytvořeno: {ICO_PATH}")
+    # icon.ico — multi-size pro Windows
+    master.save(ICO_PATH, format="ICO", sizes=ICO_SIZES)
+    print(f"Vytvořeno: {ICO_PATH}  (sizes: {', '.join(f'{w}×{h}' for w, h in ICO_SIZES)})")
 
-    # ICNS pro macOS (vyžaduje iconutil)
-    _make_icns(img, ICNS_PATH)
+    # icon.icns — macOS, jen na macOS přes iconutil
+    _make_icns(master, ICNS_PATH)
     return 0
 
 
-def _render_icon(size: int) -> Image.Image:
-    """Vyrobí PIL Image se zdrojovou ikonou v daném rozlišení."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+def _prepare_master(source_path: Path, target_size: int) -> Image.Image:
+    """Načte zdroj, fitne ho do čtverce a vrátí master image v `target_size`.
 
-    # 1) Rounded square pozadí s gradientem
-    bg = _gradient_rounded_square(size, BG_TOP, BG_BOTTOM, corner_radius=size // 5)
-    img = Image.alpha_composite(img, bg)
+    Pravidla:
+    - RGB i RGBA vstup je OK.
+    - Pokud zdroj není čtverec, dopadne se na čtverec přidáním okrajů
+      stejné barvy jako rohové pixely (defaultně bílá u tohoto loga,
+      aby to vypadalo přirozeně i v ikoně).
+    - Resize na cílový čtverec pomocí LANCZOS (vysoká kvalita).
+    """
+    img = Image.open(source_path)
+    if img.mode not in ("RGB", "RGBA"):
+        img = img.convert("RGBA")
 
-    # 2) Zlatá záře okolo mikrofonu (efekt "hlas svítí")
-    glow_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow_layer)
-    cx, cy = size // 2, int(size * 0.40)
-    glow_r = int(size * 0.22)
-    glow_draw.ellipse(
-        (cx - glow_r, cy - glow_r, cx + glow_r, cy + glow_r), fill=GLOW
-    )
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(radius=size // 25))
-    img = Image.alpha_composite(img, glow_layer)
+    width, height = img.size
+    if width != height:
+        # Padding na čtverec barvou rohového pixelu (typicky bílá pro toto logo).
+        size = max(width, height)
+        bg_color = _detect_corner_color(img)
+        canvas = Image.new(img.mode, (size, size), bg_color)
+        canvas.paste(img, ((size - width) // 2, (size - height) // 2))
+        img = canvas
 
-    # 3) Mikrofon (bílý) — capsule body + stojánek + base
-    draw = ImageDraw.Draw(img)
-    _draw_microphone(draw, size, cx, cy)
-
-    # 4) Textové řádky pod mikrofonem
-    _draw_text_lines(draw, size)
+    if img.size != (target_size, target_size):
+        img = img.resize((target_size, target_size), Image.Resampling.LANCZOS)
 
     return img
 
 
-def _gradient_rounded_square(
-    size: int,
-    top_color: tuple[int, int, int, int],
-    bottom_color: tuple[int, int, int, int],
-    corner_radius: int,
-) -> Image.Image:
-    """Rounded square s vertikálním gradientem."""
-    # Vyrobíme gradient v plné velikosti
-    gradient = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    gradient_pixels = gradient.load()
-    for y in range(size):
-        t = y / max(size - 1, 1)
-        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * t)
-        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * t)
-        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
-        a = int(top_color[3] + (bottom_color[3] - top_color[3]) * t)
-        for x in range(size):
-            gradient_pixels[x, y] = (r, g, b, a)
-
-    # Mask: rounded rectangle
-    mask = Image.new("L", (size, size), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.rounded_rectangle(
-        (0, 0, size - 1, size - 1), radius=corner_radius, fill=255
-    )
-
-    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    out.paste(gradient, (0, 0), mask)
-    return out
-
-
-def _draw_microphone(draw: ImageDraw.ImageDraw, size: int, cx: int, cy: int) -> None:
-    """Stylizovaný mikrofon: capsule body + spodní oblouk (stand) + nožka + base.
-
-    cx, cy: střed capsule body.
-    Rozměry jsou relativní k `size`, aby mikrofon dobře vypadal v 16×16 i 1024.
-    """
-    # Capsule body
-    body_half_w = int(size * 0.085)   # poloviční šířka
-    body_half_h = int(size * 0.155)   # poloviční výška
-    body_box = (
-        cx - body_half_w,
-        cy - body_half_h,
-        cx + body_half_w,
-        cy + body_half_h,
-    )
-    draw.rounded_rectangle(body_box, radius=body_half_w, fill=WHITE)
-
-    # Detail: 3 horizontální linky uvnitř capsule (přidá "mikrofon mřížku")
-    detail_color = (180, 200, 230, 255)  # mírně modřejší než bílá pro kontrast
-    line_w = int(size * 0.005)
-    spacing = body_half_h // 2
-    for i in range(-1, 2):
-        y = cy + i * spacing
-        x1 = cx - int(body_half_w * 0.55)
-        x2 = cx + int(body_half_w * 0.55)
-        draw.line([(x1, y), (x2, y)], fill=detail_color, width=max(line_w, 2))
-
-    # Stojánek — oblouk (U-tvar) pod capsule
-    arc_outer_r = int(size * 0.135)
-    arc_inner_r = int(size * 0.105)
-    arc_cy = cy + int(size * 0.025)  # střed oblouku trochu níž než capsule
-    arc_box_outer = (
-        cx - arc_outer_r,
-        arc_cy - arc_outer_r,
-        cx + arc_outer_r,
-        arc_cy + arc_outer_r,
-    )
-    # Outer arc — vyhneme se inner arc (čistý U-tvar drží mikrofonní siluetu)
-    _ = arc_inner_r  # ponecháno pro budoucí variantu s inner ringem
-    draw.arc(arc_box_outer, start=0, end=180, fill=WHITE, width=max(int(size * 0.018), 3))
-    # Pro lepší tloušťku přidáme druhý arc o pixel jinde
-    draw.arc(
-        (arc_box_outer[0] + 1, arc_box_outer[1] + 1, arc_box_outer[2] - 1, arc_box_outer[3] - 1),
-        start=0, end=180, fill=WHITE, width=max(int(size * 0.018), 3),
-    )
-
-    # Nožka (vertikální tyč pod arc)
-    leg_top = arc_cy + arc_outer_r - int(size * 0.005)
-    leg_bottom = leg_top + int(size * 0.05)
-    leg_half_w = max(int(size * 0.012), 2)
-    draw.rectangle(
-        (cx - leg_half_w, leg_top, cx + leg_half_w, leg_bottom),
-        fill=WHITE,
-    )
-
-    # Base (horizontální podstavec)
-    base_half_w = int(size * 0.06)
-    base_y = leg_bottom
-    base_h = max(int(size * 0.014), 2)
-    draw.rounded_rectangle(
-        (cx - base_half_w, base_y, cx + base_half_w, base_y + base_h),
-        radius=base_h // 2,
-        fill=WHITE,
-    )
-
-
-def _draw_text_lines(draw: ImageDraw.ImageDraw, size: int) -> None:
-    """Čtyři horizontální čárky reprezentující přepis."""
-    # Hodně transparentní bílé (aby se mikrofon stále tlačil do popředí)
-    line_color = (255, 255, 255, 220)
-
-    base_y = int(size * 0.73)
-    spacing = int(size * 0.062)
-    line_thickness = max(int(size * 0.022), 4)
-
-    # 4 řádky s různými délkami, leftmost-align s lehce variabilním offsetem
-    rows = [
-        (0.18, 0.78),   # plný řádek (start_x_ratio, end_x_ratio)
-        (0.18, 0.70),
-        (0.18, 0.82),
-        (0.18, 0.58),   # poslední, nejkratší (jako konec odstavce)
-    ]
-    for i, (sx, ex) in enumerate(rows):
-        y = base_y + i * spacing
-        x1 = int(size * sx)
-        x2 = int(size * ex)
-        draw.rounded_rectangle(
-            (x1, y - line_thickness // 2, x2, y + line_thickness // 2),
-            radius=line_thickness // 2,
-            fill=line_color,
-        )
+def _detect_corner_color(img: Image.Image) -> tuple:
+    """Vrátí barvu levého horního pixelu (předpoklad pozadí). RGBA-safe."""
+    pixel = img.getpixel((0, 0))
+    if img.mode == "RGB":
+        return pixel  # type: ignore[return-value]
+    if img.mode == "RGBA":
+        return pixel  # type: ignore[return-value]
+    # Fallback — neměl by nastat, ale ať se nesype
+    return (255, 255, 255, 255) if img.mode == "RGBA" else (255, 255, 255)
 
 
 def _make_icns(img: Image.Image, out_path: Path) -> None:
