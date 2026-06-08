@@ -1,7 +1,13 @@
+<div align="center">
+  <img src="app/resources/logo_source.png" alt="Hlas do textu" width="220">
+</div>
+
 # Hlas do textu
 
-> Desktop aplikace pro studenty a učitele — z nahrávky přednášky nebo
-> vyučovací hodiny vyrobí Word dokument s body pro učení a otázkami ke zkoušení.
+> Desktop aplikace pro studenty, učitele a finanční poradce — z nahrávky
+> přednášky, vyučovací hodiny nebo schůzky s klientem vyrobí strukturovaný
+> Word dokument, který se hodí k danému použití (studijní body, otázky ke
+> zkoušení, zápis ze schůzky, follow-up e-mail…).
 
 [![Build](https://github.com/matczalas/hlas-do-textu/actions/workflows/build-windows.yml/badge.svg)](https://github.com/matczalas/hlas-do-textu/actions)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
@@ -11,18 +17,31 @@
 
 ## Pro koho
 
-- **Student** — nahraje přednášku, dostane studijní body, pojmy a otázky k procvičení na zkoušku.
-- **Učitel** — nahraje svou hodinu, dostane poznámky co se probíralo + sadu otázek ke zkoušení žáků (šablona „Záznam hodiny").
+- **Student** — z přednášky vyrobí studijní materiál (hlavní body, klíčové
+  pojmy, příklady, otázky se vzorovými odpověďmi), karty na učení
+  (Anki / Quizlet) nebo slovíčka z hodiny jazyka.
+- **Učitel** — z hodiny vyrobí poznámky pro nepřítomné žáky, otázky
+  ke zkoušení (ústní / písemka / procvičování), souhrn pro rodiče,
+  plán navazující hodiny nebo reflexi vlastního projevu.
+- **Finanční poradce / Sales** — ze schůzky vyrobí zápis (úkoly s deadliny,
+  profil klienta, termín další schůzky), hotový follow-up e-mail klientovi,
+  nebo koučovací zápis s námitkami klienta.
 
 ## Co umí
 
 - **Lokální přepis** mluveného slova v češtině (Whisper, offline)
 - **Rychlý cloud přepis** přes Gemini Audio (~1 min na 15 min audia) — volitelné
-- **AI studijní materiál** — hlavní body, klíčové pojmy, příklady, **otázky ke zkoušení**
-- **Šablony zadání** — student / učitel / jen otázky / krátké shrnutí
-- **Chat o dokumentu** — po vyrobení AI požádáš o úpravy („stručněji", „vyrob otázky")
+- **AI strukturovaný výstup podle 17 šablon** — od studijního materiálu po
+  follow-up e-mail. Každá šablona má vlastní strukturu sekcí (hlavní body,
+  definice, otázky / odpovědi, klíč / hodnota, odstavce) a uživatel vidí
+  v UI předem, co dostane.
+- **Univerzální zápis ze schůzky** — pro libovolnou pracovní schůzku
+  (účastníci, body, rozhodnutí, akce s vlastníky).
+- **Chat o dokumentu** — po vyrobení AI požádáš o úpravy („stručněji",
+  „přidej otázky", „rozšiř kapitolu o příklady")
 - **Dávka více nahrávek** — spojit do jednoho, nebo každou zvlášť
-- **Automatické třídění** výstupů do složek podle tématu (Fyzika/, Dějepis/…)
+- **Automatické třídění** výstupů do složek podle tématu (Fyzika/, Dějepis/,
+  Finance/…)
 - **Vstup odkudkoli** — drag & drop, YouTube/Vimeo/podcast URL
 - **Resume** — přerušený přepis naváže od místa, kde skončil
 - **Offline fallback** přes Ollama (bez internetu)
@@ -68,19 +87,21 @@ Detailní návod: [docs/PRVNI_SPUSTENI.md](docs/PRVNI_SPUSTENI.md)
 
 | | |
 |---|---|
-| ![](docs/screenshots/03_with_sources.png) | Přetáhni nahrávku (mp3/mp4/wav/m4a) a volitelně slidy (PDF/PPTX), nebo vlož YouTube URL. V poli „Co vyrobit" vyber šablonu (student / učitel / …) a klikni Spustit. Aplikace pošle notifikaci, až bude hotovo. |
+| ![](docs/screenshots/03_with_sources.png) | Přetáhni nahrávku (mp3 / mp4 / wav / m4a) a volitelně slidy (PDF / PPTX), nebo vlož YouTube URL. V poli **„Co vyrobit"** vyber šablonu — pod dropdown se hned zobrazí, jaké sekce dokument bude mít. Do textarey nahoře doplň krátký kontext (jméno klienta, předmět hodiny, téma kapitoly) a klikni **Spustit**. Aplikace pošle notifikaci, až bude hotovo. |
 
 **Rychlost (15 min audia):** cloud přepis ~1 min, lokální Whisper ~3–15 min
 podle výkonu počítače. Aplikace si rychlost počítače sama kalibruje a ukazuje
 živý odhad zbývajícího času.
 
-**Výstup:** Word dokument v `Dokumenty/HlasDoTextu/<Téma>/` s hlavními body,
-klíčovými pojmy, příklady, otázkami ke zkoušení a plným přepisem. Volitelně
-i `.md` připravený jako prompt pro AI.
+**Výstup:** Word dokument v `Dokumenty/HlasDoTextu/<Téma>/`. Obsahuje pouze
+AI výstup strukturovaný podle zvolené šablony (sekce, tučné termíny, kurzíva
+u vzorových odpovědí). Plný přepis je vedle ve `.txt` souboru. Volitelně
+i `.md` připravený jako prompt pro AI agenta (ChatGPT / Claude / Gemini).
 
 **Soukromí:** lokální přepis běží offline (nic neopustí počítač). Cloud přepis
-posílá audio Google Gemini — vhodné pro přednášky, **ne pro citlivé nahrávky
-(např. hlasy žáků bez souhlasu rodičů)**. Pro ty použij lokální přepis.
+posílá audio Google Gemini — vhodné pro přednášky a interní schůzky, **ne pro
+citlivé nahrávky (např. hlasy žáků bez souhlasu rodičů, klientské údaje pod
+GDPR režimem se zákazem cloudu)**. Pro ty použij lokální přepis.
 
 ## Architektura
 
@@ -90,6 +111,11 @@ posílá audio Google Gemini — vhodné pro přednášky, **ne pro citlivé nah
 - **python-docx** Word export, **yt-dlp** stahování z URL
 - Distribuce: **PyInstaller** + **Inno Setup** (`.exe`), **create-dmg** (`.dmg`)
 - **GitHub Actions** CI (Windows + macOS runner)
+
+AI vrstva má **flexibilní sekce** — místo rigidních polí (bullets / pojmy /
+otázky) vrací každá šablona seznam sekcí (`title` + `kind` + `items`), kde
+kind je `bullets` / `definitions` / `qa` / `key_value` / `paragraph`. Tím sedí
+jedna struktura na studenta, učitele i finančního poradce.
 
 Pro vývojáře (architektura, konvence, gotchas) viz [CLAUDE.md](CLAUDE.md)
 a [CONTRIBUTING.md](CONTRIBUTING.md). Detailní popis v [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -101,9 +127,12 @@ git clone https://github.com/matczalas/hlas-do-textu.git
 cd hlas-do-textu
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-python -m app                  # GUI
-pytest                         # testy (126)
-ruff check app/ tests/         # lint
+python -m app                          # GUI
+pytest                                 # 151 testů
+ruff check app/ tests/                 # lint
+
+python scripts/generate_icon.py        # přegenerovat ikonu z logo_source.png
+python scripts/quality_check.py        # end-to-end ověření AI šablon (reálné Gemini)
 ```
 
 ## Licence
