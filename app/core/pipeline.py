@@ -221,7 +221,8 @@ def run_pipeline(
             if use_gemini and transcript_text_cb is not None and tr.segments:
                 for seg in tr.segments:
                     try:
-                        transcript_text_cb(seg.start, label, seg.text)
+                        feed_text = f"{seg.speaker}: {seg.text}" if seg.speaker else seg.text
+                        transcript_text_cb(seg.start, label, feed_text)
                     except Exception as cb_exc:  # noqa: BLE001
                         logger.warning("transcript_text_cb selhal: {}", cb_exc)
             accumulated_duration += duration
@@ -351,6 +352,7 @@ def _run_transcribe(
                 source_label=label,
                 api_key=gemini_api_key,
                 language=job.language,
+                diarize=job.diarize,
                 progress_cb=progress_cb,
                 cancel_event=cancel_event,
             )
@@ -510,7 +512,8 @@ def _save_transcript_backup(transcripts: list[Transcript], output_dir: Path) -> 
         lines.append(f"\n\n=== {tr.source_label} ({_format_seconds(tr.duration_sec)}) ===\n\n")
         if tr.segments:
             for seg in tr.segments:
-                lines.append(f"[{_format_seconds(seg.start)}] {seg.text}\n")
+                prefix = f"{seg.speaker}: " if seg.speaker else ""
+                lines.append(f"[{_format_seconds(seg.start)}] {prefix}{seg.text}\n")
         else:
             lines.append(tr.text + "\n")
     try:

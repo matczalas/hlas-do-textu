@@ -372,3 +372,32 @@ def test_templates_for_role_sales_includes_universal_and_new():
     assert "teacher_lesson" not in tpl
     assert "student" not in tpl
     assert "student_flashcards" not in tpl
+
+
+# ---------------------------------------------------------------------------
+# Diarizace — které šablony jsou "konverzační" (rozlišovat mluvčí)
+# ---------------------------------------------------------------------------
+
+
+def test_is_conversation_template():
+    from app.core.ai.prompts import is_conversation_template
+
+    # Dialog více osob → ano
+    assert is_conversation_template("sales_meeting")
+    assert is_conversation_template("sales_followup_email")
+    assert is_conversation_template("sales_objection_log")
+    assert is_conversation_template("meeting_minutes")
+    # Monolog → ne
+    assert not is_conversation_template("student")
+    assert not is_conversation_template("teacher_lesson")
+    assert not is_conversation_template("summary")
+    assert not is_conversation_template("student_flashcards")
+
+
+def test_system_prompt_mentions_speaker_mapping():
+    """System prompt učí AI mapovat Mluvčí N → role/jméno z kontextu."""
+    from app.core.ai.prompts import SYSTEM_PROMPT_CS
+
+    assert "Mluvčí" in SYSTEM_PROMPT_CS
+    # A varuje před vymýšlením jmen
+    assert "nevymýšlej" in SYSTEM_PROMPT_CS.lower()

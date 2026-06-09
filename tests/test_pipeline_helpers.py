@@ -118,3 +118,26 @@ def test_save_transcript_backup_writes_file(tmp_path: Path):
 
 def test_save_transcript_backup_empty_returns_none(tmp_path: Path):
     assert _save_transcript_backup([], tmp_path) is None
+
+
+def test_save_transcript_backup_includes_speakers(tmp_path: Path):
+    """Diarizovaný přepis: .txt záloha nese označení mluvčích u replik."""
+    from app.core.models import Transcript, TranscriptSegment
+
+    transcripts = [
+        Transcript(
+            source_label="Schůzka",
+            language="cs",
+            duration_sec=20.0,
+            text="Mluvčí 1: Dobrý den.\nMluvčí 2: Zdravím.",
+            segments=[
+                TranscriptSegment(start=0.0, end=5.0, text="Dobrý den.", speaker="Mluvčí 1"),
+                TranscriptSegment(start=5.0, end=10.0, text="Zdravím.", speaker="Mluvčí 2"),
+            ],
+        )
+    ]
+    path = _save_transcript_backup(transcripts, tmp_path)
+    assert path is not None
+    content = path.read_text(encoding="utf-8")
+    assert "Mluvčí 1: Dobrý den." in content
+    assert "Mluvčí 2: Zdravím." in content

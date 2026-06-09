@@ -76,6 +76,56 @@ def test_parse_response_missing_segments() -> None:
     assert segments == []
 
 
+# ---------------------------------------------------------------------------
+# Diarizace (rozlišování mluvčích)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_response_with_speakers() -> None:
+    """Segmenty se speaker polem → segment.speaker naplněn a text je po replikách."""
+    raw = (
+        '{"segments": ['
+        '{"start_sec": 0, "end_sec": 4, "speaker": "Mluvčí 1", "text": "Dobrý den."},'
+        '{"start_sec": 4, "end_sec": 9, "speaker": "Mluvčí 2", "text": "Zdravím vás."}'
+        "]}"
+    )
+    segments, text, duration = transcribe_gemini._parse_response(raw)
+    assert len(segments) == 2
+    assert segments[0].speaker == "Mluvčí 1"
+    assert segments[1].speaker == "Mluvčí 2"
+    # Text nese repliky na vlastních řádcích s prefixem mluvčího
+    assert text == "Mluvčí 1: Dobrý den.\nMluvčí 2: Zdravím vás."
+    assert duration == 9.0
+
+
+def test_parse_response_without_speakers_joins_with_space() -> None:
+    """Bez diarizace zůstává text spojený mezerou (beze změny chování)."""
+    raw = '{"segments": [{"start_sec": 0, "end_sec": 3, "text": "Ahoj"}, {"start_sec": 3, "end_sec": 6, "text": "světe"}]}'
+    _segments, text, _ = transcribe_gemini._parse_response(raw)
+    assert text == "Ahoj světe"
+
+
+def test_parse_response_mixed_speakers_partial() -> None:
+    """Když jen některé segmenty mají speaker, prefixuje se jen ty s mluvčím."""
+    raw = (
+        '{"segments": ['
+        '{"start_sec": 0, "end_sec": 4, "speaker": "Mluvčí 1", "text": "První."},'
+        '{"start_sec": 4, "end_sec": 8, "text": "Bez mluvčího."}'
+        "]}"
+    )
+    _segments, text, _ = transcribe_gemini._parse_response(raw)
+    assert text == "Mluvčí 1: První.\nBez mluvčího."
+
+
+def test_build_prompt_diarize_mentions_speakers() -> None:
+    prompt = transcribe_gemini._build_prompt("cs", diarize=True)
+    assert "Mluvčí 1" in prompt
+    assert "speaker" in prompt
+    # Bez diarizace se o mluvčích nemluví
+    plain = transcribe_gemini._build_prompt("cs", diarize=False)
+    assert "speaker" not in plain
+
+
 def test_reraise_as_ai_error_auth() -> None:
     with pytest.raises(AIAuthError):
         transcribe_gemini._reraise_as_ai_error(Exception("API key invalid (401)"))

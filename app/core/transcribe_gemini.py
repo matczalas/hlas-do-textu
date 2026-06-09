@@ -69,18 +69,34 @@ Pravidla:
 - Pokud zazní rozpoznatelný název / cizí slovo, ponech ho ve správném tvaru.{language_specific}
 """
 
+# Varianta s diarizací — Gemini rozliší mluvčí a označí je "Mluvčí 1/2/...".
+_PROMPT_TEMPLATE_DIARIZE = """Přepiš následující {lang_label} audio nahrávku přesně podle toho, co je řečeno, a rozliš jednotlivé mluvčí.
+
+Pravidla:
+- Vrať JSON ve formátu: {{"segments": [{{"start_sec": float, "end_sec": float, "speaker": "Mluvčí 1", "text": "..."}}]}}
+- Rozpoznej, kolik je v nahrávce mluvčích, a každému přiřaď STÁLÉ označení
+  "Mluvčí 1", "Mluvčí 2", … podle pořadí, v jakém se poprvé ozvali.
+- Stejný člověk musí mít stejné označení v CELÉ nahrávce.
+- Nový segment začni vždy, když se vystřídá mluvčí (i kratší než 5 s).
+- Jinak segment ~5-15 sekund, končící na konci věty nebo přirozené pauzy.
+- Nepřidávej komentáře, hlavičky, ani jiné texty mimo JSON.
+- Žádné výplňové fráze typu "Tady je přepis:" — vrať jen JSON.
+- Pokud zazní rozpoznatelný název / cizí slovo, ponech ho ve správném tvaru.{language_specific}
+"""
+
 _CZECH_HINT = (
     "\n- Jazyk je čeština: dbej pečlivě na diakritiku (á, č, ď, é, ě, í, ň, ó, ř, š, ť, ú, ů, ý, ž) "
     "a přirozený český slovosled."
 )
 
 
-def _build_prompt(language: str) -> str:
+def _build_prompt(language: str, diarize: bool = False) -> str:
     lang_label = {"cs": "českou", "sk": "slovenskou", "en": "anglickou"}.get(
         language.lower(), "tuto"
     )
     language_specific = _CZECH_HINT if language.lower() == "cs" else ""
-    return _PROMPT_TEMPLATE.format(
+    template = _PROMPT_TEMPLATE_DIARIZE if diarize else _PROMPT_TEMPLATE
+    return template.format(
         lang_label=lang_label,
         language_specific=language_specific,
     )
@@ -93,6 +109,7 @@ def transcribe_audio_via_gemini(
     api_key: str,
     model: str = DEFAULT_GEMINI_MODEL,
     language: str = DEFAULT_LANGUAGE,
+    diarize: bool = False,
     progress_cb: Callable[[float], None] | None = None,
     cancel_event: threading.Event | None = None,
 ) -> Transcript:
@@ -157,7 +174,7 @@ def transcribe_audio_via_gemini(
         progress_cb(0.40)
     _raise_if_cancelled(cancel_event)
 
-    prompt = _build_prompt(language)
+    prompt = _build_prompt(language, diarize=diarize)
 
     try:
         response = client.models.generate_content(
@@ -310,16 +327,35 @@ def _parse_response(raw: str) -> tuple[list[TranscriptSegment], str, float]:
         text = (item.get("text") or item.get("content") or "").strip()
         if not text:
             continue
+        speaker = str(item.get("speaker") or item.get("mluvci") or "").strip()
         effective_end = end if end > 0 else start
-        segments.append(TranscriptSegment(start=start, end=effective_end, text=text))
+        segments.append(
+            TranscriptSegment(start=start, end=effective_end, text=text, speaker=speaker)
+        )
         text_parts.append(text)
         # Duration je nejvyšší koncový timestamp ze všech segmentů.
         # Když model vrátí jen `start_sec` (chybí `end_sec`), použijeme `start`.
         if effective_end > duration:
             duration = effective_end
 
-    full_text = " ".join(text_parts).strip()
+    full_text = _build_full_text(segments)
     return segments, full_text, duration
+
+
+def _build_full_text(segments: list[TranscriptSegment]) -> str:
+    """Sestaví souvislý text. Když segmenty nesou mluvčí (diarizace), prefixuje
+    každou repliku označením ("Mluvčí 1: …") na vlastním řádku — díky tomu AI
+    i .txt vidí, kdo co řekl. Bez mluvčích spojí věty mezerou jako dřív.
+    """
+    if any(seg.speaker for seg in segments):
+        lines: list[str] = []
+        for seg in segments:
+            if seg.speaker:
+                lines.append(f"{seg.speaker}: {seg.text}")
+            else:
+                lines.append(seg.text)
+        return "\n".join(lines).strip()
+    return " ".join(seg.text for seg in segments).strip()
 
 
 def _extract_json(raw: str):

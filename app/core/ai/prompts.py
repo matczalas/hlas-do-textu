@@ -40,7 +40,13 @@ SYSTEM_PROMPT_CS = (
     "3) Když data v přepisu chybí, napiš „neuvedeno“ — neimprovizuj.\n"
     "4) Výstup je VŽDY validní JSON ve formátu, který ti instrukce v promptu "
     "popíše. Žádný text mimo JSON, žádné poznámky modelu k sobě samému.\n"
-    "5) Český jazyk, diakritika, plné věty u definic a otázek."
+    "5) Český jazyk, diakritika, plné věty u definic a otázek.\n"
+    "6) MLUVČÍ: pokud přepis obsahuje označení mluvčích („Mluvčí 1“, „Mluvčí 2“…) "
+    "a z kontextu spolehlivě poznáš, kdo to je — podle role (poradce, učitel, "
+    "klient, žák) nebo podle jména, které v hovoru zaznělo (např. se představí "
+    "nebo ho někdo osloví) — používej ve výstupu toto rozpoznané označení "
+    "(např. „Poradce“, „Klient Novák“). Když si jistý nejsi, ponech „Mluvčí N“. "
+    "Jména si NIKDY nevymýšlej — použij jen ta, která v nahrávce skutečně padla."
 )
 
 
@@ -1294,3 +1300,19 @@ def templates_for_role(role: str) -> dict[str, dict[str, str]]:
         for k, v in PROMPT_TEMPLATES.items()
         if not k.startswith("teacher_") and not k.startswith("sales_")
     }
+
+
+# Šablony s dialogem více osob — tam má smysl rozlišovat mluvčí (diarizace).
+# Přednáška/studijní materiál je monolog → diarizace by jen přidávala šum.
+CONVERSATION_TEMPLATE_KEYS: frozenset[str] = frozenset(
+    {k for k in PROMPT_TEMPLATES if k.startswith("sales_")} | {"meeting_minutes"}
+)
+
+
+def is_conversation_template(template_key: str) -> bool:
+    """True pro šablony s dialogem více osob (sales schůzka, zápis ze schůzky).
+
+    Používá GUI k automatickému zapnutí diarizace (rozlišování mluvčích) — ta
+    má smysl jen u dialogu, ne u přednášky s jedním mluvčím.
+    """
+    return template_key in CONVERSATION_TEMPLATE_KEYS

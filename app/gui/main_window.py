@@ -1098,6 +1098,16 @@ class MainWindow(QMainWindow):
         # konkrétní šablonu ("sales_meeting", "teacher_reflection", …), schéma
         # výstupu sedne na to, co zadání slibuje. "" = vlastní zadání → student.
         template_key = self._prompt_editor.current_template_key() or "student"
+        backend = _parse_backend(self._settings.transcribe_backend)
+        # Rozlišování mluvčích (diarizace) zapneme automaticky u konverzačních
+        # šablon (sales, zápis ze schůzky) — ale jen u cloud Gemini přepisu,
+        # lokální Whisper to neumí. U přednášky (monolog) zůstává vypnuté.
+        from app.core.ai.prompts import is_conversation_template
+
+        diarize = (
+            backend == TranscribeBackend.CLOUD_GEMINI
+            and is_conversation_template(template_key)
+        )
         common = dict(
             user_prompt=self._prompt_editor.text(),
             output_dir=Path(self._settings.output_dir),
@@ -1108,8 +1118,9 @@ class MainWindow(QMainWindow):
             prefer_offline=self._settings.prefer_offline,
             create_md_export=self._settings.create_md_export,
             user_ai_service=self._settings.user_ai_service,
-            transcribe_backend=_parse_backend(self._settings.transcribe_backend),
+            transcribe_backend=backend,
             prompt_template_key=template_key,
+            diarize=diarize,
         )
         from app.core.pipeline import split_sources_for_batch
 

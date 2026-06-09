@@ -43,6 +43,9 @@ class TranscriptSegment:
     start: float  # sekundy
     end: float
     text: str
+    # Označení mluvčího z diarizace (např. "Mluvčí 1"). Prázdné = nerozlišeno
+    # (lokální Whisper diarizaci neumí; Gemini ji dělá jen když je zapnutá).
+    speaker: str = ""
 
 
 @dataclass(slots=True)
@@ -198,3 +201,7 @@ class JobConfig:
     # Klíč šablony z PROMPT_TEMPLATES (student/teacher_lesson/sales_meeting/...).
     # Určuje, jaké sekce AI vyrobí. Default = obecný "student" prompt.
     prompt_template_key: str = "student"
+    # Rozlišovat mluvčí (diarizace). Funguje jen s cloud Gemini přepisem —
+    # lokální Whisper to neumí. Zapíná se automaticky u konverzačních šablon
+    # (sales_*, meeting_minutes), kde je to užitečné.
+    diarize: bool = False
