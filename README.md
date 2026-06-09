@@ -31,12 +31,15 @@
 
 - **Lokální přepis** mluveného slova v češtině (Whisper, offline)
 - **Rychlý cloud přepis** přes Gemini Audio (~1 min na 15 min audia) — volitelné
-- **AI strukturovaný výstup podle 17 šablon** — od studijního materiálu po
+- **AI strukturovaný výstup podle 18 šablon** — od studijního materiálu po
   follow-up e-mail. Každá šablona má vlastní strukturu sekcí (hlavní body,
   definice, otázky / odpovědi, klíč / hodnota, odstavce) a uživatel vidí
   v UI předem, co dostane.
 - **Univerzální zápis ze schůzky** — pro libovolnou pracovní schůzku
   (účastníci, body, rozhodnutí, akce s vlastníky).
+- **Brainstorming s názorem AI** — AI nejen přepíše, ale dá upřímnou zpětnou
+  vazbu: co si o nápadech myslí, kritiku, vlastní návrhy a zhodnocení, jestli
+  byla schůzka efektivní. (Jediná šablona, kde AI záměrně přidává vlastní názor.)
 - **Rozlišování mluvčích** (cloud přepis) — u dialogu (sales schůzka, zápis ze
   schůzky) přepis označí „Mluvčí 1 / Mluvčí 2" a AI v dokumentu sama přiřadí
   role/jména, pokud je z kontextu pozná (Poradce, Klient Novák…).

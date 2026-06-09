@@ -27,6 +27,7 @@ from app.core.ai.prompts import (
     build_map_prompt,
     build_reduce_prompt,
     build_single_shot_prompt,
+    system_prompt_for_template,
 )
 from app.core.models import (
     SECTION_KIND_BULLETS,
@@ -101,6 +102,10 @@ def generate_study_material(
     total_tokens = count_tokens(full_transcript_text) + count_tokens(slides_text)
     logger.info("Celkové vstupní tokeny: ~{}", total_tokens)
 
+    # System prompt podle šablony — většina je faithful, brainstorming má vlastní
+    # (smí mít názor a kritiku). Map fáze zůstává faithful (jen extrakce).
+    system = system_prompt_for_template(template_key)
+
     # Rozhodnutí single-shot vs map-reduce musí počítat CELKOVÝ vstup
     # (přepis + slidy). Dřív se koukalo jen na přepis — velký transcript pod
     # thresholdem + obří prezentace pak přetekly kontext modelu v single-shotu.
@@ -112,7 +117,7 @@ def generate_study_material(
             slides_text,
             template_key=template_key,
         )
-        raw = router.generate_with_failover(prompt, system=SYSTEM_PROMPT_CS)
+        raw = router.generate_with_failover(prompt, system=system)
     else:
         logger.info("Map-reduce strategie (nad thresholdem)")
         mapped = _map_phase(router, transcripts)
@@ -122,7 +127,7 @@ def generate_study_material(
             slides_text,
             template_key=template_key,
         )
-        raw = router.generate_with_failover(prompt, system=SYSTEM_PROMPT_CS)
+        raw = router.generate_with_failover(prompt, system=system)
 
     return _parse_study_material(raw)
 

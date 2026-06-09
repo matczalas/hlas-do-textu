@@ -401,3 +401,63 @@ def test_system_prompt_mentions_speaker_mapping():
     assert "Mluvčí" in SYSTEM_PROMPT_CS
     # A varuje před vymýšlením jmen
     assert "nevymýšlej" in SYSTEM_PROMPT_CS.lower()
+
+
+# ---------------------------------------------------------------------------
+# Brainstorming šablona — AI smí mít názor (výjimka z faithful pravidel)
+# ---------------------------------------------------------------------------
+
+
+def test_brainstorm_template_registered():
+    from app.core.ai.prompts import PROMPT_TEMPLATES, SECTION_SCHEMAS
+
+    assert "brainstorm" in PROMPT_TEMPLATES
+    assert "brainstorm" in SECTION_SCHEMAS
+    titles = [s.title.lower() for s in SECTION_SCHEMAS["brainstorm"]]
+    # Pokrývá vše, co uživatel chtěl: názor, kritika, návrhy, efektivita
+    assert any("myslím" in t for t in titles)
+    assert any("kritika" in t for t in titles)
+    assert any("návrh" in t for t in titles)
+    assert any("efektiv" in t for t in titles)
+
+
+def test_brainstorm_has_own_system_prompt():
+    """Brainstorming má vlastní system prompt, ostatní šablony faithful."""
+    from app.core.ai.prompts import (
+        SYSTEM_PROMPT_BRAINSTORM_CS,
+        SYSTEM_PROMPT_CS,
+        system_prompt_for_template,
+    )
+
+    assert system_prompt_for_template("brainstorm") == SYSTEM_PROMPT_BRAINSTORM_CS
+    assert system_prompt_for_template("sales_meeting") == SYSTEM_PROMPT_CS
+    assert system_prompt_for_template("student") == SYSTEM_PROMPT_CS
+    # Brainstorm prompt dovoluje názor/kritiku
+    low = SYSTEM_PROMPT_BRAINSTORM_CS.lower()
+    assert "názor" in low or "upřímn" in low
+    assert "kriti" in low or "riziko" in low
+
+
+def test_brainstorm_quality_rules_differ():
+    """Brainstorm prompt používá uvolněná pravidla (smí přidávat názor)."""
+    from app.core.ai.prompts import build_single_shot_prompt
+
+    brainstorm = build_single_shot_prompt("", "Mluvčí 1: nápad…", "", template_key="brainstorm")
+    student = build_single_shot_prompt("", "text", "", template_key="student")
+    # Brainstorm zmiňuje vlastní názor; faithful student "nepřidávej fakta zvenčí"
+    assert "názor" in brainstorm.lower()
+    assert "Nepřidávej fakta zvenčí" in student
+    assert "Nepřidávej fakta zvenčí" not in brainstorm
+
+
+def test_brainstorm_is_universal_and_conversation():
+    from app.core.ai.prompts import (
+        is_conversation_template,
+        templates_for_role,
+    )
+
+    # Univerzální → ve všech rolích
+    for role in ("student", "teacher", "sales"):
+        assert "brainstorm" in templates_for_role(role)
+    # Konverzační → diarizace se u něj zapne
+    assert is_conversation_template("brainstorm")

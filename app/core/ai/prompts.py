@@ -50,6 +50,47 @@ SYSTEM_PROMPT_CS = (
 )
 
 
+# Samostatný system prompt pro brainstorming/reflexi: na rozdíl od ostatních
+# šablon AI ZÁMĚRNĚ smí mít vlastní názor, kritizovat a navrhovat nové věci.
+# Pořád ale nesmí vymýšlet smyšlená fakta o lidech/firmě — jen myšlenky a názory.
+SYSTEM_PROMPT_BRAINSTORM_CS = (
+    "Jsi zkušený, kriticky uvažující poradce (strategie, obsah, byznys). "
+    "Posloucháš záznam brainstormingu / pracovní debaty a tvým úkolem je dát "
+    "UPŘÍMNOU, věcnou zpětnou vazbu — ne jen přepsat, co padlo.\n\n"
+    "PRAVIDLA:\n"
+    "1) Jasně odděluj DVĚ věci: (a) co skutečně v nahrávce zaznělo, (b) tvůj "
+    "vlastní názor a návrhy. Svůj vstup uvozuj formulacemi „Myslím, že…“, "
+    "„Doporučuji…“, „Riziko:…“, „Zvážil bych…“. Nevydávej vlastní nápady za to, "
+    "co řekli účastníci.\n"
+    "2) Buď konkrétní a upřímný. Když je nápad slabý, riskantní nebo nedotažený, "
+    "řekni to — slušně, ale bez vaty. Nelichoť, nechval plané. Tvoje hodnota je "
+    "v poctivém pohledu, ne v potvrzování.\n"
+    "3) U efektivity schůzky buď přímý: jestli debata odbíhala od tématu, neměla "
+    "závěr, opakovala se nebo trvala dýl, než musela — napiš to a navrhni, jak "
+    "příště líp.\n"
+    "4) Nevymýšlej si fakta o lidech, firmě ani číslech, která v nahrávce "
+    "nezazněla. Vlastní NÁPADY a NÁZORY ano; smyšlené SKUTEČNOSTI ne.\n"
+    "5) Výstup je VŽDY validní JSON ve formátu z promptu. Česky, s diakritikou.\n"
+    "6) Pokud přepis rozlišuje mluvčí (Mluvčí 1/2…) a poznáš z kontextu, kdo to "
+    "je, klidně to využij („Mluvčí 1 navrhl…“). Jména si nevymýšlej."
+)
+
+
+# Šablony s vlastním system promptem (jinak se použije SYSTEM_PROMPT_CS).
+_SYSTEM_PROMPT_OVERRIDES: dict[str, str] = {
+    "brainstorm": SYSTEM_PROMPT_BRAINSTORM_CS,
+}
+
+
+def system_prompt_for_template(template_key: str) -> str:
+    """Vrátí system prompt pro danou šablonu.
+
+    Většina šablon používá faithful `SYSTEM_PROMPT_CS` (drž se přepisu,
+    nevymýšlej si). Brainstorming má vlastní, který AI dovoluje názor a kritiku.
+    """
+    return _SYSTEM_PROMPT_OVERRIDES.get(template_key, SYSTEM_PROMPT_CS)
+
+
 # ---------------------------------------------------------------------------
 # Schéma sekcí pro každou šablonu
 # ---------------------------------------------------------------------------
@@ -862,6 +903,62 @@ _TEACHER_NEXT_LESSON_PLAN_SECTIONS: tuple[SectionSpec, ...] = (
 )
 
 
+_BRAINSTORM_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="O čem jste se bavili",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1-2 odstavce — věrné, stručné shrnutí toho, co v debatě padlo a "
+            "jaké nápady se řešily. TADY se drž přepisu, žádný vlastní názor."
+        ),
+        target_count="1-2 odstavce",
+    ),
+    SectionSpec(
+        title="Co si o tom myslím",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Tvůj upřímný názor na probírané nápady. Ke každému hlavnímu nápadu "
+            "1 bod: dává smysl? co je na něm dobré, co zajímavé? Začni „Myslím, "
+            "že…“ / „Líbí se mi…“. Konkrétně, ne obecné fráze. Tohle je TVŮJ "
+            "pohled, ne přepis."
+        ),
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Kritika a slabá místa",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Co je na nápadech slabé, riskantní, nedotažené nebo co se přehlédlo. "
+            "Buď přímý a konkrétní — radši upřímná kritika než zdvořilé nic. "
+            "Ke každému bodu krátké zdůvodnění proč."
+        ),
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Moje návrhy a nové směry",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Konkrétní návrhy: jak nápady vylepšit, co zkusit jinak, jaké nové "
+            "nápady nebo směry tě napadají NAD RÁMEC toho, co zaznělo. Označuj "
+            "je jako svůj návrh („Doporučuji…“, „Zvážil bych…“)."
+        ),
+        target_count="4-8 bodů",
+    ),
+    SectionSpec(
+        title="Hodnocení efektivity schůzky",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Upřímné zhodnocení, jak schůzka probíhala: Měla jasný cíl a závěr? "
+            "Odbíhalo se od tématu? Opakovaly se věci? Trvala přiměřeně? Padlo "
+            "konkrétní rozhodnutí, nebo to vyšumělo? Ke každému postřehu konkrétní "
+            "příklad z nahrávky + tip, jak příště líp. Buď přímý — pokud schůzka "
+            "efektivní nebyla, jasně to napiš (uživatel to chce vědět)."
+        ),
+        target_count="3-6 bodů",
+    ),
+)
+
+
 # Mapování klíče šablony → schéma sekcí
 SECTION_SCHEMAS: dict[str, tuple[SectionSpec, ...]] = {
     # Studentské
@@ -887,6 +984,7 @@ SECTION_SCHEMAS: dict[str, tuple[SectionSpec, ...]] = {
     "quiz": _QUIZ_SECTIONS,
     "summary": _SUMMARY_SECTIONS,
     "meeting_minutes": _MEETING_MINUTES_SECTIONS,
+    "brainstorm": _BRAINSTORM_SECTIONS,
 }
 
 
@@ -993,6 +1091,32 @@ zapamatujte“, „klíčové je…“), dej tomu prostor a označ jako prioritn
 • JSON je striktní: žádný text před/za, žádné komentáře v JSONu, validní UTF-8."""
 
 
+# Pravidla pro brainstorming/reflexi — AI tu SMÍ přidávat vlastní názor a nápady.
+_QUALITY_RULES_BRAINSTORM = """\
+KVALITATIVNÍ PRAVIDLA (nepřeskakuj):
+• Tahle úloha je VÝJIMKA: kromě věrného shrnutí se od tebe čeká vlastní názor,
+  kritika a nové návrhy. Sekce to řeknou jasně — řiď se jejich popisem.
+• Odděluj „co padlo“ od „co si myslím já“. Vlastní vstup uvozuj („Myslím…“,
+  „Doporučuji…“, „Riziko:…“). Nevydávej své nápady za slova účastníků.
+• Buď upřímný a konkrétní. Slabý nebo riskantní nápad pojmenuj. Nelichoť, vata
+  typu „skvělý nápad, jen tak dál“ nemá hodnotu — řekni PROČ a CO s tím.
+• U efektivity schůzky buď přímý: odbíhání, žádný závěr, opakování, zbytečná
+  délka — napiš to a navrhni konkrétní zlepšení.
+• Nevymýšlej si SKUTEČNOSTI (jména, čísla, fakta o firmě), které nezazněly.
+  Vlastní názory a nápady ano, smyšlená fakta ne.
+• JSON je striktní: žádný text před/za, žádné komentáře v JSONu, validní UTF-8."""
+
+
+_QUALITY_RULES_OVERRIDES: dict[str, str] = {
+    "brainstorm": _QUALITY_RULES_BRAINSTORM,
+}
+
+
+def _quality_rules_for(template_key: str) -> str:
+    """Vrátí kvalitativní pravidla pro danou šablonu (brainstorm má vlastní)."""
+    return _QUALITY_RULES_OVERRIDES.get(template_key, _QUALITY_RULES)
+
+
 _REDUCE_PROMPT_TEMPLATE = """Toto je zadání od uživatele:
 
 > {user_prompt}
@@ -1072,7 +1196,7 @@ def build_reduce_prompt(
         slides_text=slides_text or "(žádné slidy)",
         sections_block=_format_sections_block(specs),
         output_skeleton=_format_output_skeleton(specs),
-        quality_rules=_QUALITY_RULES,
+        quality_rules=_quality_rules_for(template_key),
     )
 
 
@@ -1090,7 +1214,7 @@ def build_single_shot_prompt(
         slides_text=slides_text or "(žádné slidy)",
         sections_block=_format_sections_block(specs),
         output_skeleton=_format_output_skeleton(specs),
-        quality_rules=_QUALITY_RULES,
+        quality_rules=_quality_rules_for(template_key),
     )
 
 
@@ -1261,6 +1385,16 @@ PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
             "dalšího setkání. Vhodné pro interní distribuci."
         ),
     },
+    "brainstorm": {
+        "label": "Brainstorming — názor a kritika od AI",
+        "prompt": (
+            "Tohle je záznam brainstormingu / pracovní debaty. Chci od tebe "
+            "UPŘÍMNOU zpětnou vazbu, ne jen přepis: co si reálně myslíš o "
+            "probíraných nápadech, kritiku a slabá místa, vlastní návrhy a nové "
+            "směry. A taky upřímně zhodnoť, jestli byla schůzka efektivní — "
+            "jestli ne, řekni to."
+        ),
+    },
 }
 
 
@@ -1272,7 +1406,9 @@ def template_prompt(key: str) -> str:
 # Šablony bez prefixu, které dávají smysl všem rolím (zobrazí se v každém dropdown).
 # Pozn.: "student" je sice student-specifická, ale klíč nemá prefix `student_` —
 # proto je explicitně vyloučená z teacher/sales dropdownu níže.
-_UNIVERSAL_KEYS: frozenset[str] = frozenset({"quiz", "summary", "meeting_minutes"})
+_UNIVERSAL_KEYS: frozenset[str] = frozenset(
+    {"quiz", "summary", "meeting_minutes", "brainstorm"}
+)
 
 
 def templates_for_role(role: str) -> dict[str, dict[str, str]]:
@@ -1305,7 +1441,8 @@ def templates_for_role(role: str) -> dict[str, dict[str, str]]:
 # Šablony s dialogem více osob — tam má smysl rozlišovat mluvčí (diarizace).
 # Přednáška/studijní materiál je monolog → diarizace by jen přidávala šum.
 CONVERSATION_TEMPLATE_KEYS: frozenset[str] = frozenset(
-    {k for k in PROMPT_TEMPLATES if k.startswith("sales_")} | {"meeting_minutes"}
+    {k for k in PROMPT_TEMPLATES if k.startswith("sales_")}
+    | {"meeting_minutes", "brainstorm"}
 )
 
 
