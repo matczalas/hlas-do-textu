@@ -151,23 +151,43 @@ def get_activation_info() -> dict | None:
 
 
 def get_stored_key() -> str | None:
-    """Vrátí uložený klíč, pokud existuje. Preferuje keyring."""
+    """Vrátí uložený klíč, pokud existuje. Preferuje fallback soubor.
+
+    Pořadí čtení je SOUBOR → keychain (dřív to bylo obráceně). Důvod:
+    `store_key` zapisuje licenci do souboru VŽDY, takže ho má každý aktivovaný
+    uživatel. Čtení souboru navíc nevyvolá na nepodepsané macOS aplikaci dotaz
+    na systémové heslo ke Keychainu (na rozdíl od `keyring.get_password`).
+    Keychain čteme už jen jako fallback pro staré instalace — a hned ho
+    zmigrujeme do souboru, aby se příště nesahal.
+    """
+    # 1) Fallback soubor — primární, tichý, vždy zapsaný při aktivaci.
+    try:
+        path = _fallback_path()
+        if path.is_file():
+            value = path.read_text(encoding="utf-8").strip().upper()
+            if value:
+                return value
+    except OSError as exc:
+        logger.warning("Fallback file čtení selhalo: {}", exc)
+
+    # 2) Keychain (staré instalace bez souboru). Po přečtení zmigrujeme do
+    #    souboru — příští start už Keychain nečte (žádný dotaz na heslo).
     try:
         import keyring
 
         value = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USER)
         if value:
-            return value.strip().upper()
+            value = value.strip().upper()
+            try:
+                path = _fallback_path()
+                path.write_text(value, encoding="utf-8")
+                path.chmod(0o600)
+                logger.info("Licenční klíč zmigrován z keychainu do {}", path)
+            except OSError as exc:
+                logger.warning("Migrace licence do souboru selhala: {}", exc)
+            return value
     except Exception as exc:  # noqa: BLE001
         logger.warning("Keyring nedostupný při čtení licence: {}", exc)
-
-    # Fallback
-    try:
-        path = _fallback_path()
-        if path.is_file():
-            return path.read_text(encoding="utf-8").strip().upper()
-    except OSError as exc:
-        logger.warning("Fallback file čtení selhalo: {}", exc)
 
     return None
 

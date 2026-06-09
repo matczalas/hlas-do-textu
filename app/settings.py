@@ -1,4 +1,4 @@
-"""User settings: API klíče v keyring (Windows Credential Manager / macOS Keychain),
+"""User settings: Gemini API klíč v souboru 0600 (viz níže — proč ne Keychain),
 zbytek v JSON v USER_CONFIG_DIR.
 """
 
@@ -20,6 +20,7 @@ from app.config import (
     DEFAULT_OLLAMA_MODEL,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_WHISPER_MODEL,
+    USER_CONFIG_DIR,
     ensure_dirs,
 )
 
@@ -120,42 +121,98 @@ def save_settings(settings: AppSettings) -> None:
 
 
 # ---------------------------------------------------------------------------
-# API klíče přes keyring (s fallback na env var pro dev)
+# Gemini API klíč — uložení v souboru (0600), ne v Keychainu
 # ---------------------------------------------------------------------------
+# Proč ne Keychain: nepodepsaná macOS aplikace dostane při KAŽDÉM čtení
+# Keychainu dotaz na systémové heslo (po updatu se podpis mění → "Always Allow"
+# nesedí). Ukládáme proto klíč do souboru s právy 0600 (čitelný jen vlastníkem)
+# v USER_CONFIG_DIR. Keychain čteme už jen jednorázově kvůli migraci klíče
+# z předchozích verzí. Výsledek navíc cachujeme v paměti (1 čtení za běh).
+#
+# Bezpečnost: Gemini Free klíč je nízkohodnotový a soubor je čitelný jen pro
+# přihlášeného uživatele (0600) — stejný model, jaký už používá licence.
+
+_GEMINI_FILE_NAME = ".gemini_key"
+
+
+class _Unset:
+    """Sentinel — rozliší 'cache ještě nenačtena' od 'načteno, ale klíč není'."""
+
+
+_UNSET: _Unset = _Unset()
+_gemini_cache: str | None | _Unset = _UNSET
+
+
+def _gemini_file_path() -> Path:
+    ensure_dirs()
+    return USER_CONFIG_DIR / _GEMINI_FILE_NAME
 
 
 def get_gemini_api_key() -> str | None:
-    """Vrátí klíč v pořadí: ENV → keyring. None pokud nikde."""
+    """Vrátí Gemini klíč. Pořadí: ENV → cache → soubor → (migrace z) Keychainu.
+
+    Soubor i Keychain se čtou max jednou za běh (výsledek se cachuje). Jakmile
+    soubor existuje (i prázdný = "uživatel klíč smazal"), Keychain se už nesahá
+    — díky tomu se macOS neptá na systémové heslo.
+    """
     env = os.environ.get("GEMINI_API_KEY", "").strip()
     if env:
         return env
 
+    global _gemini_cache
+    if not isinstance(_gemini_cache, _Unset):
+        return _gemini_cache  # type: ignore[return-value]
+
+    # 1) Soubor je autoritativní zdroj. Když existuje, Keychain ignorujeme.
+    try:
+        path = _gemini_file_path()
+        if path.is_file():
+            value = path.read_text(encoding="utf-8").strip()
+            _gemini_cache = value or None
+            return _gemini_cache  # type: ignore[return-value]
+    except OSError as exc:
+        logger.warning("Čtení Gemini klíče ze souboru selhalo: {}", exc)
+
+    # 2) Soubor neexistuje → jednorázová migrace z Keychainu (staré instalace).
+    #    Tohle je JEDINÉ místo, kde se Keychain ještě čte — po migraci už nikdy.
     try:
         import keyring
 
         value = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USER)
         if value:
-            return value.strip()
+            value = value.strip()
+            _write_gemini_file(value)  # zmigruj do souboru
+            _gemini_cache = value
+            return value
     except Exception as exc:  # noqa: BLE001 — keyring backend může selhat
         logger.warning("Keyring není dostupný: {}", exc)
 
+    _gemini_cache = None
     return None
 
 
 def set_gemini_api_key(key: str) -> None:
+    """Uloží/smaže Gemini klíč do souboru (0600). Keychain se nepoužívá.
+
+    Prázdný klíč zapíše prázdný soubor (tombstone) — tím se zabrání, aby se
+    starý klíč z Keychainu při dalším čtení "vzkřísil" migrací.
+    """
+    global _gemini_cache
     key = (key or "").strip()
     try:
-        import keyring
-
-        if not key:
-            try:
-                keyring.delete_password(_KEYRING_SERVICE, _KEYRING_USER)
-            except keyring.errors.PasswordDeleteError:
-                pass
-            logger.info("Gemini API klíč smazán z keyring")
-            return
-        keyring.set_password(_KEYRING_SERVICE, _KEYRING_USER, key)
-        logger.info("Gemini API klíč uložen do keyring")
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Nepodařilo se uložit klíč do keyring: {}", exc)
+        _write_gemini_file(key)  # i prázdný = tombstone
+        _gemini_cache = key or None
+        logger.info("Gemini API klíč {}", "uložen" if key else "smazán")
+    except OSError as exc:
+        logger.error("Nepodařilo se uložit Gemini klíč: {}", exc)
         raise
+
+
+def _write_gemini_file(value: str) -> None:
+    """Zapíše hodnotu (i prázdnou) do souboru s právy 0600."""
+    path = _gemini_file_path()
+    path.write_text(value, encoding="utf-8")
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
