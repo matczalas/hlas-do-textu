@@ -99,10 +99,22 @@ Detailní návod: [docs/PRVNI_SPUSTENI.md](docs/PRVNI_SPUSTENI.md)
 podle výkonu počítače. Aplikace si rychlost počítače sama kalibruje a ukazuje
 živý odhad zbývajícího času.
 
-**Výstup:** Word dokument v `Dokumenty/HlasDoTextu/<Téma>/`. Obsahuje pouze
-AI výstup strukturovaný podle zvolené šablony (sekce, tučné termíny, kurzíva
-u vzorových odpovědí). Plný přepis je vedle ve `.txt` souboru. Volitelně
-i `.md` připravený jako prompt pro AI agenta (ChatGPT / Claude / Gemini).
+**Výstup je přehledně roztříděný** v `Dokumenty/HlasDoTextu/`:
+
+```
+HlasDoTextu/
+├── Finance/            ← Word výstupy tříděné podle tématu (navrhne AI)
+│   └── Zápis-schůzky_….docx
+├── Dějepis/
+│   └── Studijní-materiál_….docx
+└── Přepisy/            ← všechny .txt přepisy pohromadě
+    └── Prepis_<zdroj>_….txt
+```
+
+Word dokument obsahuje pouze AI výstup strukturovaný podle zvolené šablony
+(sekce, tučné termíny, kurzíva u vzorových odpovědí). Plný přepis je v podsložce
+`Přepisy/`. Volitelně i `.md` připravený jako prompt pro AI agenta (ChatGPT /
+Claude / Gemini).
 
 **Soukromí:** lokální přepis běží offline (nic neopustí počítač). Cloud přepis
 posílá audio Google Gemini — vhodné pro přednášky a interní schůzky, **ne pro

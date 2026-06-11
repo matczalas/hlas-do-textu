@@ -141,3 +141,34 @@ def test_save_transcript_backup_includes_speakers(tmp_path: Path):
     content = path.read_text(encoding="utf-8")
     assert "Mluvčí 1: Dobrý den." in content
     assert "Mluvčí 2: Zdravím." in content
+
+
+def test_save_transcript_backup_goes_to_prepisy_subfolder(tmp_path: Path):
+    """Přepis se ukládá do podsložky Přepisy/, ne do kořene output složky."""
+    from app.core.models import Transcript
+
+    transcripts = [
+        Transcript(source_label="Přednáška X", language="cs", duration_sec=10.0,
+                   text="text", segments=[]),
+    ]
+    path = _save_transcript_backup(transcripts, tmp_path)
+    assert path is not None
+    assert path.parent == tmp_path / "Přepisy"
+    # Kořen output složky neobsahuje žádný .txt
+    assert list(tmp_path.glob("*.txt")) == []
+    # Název obsahuje sanitizovaný štítek zdroje
+    assert "Přednáška-X" in path.stem
+    assert path.stem.startswith("Prepis_")
+
+
+def test_save_transcript_backup_multiple_recordings_label(tmp_path: Path):
+    """Víc nahrávek → název odráží počet, ne jen jeden štítek."""
+    from app.core.models import Transcript
+
+    transcripts = [
+        Transcript(source_label="A", language="cs", duration_sec=1.0, text="a", segments=[]),
+        Transcript(source_label="B", language="cs", duration_sec=1.0, text="b", segments=[]),
+    ]
+    path = _save_transcript_backup(transcripts, tmp_path)
+    assert path is not None
+    assert "2-nahravek" in path.stem

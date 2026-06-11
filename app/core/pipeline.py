@@ -41,9 +41,14 @@ from app.core.transcribe_gemini import (
 )
 from app.core.word_export import (
     export_docx,
+    safe_filename_part,
     suggested_output_filename,
     topic_folder_name,
 )
+
+# Podsložka pro všechny .txt přepisy — drží kořen output složky čistý
+# (jen tématické podsložky s Word výstupy + tady všechny přepisy pohromadě).
+_TRANSCRIPTS_SUBDIR = "Přepisy"
 
 
 @dataclass(slots=True)
@@ -272,16 +277,20 @@ def run_pipeline(
         cumulative = _begin_stage(report, word_stage, cumulative)
         _raise_if_cancelled(cancel_event)
         out_filename = suggested_output_filename(material)
-        if transcribe_only:
-            out_filename = "Prepis_" + out_filename.replace("Studijni-material_", "")
-        # Třídění do podsložky podle tématu (AI navrhne, např. "Fyzika").
-        # Prázdné téma (transcribe-only nebo AI nevrátila) → kořenová složka.
         out_dir = Path(job.output_dir)
-        folder = topic_folder_name(material)
-        if folder:
-            out_dir = out_dir / folder
+        if transcribe_only:
+            # Transcribe-only Word JE přepis → patří mezi přepisy, ne do kořene.
+            out_filename = "Prepis_" + out_filename.replace("Studijni-material_", "")
+            out_dir = out_dir / _TRANSCRIPTS_SUBDIR
             out_dir.mkdir(parents=True, exist_ok=True)
-            logger.info("Export tříděn do složky podle tématu: {}", folder)
+        else:
+            # Třídění do podsložky podle tématu (AI navrhne, např. "Fyzika").
+            # Prázdné téma (AI nevrátila) → kořenová output složka.
+            folder = topic_folder_name(material)
+            if folder:
+                out_dir = out_dir / folder
+                out_dir.mkdir(parents=True, exist_ok=True)
+                logger.info("Export tříděn do složky podle tématu: {}", folder)
         out_path = out_dir / out_filename
         export_docx(
             output_path=out_path,
@@ -498,13 +507,21 @@ def _raise_if_cancelled(cancel_event: threading.Event | None) -> None:
 def _save_transcript_backup(transcripts: list[Transcript], output_dir: Path) -> Path | None:
     """Uloží raw přepis do .txt souboru pro případ že AI selže.
 
-    Soubor je čitelný i jako pouhý text — kamarádka má co studovat i bez bodů.
+    Soubor je čitelný i jako pouhý text — uživatel má co číst i bez bodů.
+    Ukládá se do podsložky `Přepisy/` (kořen output složky tak zůstane čistý)
+    a pojmenuje se podle zdroje, ať se v něm dá vyznat:
+        Přepisy/Prepis_<štítek>_<datum-čas>.txt
     """
     if not transcripts:
         return None
-    output_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = output_dir / _TRANSCRIPTS_SUBDIR
+    target_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    path = output_dir / f"prepis_{timestamp}.txt"
+    if len(transcripts) == 1:
+        label = safe_filename_part(transcripts[0].source_label, fallback="prepis", max_len=40)
+    else:
+        label = f"{len(transcripts)}-nahravek"
+    path = target_dir / f"Prepis_{label}_{timestamp}.txt"
 
     lines: list[str] = []
     lines.append(f"# Přepis přednášky — {datetime.now().strftime('%d. %m. %Y %H:%M')}\n")
@@ -708,8 +725,6 @@ def regenerate_from_transcript(
 
     Užitečné když Gemini vrátilo slabé body a kamarádka chce zkusit upravený popis.
     """
-    from app.core.word_export import export_docx, suggested_output_filename
-
     report = _make_reporter(progress_cb)
 
     report("Čtu přepis ze souboru…", 0.10)
@@ -739,7 +754,13 @@ def regenerate_from_transcript(
     )
 
     report("Ukládám Word…", 0.90)
-    out_path = Path(output_dir) / suggested_output_filename(material)
+    # Stejné třídění do tématické podsložky jako v hlavní pipeline.
+    out_dir = Path(output_dir)
+    folder = topic_folder_name(material)
+    if folder:
+        out_dir = out_dir / folder
+        out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / suggested_output_filename(material)
     export_docx(
         output_path=out_path,
         material=material,

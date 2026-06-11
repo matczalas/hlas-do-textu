@@ -1243,19 +1243,29 @@ class MainWindow(QMainWindow):
         self._job_controller.cancel_job(job_id)
 
     def _detect_cached_transcript(self, file_path: Path) -> bool:
-        """Heuristika: zkontroluje, jestli vedle plánovaného .docx existuje
-        sourozenecký .txt přepis ze předchozího runu. Když ano, mohli bychom
-        v budoucnu pipeline zkrátit. Pro v1.3.0 jen indikace v UI.
+        """Heuristika: zkontroluje, jestli existuje .txt přepis z předchozího
+        runu pro tenhle zdroj. Když ano, mohli bychom v budoucnu pipeline
+        zkrátit. Pro teď jen indikace v UI.
+
+        Hledá v podsložce `Přepisy/` (nové umístění) i v kořeni (staré runy).
+        Porovnává sanitizovaně, protože přepis je pojmenovaný `Prepis_<štítek>_…`.
         """
         try:
+            from app.core.word_export import safe_filename_part
+
             output_dir = Path(self._settings.output_dir)
             if not output_dir.is_dir():
                 return False
-            stem = file_path.stem
-            # Hledat v output dir libovolný .txt obsahující stem zdroje
-            for candidate in output_dir.glob("*.txt"):
-                if stem in candidate.stem:
-                    return True
+            needle = safe_filename_part(file_path.stem, fallback="", max_len=40)
+            if not needle:
+                return False
+            search_dirs = [output_dir, output_dir / "Přepisy"]
+            for d in search_dirs:
+                if not d.is_dir():
+                    continue
+                for candidate in d.glob("*.txt"):
+                    if needle in candidate.stem:
+                        return True
         except OSError:
             pass
         return False

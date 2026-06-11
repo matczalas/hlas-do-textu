@@ -20,6 +20,7 @@ from app.core.models import (
 )
 from app.core.word_export import (
     export_docx,
+    safe_filename_part,
     suggested_output_filename,
     topic_folder_name,
 )
@@ -97,6 +98,25 @@ def test_export_docx_includes_quiz_questions(tmp_path: Path) -> None:
     full_text = "\n".join(p.text for p in doc.paragraphs)
     assert "Otázky k procvičení a zkoušení" in full_text
     assert "první Newtonův zákon" in full_text
+
+
+def test_safe_filename_part_basic():
+    assert safe_filename_part("Vysoká škola ekonomická") == "Vysoká-škola-ekonomická"
+
+
+def test_safe_filename_part_strips_illegal_chars():
+    result = safe_filename_part('Test / Klient: Novák * 2026?')
+    for forbidden in ("/", "\\", ":", "*", "?", '"', "<", ">", "|"):
+        assert forbidden not in result
+
+
+def test_safe_filename_part_empty_uses_fallback():
+    assert safe_filename_part("", fallback="prepis") == "prepis"
+    assert safe_filename_part("///", fallback="prepis") == "prepis"
+
+
+def test_safe_filename_part_respects_max_len():
+    assert len(safe_filename_part("A" * 100, max_len=40)) <= 40
 
 
 def test_topic_folder_name_basic():

@@ -232,14 +232,23 @@ def _split_pair(value) -> tuple[str, str]:
     return (str(value), "")
 
 
+def safe_filename_part(text: str, *, fallback: str = "soubor", max_len: int = 60) -> str:
+    """Sanitizuje text na bezpečnou část názvu souboru.
+
+    Povolí písmena/čísla (i s diakritikou), mezery → pomlčky, ostatní znaky → _,
+    ořízne na `max_len` a odstraní pomlčky/podtržítka na okrajích. Prázdný
+    výsledek → `fallback`. Bez nelegálních znaků pro Windows/macOS.
+    """
+    safe = "".join(
+        c if c.isalnum() or c in (" ", "-", "_") else "_" for c in text
+    ).strip()
+    safe = safe.replace(" ", "-")[:max_len].strip("-_")
+    return safe or fallback
+
+
 def suggested_output_filename(material: StudyMaterial) -> str:
     """Vrátí název souboru ve tvaru `Studijni-material_YYYY-MM-DD-HHMM.docx`."""
-    safe_title = "".join(
-        c if c.isalnum() or c in (" ", "-", "_") else "_" for c in material.title
-    ).strip()
-    if not safe_title:
-        safe_title = "Studijni-material"
-    safe_title = safe_title.replace(" ", "-")[:60]
+    safe_title = safe_filename_part(material.title, fallback="Studijni-material")
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
     return f"{safe_title}_{timestamp}.docx"
 
