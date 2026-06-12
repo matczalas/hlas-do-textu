@@ -1305,6 +1305,550 @@ _PODCAST_INTERVIEW_QA_SECTIONS: tuple[SectionSpec, ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Realitní makléř — šablony pod roli "sales" (svět poradce je stejný)
+# ---------------------------------------------------------------------------
+
+
+_SALES_PROPERTY_VIEWING_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Nemovitost a klient",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíče: Nemovitost (adresa/označení jak zaznělo), Klient, Typ "
+            "prohlídky (zájemce o koupi / nájem). Jen co zaznělo."
+        ),
+        target_count="2-3 řádky",
+    ),
+    SectionSpec(
+        title="Reakce klienta",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Co se klientovi líbilo a nelíbilo — konkrétně, místnost po "
+            "místnosti, jak to při prohlídce padalo. Tohle rozhoduje o "
+            "follow-upu."
+        ),
+        target_count="4-8 bodů",
+    ),
+    SectionSpec(
+        title="Námitky a otázky",
+        kind=SECTION_KIND_QA,
+        instruction=(
+            "Námitky/otázky klienta (cena, stav, okolí, financování…) a jak "
+            "na ně makléř odpověděl. Nezodpovězené označ „k dořešení“."
+        ),
+        target_count="0-6 dvojic",
+    ),
+    SectionSpec(
+        title="Zájem a další krok",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Jak vážný je zájem (jak klient sám naznačil) a co bylo dohodnuto "
+            "dál — druhá prohlídka, rezervace, financování, termín odpovědi."
+        ),
+        target_count="1 odstavec",
+    ),
+)
+
+
+_SALES_PROPERTY_LISTING_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Parametry nemovitosti",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Vše, co při náběru zaznělo: Dispozice, Výměra, Patro, Stav, "
+            "Vlastnictví, Energie/vytápění, Parkování, Vybavení, Závazky "
+            "(hypotéka, věcná břemena)… Klíč = parametr, hodnota = údaj. "
+            "Jen co skutečně padlo — nedoplňuj odhady."
+        ),
+        target_count="8-20 řádků",
+    ),
+    SectionSpec(
+        title="Návrh inzertního textu (copy-paste)",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Hotový inzerát z toho, co zaznělo: titulek + 2-3 odstavce. "
+            "Prodejní, ale pravdivý — žádné vlastnosti, které nezazněly. "
+            "Vyzdvihni, co majitel sám označil za přednosti."
+        ),
+        target_count="1 blok",
+    ),
+    SectionSpec(
+        title="Dohoda s majitelem",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Cena a její flexibilita, exkluzivita, provize, termíny — jak "
+            "bylo dohodnuto. Klíč = bod dohody, hodnota = detail."
+        ),
+        target_count="podle náběru",
+    ),
+    SectionSpec(
+        title="Podklady k dodání",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Co je potřeba dodat/zařídit (list vlastnictví, PENB, fotky, "
+            "půdorys…). Klíč = podklad, hodnota = kdo + do kdy."
+        ),
+        target_count="podle náběru",
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# HR & nábor — role "hr"
+# ---------------------------------------------------------------------------
+
+
+_HR_INTERVIEW_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Základní informace",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíče: Pozice (o jakou jde), Kandidát (jméno jen pokud zaznělo), "
+            "Kdo vedl pohovor. Jen co skutečně padlo."
+        ),
+        target_count="2-3 řádky",
+    ),
+    SectionSpec(
+        title="Shrnutí pohovoru",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1-2 odstavce — celkový průběh a dojem VĚCNĚ: jak kandidát "
+            "odpovídal, kde byl konkrétní, kde mlžil. Žádné spekulace o "
+            "osobnosti, žádné odkazy na věk/pohlaví/původ — jen pracovní "
+            "kompetence a obsah odpovědí."
+        ),
+        target_count="1-2 odstavce",
+    ),
+    SectionSpec(
+        title="Otázky a odpovědi kandidáta",
+        kind=SECTION_KIND_QA,
+        instruction=(
+            "Klíčové otázky pohovoru a shrnutí odpovědí kandidáta (2-4 věty). "
+            "Věrně — tohle je podklad pro porovnání kandidátů."
+        ),
+        target_count="5-10 dvojic",
+    ),
+    SectionSpec(
+        title="Silné stránky",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Co kandidát doložil konkrétně (zkušenosti, výsledky, znalosti). "
+            "Ke každému bodu důkaz z odpovědi, ne dojem."
+        ),
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Rizika a otevřené otázky",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Kde odpovědi byly slabé, rozporné nebo chybí informace — co "
+            "ověřit v dalším kole nebo u referencí. Věcně, bez soudů."
+        ),
+        target_count="2-5 bodů",
+    ),
+    SectionSpec(
+        title="Další kroky",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Co bylo dohodnuto: další kolo, úkol, reference, termín odpovědi. "
+            "Klíč = krok, hodnota = kdo + do kdy."
+        ),
+        target_count="podle pohovoru",
+    ),
+)
+
+
+_HR_PERFORMANCE_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Kontext",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíče: Zaměstnanec (jméno/role jak zazněla), Hodnoticí, Období. "
+            "Jen co zaznělo."
+        ),
+        target_count="2-3 řádky",
+    ),
+    SectionSpec(
+        title="Zhodnocení období",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Co se za období povedlo a co ne — jak zaznělo od OBOU stran. "
+            "U každého bodu označ, čí pohled to je (manažer/zaměstnanec), "
+            "pokud se liší."
+        ),
+        target_count="4-8 bodů",
+    ),
+    SectionSpec(
+        title="Zpětná vazba manažera",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Hlavní body zpětné vazby — konkrétně, s příklady, jak padly.",
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Pohled zaměstnance",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Co zaměstnanec sdělil: spokojenost, překážky, ambice, potřeby. "
+            "Důležité pro retenci — zachyť věrně."
+        ),
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Dohodnuté cíle",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = cíl na další období, hodnota = termín + jak se pozná "
+            "splnění (pokud zaznělo)."
+        ),
+        target_count="podle pohovoru",
+    ),
+    SectionSpec(
+        title="Rozvojové kroky",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = rozvojová aktivita (školení, mentoring, nová odpovědnost), "
+            "hodnota = kdo zařídí + do kdy."
+        ),
+        target_count="podle pohovoru",
+    ),
+)
+
+
+_HR_EXIT_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Důvody odchodu",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Skutečné důvody, jak je odcházející uvedl — věrně a bez "
+            "přikrášlení. Rozliš hlavní důvod od vedlejších."
+        ),
+        target_count="2-5 bodů",
+    ),
+    SectionSpec(
+        title="Co fungovalo",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Co odcházející na firmě/týmu/roli oceňoval.",
+        target_count="2-5 bodů",
+    ),
+    SectionSpec(
+        title="Co nefungovalo",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Kritika a frustrace — věrně, tohle je nejcennější část exit "
+            "interview. Bez zjemňování."
+        ),
+        target_count="2-6 bodů",
+    ),
+    SectionSpec(
+        title="Návrhy ke zlepšení",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Co by odcházející změnil — konkrétní doporučení firmě.",
+        target_count="0-5 bodů",
+    ),
+    SectionSpec(
+        title="Předání agendy",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = co se předává (projekt, znalost, kontakt), hodnota = "
+            "komu + do kdy. Pokud se neprobíralo, prázdné."
+        ),
+        target_count="0-8 řádků",
+    ),
+)
+
+
+_HR_ONE_ON_ONE_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Probraná témata",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Hlavní témata 1:1 v pořadí — stručně, věcně.",
+        target_count="3-7 bodů",
+    ),
+    SectionSpec(
+        title="Překážky a potřeby",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Co dotyčného blokuje nebo co potřebuje (od manažera, týmu, "
+            "firmy). Pokud nic, prázdný seznam."
+        ),
+        target_count="0-5 bodů",
+    ),
+    SectionSpec(
+        title="Dohodnuté akce",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction="Klíč = akce, hodnota = kdo + do kdy.",
+        target_count="podle schůzky",
+    ),
+    SectionSpec(
+        title="Na příští 1:1",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Co se má otevřít příště — odložená témata, kontrola akcí.",
+        target_count="0-4 body",
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Kouč — role "coach"
+# ---------------------------------------------------------------------------
+# Rámování: PRACOVNÍ POZNÁMKY KOUČE — ne zdravotní dokumentace, žádné
+# diagnózy ani terapeutické závěry. Neutrální, respektující jazyk.
+
+
+_COACH_SESSION_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Téma sezení",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1 odstavec — s čím klient přišel a co se ukázalo jako skutečné "
+            "téma sezení. Neutrálně, bez hodnocení a bez diagnóz."
+        ),
+        target_count="1 odstavec",
+    ),
+    SectionSpec(
+        title="Klíčové momenty",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Zlomové body sezení: aha-momenty klienta, silné formulace, "
+            "posuny v uvažování. Cituj klientova slova, kde to jde — pro "
+            "kouče je cenné vracet se ke klientovým vlastním formulacím."
+        ),
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Dohodnuté kroky do příště",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = krok/experiment, na kterém se klient dohodl, hodnota = "
+            "do kdy / jak pozná, že se povedl. Jen co klient SÁM přijal."
+        ),
+        target_count="1-4 kroky",
+    ),
+    SectionSpec(
+        title="Pokrok vůči cílům spolupráce",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Pokud v sezení zazněla vazba na dlouhodobé cíle spolupráce, "
+            "zachyť posun. Pokud ne, prázdný seznam."
+        ),
+        target_count="0-4 body",
+    ),
+    SectionSpec(
+        title="Poznámky kouče",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Pracovní postřehy pro kouče: vzorce, kterých si všiml, hypotézy "
+            "k ověření, co příště zkusit jinak. Označuj jako hypotézy, ne "
+            "fakta o klientovi."
+        ),
+        target_count="2-5 bodů",
+    ),
+)
+
+
+_COACH_FIRST_SESSION_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Zakázka klienta",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Co chce klient řešit a proč teď — jeho vlastními slovy, "
+            "parafrázuj věrně."
+        ),
+        target_count="1-2 odstavce",
+    ),
+    SectionSpec(
+        title="Kontext",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Relevantní okolnosti, které klient sdělil (práce, vztahy, "
+            "dosavadní pokusy). Jen co řekl sám — nic nedovozuj."
+        ),
+        target_count="3-6 bodů",
+    ),
+    SectionSpec(
+        title="Cíle spolupráce",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = cíl, hodnota = jak klient pozná, že je naplněn + horizont "
+            "(pokud zazněly)."
+        ),
+        target_count="1-4 cíle",
+    ),
+    SectionSpec(
+        title="Dohoda o spolupráci",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Praktické dohody: frekvence sezení, délka, forma (osobně/online), "
+            "cena pokud zazněla, pravidla rušení."
+        ),
+        target_count="podle sezení",
+    ),
+)
+
+
+_COACH_NEXT_PREP_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Kde jsme skončili",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction="1 odstavec — stav na konci tohoto sezení.",
+        target_count="1 odstavec",
+    ),
+    SectionSpec(
+        title="Otevřená témata",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Co se otevřelo a nedořešilo — kandidáti na příští sezení.",
+        target_count="2-5 bodů",
+    ),
+    SectionSpec(
+        title="Co zkontrolovat na začátku",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Dohodnuté kroky klienta z tohoto sezení — na začátku příštího "
+            "se k nim vrátit."
+        ),
+        target_count="1-4 body",
+    ),
+    SectionSpec(
+        title="Návrhy otázek pro kouče",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "3-6 otevřených koučovacích otázek, které navazují na toto sezení. "
+            "Otevřené (ne ano/ne), nehodnotící."
+        ),
+        target_count="3-6 otázek",
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Spolky & SVJ — role "spolek"
+# ---------------------------------------------------------------------------
+
+
+_SPOLEK_MEETING_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Základní údaje",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíče: Orgán (výbor / členská schůze / shromáždění SVJ…), Datum "
+            "a místo (jen pokud zazněly), Přítomní (jak zazněli), "
+            "Usnášeníschopnost (pokud byla konstatována)."
+        ),
+        target_count="2-4 řádky",
+    ),
+    SectionSpec(
+        title="Projednané body",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Body jednání v pořadí, jak šly. U každého stručně, co se "
+            "projednalo a s jakým závěrem."
+        ),
+        target_count="3-10 bodů",
+    ),
+    SectionSpec(
+        title="Usnesení",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = „Usnesení č. N: přesný text usnesení, jak bylo přijato“. "
+            "Hodnota = výsledek hlasování (pro / proti / zdržel se), pokud "
+            "zazněl, jinak „přijato bez hlasování“ či „neuvedeno“. Čísluj "
+            "postupně. POZOR: jen skutečně přijatá usnesení — návrhy, které "
+            "neprošly, uveď s výsledkem „nepřijato“."
+        ),
+        target_count="podle schůze",
+    ),
+    SectionSpec(
+        title="Úkoly",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction="Klíč = úkol, hodnota = kdo + do kdy (nebo „neuvedeno“).",
+        target_count="podle schůze",
+    ),
+    SectionSpec(
+        title="Příští schůze",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Termín a místo příští schůze, pokud zazněly. Jinak „Termín "
+            "příští schůze nebyl stanoven.“ Na konec přidej větu: „Koncept "
+            "zápisu vygenerovaný z nahrávky — před podpisem ověří "
+            "zapisovatel/ka.“"
+        ),
+        target_count="1-2 věty",
+    ),
+)
+
+
+_SPOLEK_AGENDA_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Návrh programu příští schůze",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Očíslovaný návrh programu sestavený z bodů, které se odložily, "
+            "nedořešily nebo byly výslovně zmíněny „na příště“. Doplň stálé "
+            "body (zahájení, schválení programu, kontrola úkolů, různé)."
+        ),
+        target_count="5-10 bodů",
+    ),
+    SectionSpec(
+        title="Podklady k přípravě",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = podklad/dokument, který je k bodu potřeba připravit, "
+            "hodnota = kdo ho má dodat."
+        ),
+        target_count="0-6 řádků",
+    ),
+    SectionSpec(
+        title="Text pozvánky (copy-paste)",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Hotový text pozvánky na příští schůzi: oslovení členů, datum/"
+            "místo (pokud známé, jinak [DOPLNIT]), program, prosba o "
+            "potvrzení účasti. Formální, ale srozumitelný tón."
+        ),
+        target_count="1 blok",
+    ),
+)
+
+
+_SPOLEK_ANNUAL_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Shrnutí činnosti",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1-2 odstavce shrnující činnost za období, jak zazněla na "
+            "schůzi/výroční schůzi. Vhodné jako úvod výroční zprávy."
+        ),
+        target_count="1-2 odstavce",
+    ),
+    SectionSpec(
+        title="Co se uskutečnilo",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Akce, projekty a aktivity, které za období proběhly — s čísly "
+            "(účastníci, frekvence), pokud zazněla."
+        ),
+        target_count="4-10 bodů",
+    ),
+    SectionSpec(
+        title="Hospodaření (jak zaznělo)",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Finanční údaje, které na schůzi padly: příjmy, výdaje, zůstatek, "
+            "dotace, členské příspěvky. POZOR: přesně jak zazněly, žádné "
+            "dopočítávání. Když nic, prázdné."
+        ),
+        target_count="0-8 řádků",
+    ),
+    SectionSpec(
+        title="Plány na další období",
+        kind=SECTION_KIND_BULLETS,
+        instruction="Co se plánuje — akce, opravy, projekty, změny.",
+        target_count="3-8 bodů",
+    ),
+)
+
+
 # Mapování klíče šablony → schéma sekcí
 SECTION_SCHEMAS: dict[str, tuple[SectionSpec, ...]] = {
     # Studentské
@@ -1327,8 +1871,23 @@ SECTION_SCHEMAS: dict[str, tuple[SectionSpec, ...]] = {
     "sales_followup_email": _SALES_FOLLOWUP_EMAIL_SECTIONS,
     "sales_objection_log": _SALES_OBJECTION_LOG_SECTIONS,
     "sales_phone_call": _SALES_PHONE_CALL_SECTIONS,
+    "sales_property_viewing": _SALES_PROPERTY_VIEWING_SECTIONS,
+    "sales_property_listing": _SALES_PROPERTY_LISTING_SECTIONS,
     # Učitelské přídavky
     "teacher_parent_meeting": _TEACHER_PARENT_MEETING_SECTIONS,
+    # HR & nábor
+    "hr_interview": _HR_INTERVIEW_SECTIONS,
+    "hr_performance_review": _HR_PERFORMANCE_SECTIONS,
+    "hr_exit_interview": _HR_EXIT_SECTIONS,
+    "hr_one_on_one": _HR_ONE_ON_ONE_SECTIONS,
+    # Kouč
+    "coach_session": _COACH_SESSION_SECTIONS,
+    "coach_first_session": _COACH_FIRST_SESSION_SECTIONS,
+    "coach_next_prep": _COACH_NEXT_PREP_SECTIONS,
+    # Spolky & SVJ
+    "spolek_meeting": _SPOLEK_MEETING_SECTIONS,
+    "spolek_agenda": _SPOLEK_AGENDA_SECTIONS,
+    "spolek_annual_report": _SPOLEK_ANNUAL_SECTIONS,
     # Podcast / rozhovory
     "podcast_shownotes": _PODCAST_SHOWNOTES_SECTIONS,
     "podcast_chapters": _PODCAST_CHAPTERS_SECTIONS,
@@ -1828,6 +2387,108 @@ PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
             "a přeřeků), ale se zachovaným hlasem mluvčích."
         ),
     },
+    # --- Realitní makléř (pod sales) ---
+    "sales_property_viewing": {
+        "label": "Prohlídka nemovitosti (zápis)",
+        "prompt": (
+            "Tohle je nahrávka prohlídky nemovitosti s klientem. Vyrob zápis: "
+            "reakce klienta (co se líbilo/nelíbilo), námitky a odpovědi, "
+            "vážnost zájmu a dohodnutý další krok."
+        ),
+    },
+    "sales_property_listing": {
+        "label": "Náběr nemovitosti + návrh inzerátu",
+        "prompt": (
+            "Tohle je nahrávka náběru nemovitosti (diktát parametrů / jednání "
+            "s majitelem). Vytáhni parametry nemovitosti, dohodu s majitelem, "
+            "podklady k dodání a napiš návrh inzertního textu."
+        ),
+    },
+    # --- HR & nábor ---
+    "hr_interview": {
+        "label": "Pohovor s kandidátem (zápis)",
+        "prompt": (
+            "Tohle je nahrávka pracovního pohovoru. Vyrob strukturovaný zápis: "
+            "shrnutí, otázky a odpovědi kandidáta, doložené silné stránky, "
+            "rizika k ověření a dohodnuté další kroky. Věcně a nestranně — "
+            "hodnoť jen pracovní kompetence a obsah odpovědí."
+        ),
+    },
+    "hr_performance_review": {
+        "label": "Hodnoticí pohovor (cíle + rozvoj)",
+        "prompt": (
+            "Tohle je nahrávka hodnoticího pohovoru. Zachyť zhodnocení období "
+            "z pohledu obou stran, zpětnou vazbu, dohodnuté cíle s termíny "
+            "a rozvojové kroky."
+        ),
+    },
+    "hr_exit_interview": {
+        "label": "Exit interview (důvody + doporučení)",
+        "prompt": (
+            "Tohle je nahrávka exit interview. Zachyť věrně důvody odchodu, "
+            "co fungovalo a nefungovalo, návrhy ke zlepšení a předání agendy. "
+            "Bez zjemňování — kritika je tu nejcennější."
+        ),
+    },
+    "hr_one_on_one": {
+        "label": "Zápis z 1:1",
+        "prompt": (
+            "Tohle je nahrávka 1:1 schůzky. Vyrob krátký zápis: probraná "
+            "témata, překážky a potřeby, dohodnuté akce a co otevřít příště."
+        ),
+    },
+    # --- Kouč ---
+    "coach_session": {
+        "label": "Poznámky ze sezení",
+        "prompt": (
+            "Tohle je nahrávka koučovacího sezení. Vyrob PRACOVNÍ POZNÁMKY "
+            "KOUČE: téma sezení, klíčové momenty s citacemi klienta, dohodnuté "
+            "kroky do příště a pracovní postřehy kouče (jako hypotézy). "
+            "Neutrálně, bez diagnóz — tohle není zdravotní dokumentace."
+        ),
+    },
+    "coach_first_session": {
+        "label": "Vstupní sezení (zakázka + cíle)",
+        "prompt": (
+            "Tohle je nahrávka vstupního koučovacího sezení. Zachyť zakázku "
+            "klienta (jeho slovy), kontext, cíle spolupráce s horizonty a "
+            "praktickou dohodu o spolupráci."
+        ),
+    },
+    "coach_next_prep": {
+        "label": "Příprava na další sezení",
+        "prompt": (
+            "Z tohoto sezení připrav podklad na příští: kde jsme skončili, "
+            "otevřená témata, co zkontrolovat na začátku a návrhy otevřených "
+            "koučovacích otázek."
+        ),
+    },
+    # --- Spolky & SVJ ---
+    "spolek_meeting": {
+        "label": "Zápis ze schůze (usnesení + hlasování)",
+        "prompt": (
+            "Tohle je nahrávka schůze spolku / výboru / shromáždění SVJ. "
+            "Vyrob formální zápis: základní údaje, projednané body, číslovaná "
+            "USNESENÍ s výsledky hlasování (pro/proti/zdržel se), úkoly a "
+            "termín příští schůze. Jde o koncept k ověření zapisovatelem."
+        ),
+    },
+    "spolek_agenda": {
+        "label": "Program a pozvánka na příští schůzi",
+        "prompt": (
+            "Z této schůze sestav návrh programu na příští schůzi (odložené "
+            "a nedořešené body + stálé body), podklady k přípravě a hotový "
+            "text pozvánky pro členy."
+        ),
+    },
+    "spolek_annual_report": {
+        "label": "Podklady do výroční zprávy",
+        "prompt": (
+            "Z této (výroční) schůze vytáhni podklady do výroční zprávy: "
+            "shrnutí činnosti, co se uskutečnilo, hospodaření jak zaznělo "
+            "(bez dopočítávání) a plány na další období."
+        ),
+    },
 }
 
 
@@ -1843,19 +2504,21 @@ _UNIVERSAL_KEYS: frozenset[str] = frozenset(
     {"quiz", "summary", "meeting_minutes", "brainstorm", "team_meeting", "workshop_training"}
 )
 
+# Role s vlastním prefixem šablon. Student je default (bez prefixu).
+PREFIXED_ROLES: frozenset[str] = frozenset(
+    {"teacher", "sales", "podcast", "hr", "coach", "spolek"}
+)
 # Prefixy rolových šablon — pro filtr "co NEpatří studentovi".
-_ROLE_PREFIXES = ("teacher_", "sales_", "podcast_")
+_ROLE_PREFIXES = tuple(f"{r}_" for r in PREFIXED_ROLES)
 
 
 def templates_for_role(role: str) -> dict[str, dict[str, str]]:
     """Vrátí jen šablony relevantní pro danou roli aplikace.
 
     - "student": šablony bez rolových prefixů (= student + student_* + univerzální)
-    - "teacher": teacher_* + univerzální
-    - "sales":   sales_* + univerzální
-    - "podcast": podcast_* + univerzální
+    - role z PREFIXED_ROLES: <role>_* + univerzální
     """
-    if role in ("teacher", "sales", "podcast"):
+    if role in PREFIXED_ROLES:
         prefix = f"{role}_"
         return {
             k: v
@@ -1873,7 +2536,11 @@ def templates_for_role(role: str) -> dict[str, dict[str, str]]:
 # Šablony s dialogem více osob — tam má smysl rozlišovat mluvčí (diarizace).
 # Přednáška/studijní materiál je monolog → diarizace by jen přidávala šum.
 CONVERSATION_TEMPLATE_KEYS: frozenset[str] = frozenset(
-    {k for k in PROMPT_TEMPLATES if k.startswith(("sales_", "podcast_"))}
+    {
+        k
+        for k in PROMPT_TEMPLATES
+        if k.startswith(("sales_", "podcast_", "hr_", "coach_", "spolek_"))
+    }
     | {
         "meeting_minutes",
         "brainstorm",

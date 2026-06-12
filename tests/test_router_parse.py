@@ -560,3 +560,92 @@ def test_tokens_set_role_podcast():
         assert tokens.accent() == tokens.PODCAST_ACCENT
     finally:
         tokens.set_role("student")  # úklid pro ostatní testy
+
+
+# ---------------------------------------------------------------------------
+# Role v1.13: HR, kouč, spolky + realitky pod sales
+# ---------------------------------------------------------------------------
+
+
+def test_v113_templates_have_schemas():
+    from app.core.ai.prompts import PROMPT_TEMPLATES, SECTION_SCHEMAS
+
+    new_keys = (
+        "hr_interview", "hr_performance_review", "hr_exit_interview", "hr_one_on_one",
+        "coach_session", "coach_first_session", "coach_next_prep",
+        "spolek_meeting", "spolek_agenda", "spolek_annual_report",
+        "sales_property_viewing", "sales_property_listing",
+    )
+    for key in new_keys:
+        assert key in PROMPT_TEMPLATES, f"'{key}' chybí v PROMPT_TEMPLATES"
+        assert key in SECTION_SCHEMAS, f"schéma pro '{key}' chybí"
+        assert SECTION_SCHEMAS[key], f"schéma pro '{key}' je prázdné"
+
+
+def test_templates_for_role_hr_coach_spolek():
+    from app.core.ai.prompts import templates_for_role
+
+    hr = templates_for_role("hr")
+    assert "hr_interview" in hr and "hr_exit_interview" in hr
+    assert "summary" in hr and "team_meeting" in hr  # univerzální
+    assert "sales_meeting" not in hr and "coach_session" not in hr
+
+    coach = templates_for_role("coach")
+    assert "coach_session" in coach and "coach_next_prep" in coach
+    assert "brainstorm" in coach
+    assert "hr_interview" not in coach
+
+    spolek = templates_for_role("spolek")
+    assert "spolek_meeting" in spolek and "spolek_agenda" in spolek
+    assert "meeting_minutes" in spolek
+    assert "podcast_shownotes" not in spolek
+
+
+def test_realty_templates_under_sales():
+    """Realitky jsou šablony pod sales rolí, ne samostatná role."""
+    from app.core.ai.prompts import templates_for_role
+
+    sales = templates_for_role("sales")
+    assert "sales_property_viewing" in sales
+    assert "sales_property_listing" in sales
+    # Student je nevidí
+    assert "sales_property_viewing" not in templates_for_role("student")
+
+
+def test_student_excludes_new_role_templates():
+    from app.core.ai.prompts import templates_for_role
+
+    student = templates_for_role("student")
+    for key in ("hr_interview", "coach_session", "spolek_meeting"):
+        assert key not in student
+
+
+def test_new_roles_are_conversation_templates():
+    from app.core.ai.prompts import is_conversation_template
+
+    for key in ("hr_interview", "hr_one_on_one", "coach_session",
+                "spolek_meeting", "sales_property_viewing"):
+        assert is_conversation_template(key), f"'{key}' má být konverzační"
+
+
+def test_spolek_meeting_has_usneseni():
+    """Zápis ze schůze musí mít sekci usnesení — to je jeho smysl."""
+    from app.core.ai.prompts import SECTION_SCHEMAS
+
+    titles = [s.title.lower() for s in SECTION_SCHEMAS["spolek_meeting"]]
+    assert any("usnesení" in t for t in titles)
+
+
+def test_tokens_new_roles():
+    from app.gui.styles import tokens
+
+    for role, expected in (
+        ("hr", tokens.HR_ACCENT),
+        ("coach", tokens.COACH_ACCENT),
+        ("spolek", tokens.SPOLEK_ACCENT),
+    ):
+        tokens.set_role(role)
+        try:
+            assert tokens.accent() == expected, f"role {role}"
+        finally:
+            tokens.set_role("student")

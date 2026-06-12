@@ -121,6 +121,20 @@ _SVG: dict[str, str] = {
             stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>
             <path d="M9 12l2 2 4-4"/></svg>""",
+    # ---- Ikony rolí v1.13 (HR, kouč, spolky) ----
+    "users": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/>
+            <path d="M16 5a3.5 3.5 0 0 1 0 7"/><path d="M17 14.5a6 6 0 0 1 4 5.5"/></svg>""",
+    "target": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/>
+            <circle cx="12" cy="12" r="1"/></svg>""",
+    "building": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="3" width="14" height="18" rx="1"/>
+            <path d="M9 7h2"/><path d="M13 7h2"/><path d="M9 11h2"/><path d="M13 11h2"/>
+            <path d="M9 15h2"/><path d="M13 15h2"/><path d="M10 21v-3h4v3"/></svg>""",
     "plus": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
             stroke="{stroke}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 5v14"/><path d="M5 12h14"/></svg>""",

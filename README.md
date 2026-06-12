@@ -29,12 +29,22 @@
 - **Rozhovory & Podcasty** — z epizody vyrobí show notes, kapitoly s časovými
   značkami, citáty pro sociální sítě, publikovatelný článek nebo rozhovor
   ve formátu otázka–odpověď.
+- **HR & nábor** — z pohovoru vyrobí zápis (odpovědi kandidáta, silné stránky,
+  rizika k ověření), hodnoticí pohovor s cíli, exit interview nebo zápis z 1:1.
+- **Kouč** — ze sezení vyrobí pracovní poznámky (klíčové momenty, dohodnuté
+  kroky klienta), zachycení zakázky ze vstupního sezení a přípravu na další.
+- **Spolky & SVJ** — ze schůze vyrobí formální zápis s číslovanými usneseními
+  a hlasováním, program s pozvánkou na příští schůzi nebo podklady do výroční
+  zprávy.
+
+Sales role navíc pokrývá **realitní makléře** — zápis z prohlídky nemovitosti
+a náběr s hotovým návrhem inzerátu.
 
 ## Co umí
 
 - **Lokální přepis** mluveného slova v češtině (Whisper, offline)
 - **Rychlý cloud přepis** přes Gemini Audio (~1 min na 15 min audia) — volitelné
-- **AI strukturovaný výstup podle 29 šablon** — od studijního materiálu po
+- **AI strukturovaný výstup podle 41 šablon** — od studijního materiálu po
   follow-up e-mail. Každá šablona má vlastní strukturu sekcí (hlavní body,
   definice, otázky / odpovědi, klíč / hodnota, odstavce) a uživatel vidí
   v UI předem, co dostane.

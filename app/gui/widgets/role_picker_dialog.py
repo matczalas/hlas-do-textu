@@ -1,10 +1,8 @@
 """Role picker — modální dialog před prvním spuštěním.
 
-Uživatel vybírá mezi rolemi:
-- student (Safe4Future modrá #205ca8) — výchozí, optimalizováno pro studium
-- učitel (Original Teal #00897B) — pedagogický nástroj se 3 akčními kartami
-- sales/poradce (Burnt Orange #C2410C) — schůzky s klienty, akční úkoly,
-  data o klientovi, termín další schůzky (v1.6.0)
+Uživatel vybírá roli aplikace (student / učitel / sales / podcast / HR /
+kouč / spolky). Role řídí accent barvu a nabídku šablon. Od v1.13 je karet 7
+→ mřížka 4×2 místo jedné řady.
 
 Výsledek se uloží do AppSettings.app_role a je možné ji kdykoliv změnit
 v Nastavení. Po výběru se zavolá theme.apply_theme() s novou rolí.
@@ -19,6 +17,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QVBoxLayout,
@@ -30,15 +29,13 @@ from app.gui.widgets.icons import pixmap
 
 
 class RolePickerDialog(QDialog):
-    """Dialog pro výběr role. Vrací 'student' nebo 'teacher' přes chosen_role()."""
+    """Dialog pro výběr role. Vrací klíč role přes chosen_role()."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Kdo aplikaci používá?")
-        # 3 karty potřebují víc šířky než 2; min 900 pro pohodu, na úzkém
-        # okně Qt automaticky scrollne / wrappne layout (kartám v HBoxLayoutu
-        # se zmenší šířka rovnoměrně).
-        self.setMinimumWidth(900)
+        # 7 karet v mřížce 4×2 — šířka pro 4 sloupce.
+        self.setMinimumWidth(980)
         self.setModal(True)
         # Bez křížku v rohu — uživatel musí vybrat
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
@@ -68,55 +65,38 @@ class RolePickerDialog(QDialog):
 
         root.addSpacing(12)
 
-        # Tři hero karty
-        cards = QHBoxLayout()
+        # 7 karet v mřížce 4×2 (poslední buňka prázdná)
+        cards = QGridLayout()
         cards.setSpacing(14)
 
-        student_card = self._build_card(
-            role="student",
-            icon_name="graduation",
-            accent=tokens.STUDENT_ACCENT,
-            title_text="Jsem žák / student",
-            desc=(
-                "Z přednášek a hodin chci studijní body, "
-                "definice a otázky ke zkoušení."
-            ),
-        )
-        teacher_card = self._build_card(
-            role="teacher",
-            icon_name="school",
-            accent=tokens.TEACHER_ACCENT,
-            title_text="Jsem učitel/ka",
-            desc=(
-                "Z vlastních hodin chci testové otázky pro žáky "
-                "a reflexi svého projevu."
-            ),
-        )
-        sales_card = self._build_card(
-            role="sales",
-            icon_name="clipboard",
-            accent=tokens.SALES_ACCENT,
-            title_text="Jsem poradce / sales",
-            desc=(
-                "Ze schůzek s klienty chci akční úkoly, data o klientovi "
-                "a termín další schůzky."
-            ),
-        )
-        podcast_card = self._build_card(
-            role="podcast",
-            icon_name="mic",
-            accent=tokens.PODCAST_ACCENT,
-            title_text="Točím rozhovory / podcast",
-            desc=(
-                "Z nahrávek chci show notes, kapitoly, citáty "
-                "pro sítě a článek z rozhovoru."
-            ),
-        )
-
-        cards.addWidget(student_card, 1)
-        cards.addWidget(teacher_card, 1)
-        cards.addWidget(sales_card, 1)
-        cards.addWidget(podcast_card, 1)
+        card_defs = [
+            ("student", "graduation", tokens.STUDENT_ACCENT, "Jsem žák / student",
+             "Z přednášek chci studijní body, definice a otázky ke zkoušení."),
+            ("teacher", "school", tokens.TEACHER_ACCENT, "Jsem učitel/ka",
+             "Z hodin chci testové otázky pro žáky a reflexi projevu."),
+            ("sales", "clipboard", tokens.SALES_ACCENT, "Jsem poradce / sales",
+             "Ze schůzek chci úkoly, data o klientovi a další termín."),
+            ("podcast", "mic", tokens.PODCAST_ACCENT, "Točím rozhovory / podcast",
+             "Chci show notes, kapitoly, citáty a článek z rozhovoru."),
+            ("hr", "users", tokens.HR_ACCENT, "Dělám HR / nábor",
+             "Z pohovorů chci zápisy, hodnocení a dohodnuté kroky."),
+            ("coach", "target", tokens.COACH_ACCENT, "Jsem kouč",
+             "Ze sezení chci poznámky, kroky klienta a přípravu na další."),
+            ("spolek", "building", tokens.SPOLEK_ACCENT, "Vedu spolek / SVJ",
+             "Ze schůzí chci zápisy s usneseními, hlasováním a úkoly."),
+        ]
+        for i, (role, icon_name, accent, title_text, desc) in enumerate(card_defs):
+            card = self._build_card(
+                role=role,
+                icon_name=icon_name,
+                accent=accent,
+                title_text=title_text,
+                desc=desc,
+            )
+            cards.addWidget(card, i // 4, i % 4)
+        # Sloupce roztahovat rovnoměrně
+        for col in range(4):
+            cards.setColumnStretch(col, 1)
         root.addLayout(cards)
 
     # ------ Public API ------
@@ -139,7 +119,9 @@ class RolePickerDialog(QDialog):
         card = QFrame()
         card.setObjectName("RoleCard")
         card.setCursor(Qt.CursorShape.PointingHandCursor)
-        card.setMinimumHeight(280)
+        # 230 místo 280 — od v1.13 jsou karty ve dvou řadách (7 rolí),
+        # vyšší karty by dialog vyhnaly přes výšku menších notebooků.
+        card.setMinimumHeight(230)
         card.setStyleSheet(
             f"QFrame#RoleCard {{ background: palette(base); "
             f"border: 1.5px solid palette(mid); border-radius: 16px; }}"

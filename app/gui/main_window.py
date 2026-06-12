@@ -385,13 +385,15 @@ class MainWindow(QMainWindow):
 
     def _wordmark_subtitle_for_role(self) -> str:
         """Vrátí subtitle pro Wordmark dle aktuální role."""
-        if self._settings.app_role == "teacher":
-            return "Pedagogický nástroj"
-        if self._settings.app_role == "sales":
-            return "Poznámky ze schůzek s klienty"
-        if self._settings.app_role == "podcast":
-            return "Show notes, kapitoly a citáty z nahrávek"
-        return "Studijní poznámky z přednášek"
+        subtitles = {
+            "teacher": "Pedagogický nástroj",
+            "sales": "Poznámky ze schůzek s klienty",
+            "podcast": "Show notes, kapitoly a citáty z nahrávek",
+            "hr": "Zápisy z pohovorů a 1:1",
+            "coach": "Poznámky ze sezení s klienty",
+            "spolek": "Zápisy ze schůzí s usneseními",
+        }
+        return subtitles.get(self._settings.app_role, "Studijní poznámky z přednášek")
 
     def _show_fact_card_during_pipeline(self, running: bool) -> None:
         """Zobrazí/skryje FactCard při startu / konci pipeline.
