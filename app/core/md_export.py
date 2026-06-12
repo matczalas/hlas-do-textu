@@ -157,7 +157,12 @@ def export_markdown(
                         current_paragraph = []
                     lines.append(f"**[{_format_seconds(seg.start)}]**")
                     last_marker_minute = minute
-                current_paragraph.append(seg.text.strip())
+                # Diarizace: zachovat označení mluvčího — AI agent v chatu pak
+                # vidí, kdo co řekl (stejně jako .txt záloha).
+                seg_text = seg.text.strip()
+                if seg.speaker:
+                    seg_text = f"{seg.speaker}: {seg_text}"
+                current_paragraph.append(seg_text)
             if current_paragraph:
                 lines.append(" ".join(current_paragraph))
         else:

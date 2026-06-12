@@ -144,6 +144,14 @@ def test_topic_folder_name_no_trailing_dot_or_space():
     assert not result.endswith(" ")
 
 
+def test_topic_folder_name_avoids_prepisy_collision():
+    """Téma "Přepisy" by zamíchalo Word mezi .txt přepisy — přejmenuje se."""
+    assert topic_folder_name(StudyMaterial(title="X", topic="Přepisy")) == "Téma Přepisy"
+    assert topic_folder_name(StudyMaterial(title="X", topic="přepis")) == "Téma přepis"
+    # Normální témata beze změny
+    assert topic_folder_name(StudyMaterial(title="X", topic="Fyzika")) == "Fyzika"
+
+
 def test_topic_folder_name_length_capped():
     long_topic = "A" * 100
     assert len(topic_folder_name(StudyMaterial(title="X", topic=long_topic))) <= 40

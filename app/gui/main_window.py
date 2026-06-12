@@ -431,6 +431,10 @@ class MainWindow(QMainWindow):
         """Spustí pipeline s předvyplněnou šablonou promptu z dané karty."""
         from app.core.ai.prompts import template_prompt
 
+        # KLÍČOVÉ: nastavit i klíč šablony, ne jen text. _build_job_queue čte
+        # current_template_key() — bez tohohle by učitelská karta jela se
+        # studentským schématem sekcí (výstup by nesedl na to, co karta slibuje).
+        self._prompt_editor.set_template_key(prompt_key)
         prompt_text = template_prompt(prompt_key)
         if prompt_text:
             self._prompt_editor.set_text(prompt_text)

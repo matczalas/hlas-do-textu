@@ -150,9 +150,11 @@ class FileDropZone(QFrame):
         paths = [Path(u.toLocalFile()) for u in urls if u.toLocalFile()]
         if not paths:
             return
-        sources = self._classify_paths(paths)
+        sources, skipped = self._classify_paths(paths)
         if sources:
             self.sources_added.emit(sources)
+        if skipped:
+            self._show_skipped_warning(skipped)
 
     # ------ File dialogy ------
 
@@ -167,9 +169,11 @@ class FileDropZone(QFrame):
         if not paths:
             return
         self._last_dir = str(Path(paths[0]).parent)
-        sources = self._classify_paths([Path(p) for p in paths])
+        sources, skipped = self._classify_paths([Path(p) for p in paths])
         if sources:
             self.sources_added.emit(sources)
+        if skipped:
+            self._show_skipped_warning(skipped)
 
     def _pick_slides(self) -> None:
         filter_str = (
@@ -182,17 +186,69 @@ class FileDropZone(QFrame):
         if not paths:
             return
         self._last_dir = str(Path(paths[0]).parent)
-        sources = self._classify_paths([Path(p) for p in paths])
+        sources, skipped = self._classify_paths([Path(p) for p in paths])
         if sources:
             self.sources_added.emit(sources)
+        if skipped:
+            self._show_skipped_warning(skipped)
 
     @staticmethod
-    def _classify_paths(paths: list[Path]) -> list[SourceFile]:
+    def _classify_paths(paths: list[Path]) -> tuple[list[SourceFile], list[str]]:
+        """Roztřídí cesty na zdroje. Vrací (sources, skipped_names).
+
+        - Složka → rozbalí se: vezmou se podporované soubory přímo v ní
+          (1 úroveň, bez rekurze) — "hromadné zadávání" přetažením celé složky.
+        - Nepodporovaná přípona → jméno jde do `skipped`, ať může UI říct
+          uživateli, že soubor ignorujeme (dřív se zahodil tiše).
+        """
         out: list[SourceFile] = []
-        for p in paths:
+        skipped: list[str] = []
+
+        def _classify_one(p: Path) -> None:
             ext = p.suffix.lower()
             if ext in AUDIO_VIDEO_EXTENSIONS:
                 out.append(SourceFile(path=p, kind=SourceKind.AUDIO_VIDEO, label=p.stem))
             elif ext in PRESENTATION_EXTENSIONS:
                 out.append(SourceFile(path=p, kind=SourceKind.PRESENTATION, label=p.stem))
-        return out
+            else:
+                skipped.append(p.name)
+
+        for p in paths:
+            if p.is_dir():
+                try:
+                    children = sorted(c for c in p.iterdir() if c.is_file())
+                except OSError:
+                    skipped.append(p.name)
+                    continue
+                supported = [
+                    c for c in children
+                    if c.suffix.lower() in AUDIO_VIDEO_EXTENSIONS
+                    or c.suffix.lower() in PRESENTATION_EXTENSIONS
+                ]
+                if supported:
+                    for c in supported:
+                        _classify_one(c)
+                else:
+                    # Složka bez jediného použitelného souboru — řekneme to
+                    skipped.append(f"{p.name}/ (žádný podporovaný soubor)")
+            else:
+                _classify_one(p)
+        return out, skipped
+
+    def _show_skipped_warning(self, skipped: list[str]) -> None:
+        """Krátká hláška o ignorovaných souborech — místo tichého zahození."""
+        from PySide6.QtWidgets import QMessageBox
+
+        shown = ", ".join(skipped[:5])
+        if len(skipped) > 5:
+            shown += f" (+{len(skipped) - 5} dalších)"
+        QMessageBox.information(
+            self,
+            "Některé soubory neumím",
+            f"Tyhle soubory jsem přeskočil: {shown}\n\n"
+            "Podporuju nahrávky ("
+            + ", ".join(ext.lstrip(".") for ext in AUDIO_VIDEO_EXTENSIONS)
+            + ") a prezentace ("
+            + ", ".join(ext.lstrip(".") for ext in PRESENTATION_EXTENSIONS)
+            + ").",
+        )

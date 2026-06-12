@@ -268,4 +268,8 @@ def topic_folder_name(material: StudyMaterial) -> str:
     safe = "".join(c if c.isalnum() or c in (" ", "-", "_") else " " for c in topic)
     safe = " ".join(safe.split())  # zkolabovat vícenásobné mezery
     safe = safe.strip(" .")[:40].strip()
+    # Kolize s vyhrazenou podsložkou přepisů: kdyby AI vrátila téma
+    # "Přepisy"/"Přepis", Word by se zamíchal mezi .txt přepisy. Přejmenujeme.
+    if safe.lower() in ("přepisy", "prepisy", "přepis", "prepis"):
+        safe = f"Téma {safe}"
     return safe
