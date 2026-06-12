@@ -959,6 +959,352 @@ _BRAINSTORM_SECTIONS: tuple[SectionSpec, ...] = (
 )
 
 
+_SALES_PHONE_CALL_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Důvod a výsledek hovoru",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1 krátký odstavec: kdo volal komu, proč, a jak hovor dopadl "
+            "(dohoda / odmítnutí / odloženo). Telefonát je krátký — zápis taky."
+        ),
+        target_count="1 odstavec",
+    ),
+    SectionSpec(
+        title="Co zaznělo",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Klíčové body hovoru v pořadí. Jen podstatné — žádné zdvořilostní "
+            "fráze. Čísla, termíny a jména přesně."
+        ),
+        target_count="3-8 bodů",
+    ),
+    SectionSpec(
+        title="Dohodnuté kroky",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = úkol, hodnota = kdo + do kdy (nebo „neuvedeno“). "
+            "Včetně slibů typu „pošlu vám e-mail s podklady“."
+        ),
+        target_count="podle hovoru",
+    ),
+    SectionSpec(
+        title="Další kontakt",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Kdy a jak proběhne další kontakt (telefonát/schůzka/e-mail). "
+            "Pokud nepadlo, napiš „Další kontakt nebyl dohodnut.“"
+        ),
+        target_count="1 věta",
+    ),
+)
+
+
+_TEACHER_PARENT_MEETING_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Účastníci a důvod konzultace",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíče: Účastníci (kdo se sešel — role, jména jen pokud zazněla), "
+            "Důvod (proč konzultace proběhla), Datum (jen pokud zaznělo)."
+        ),
+        target_count="2-3 řádky",
+    ),
+    SectionSpec(
+        title="Co bylo probráno",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Věcně a neutrálně — prospěch, chování, situace dítěte, postoje "
+            "obou stran. U citlivých témat (zdraví, rodinná situace) formuluj "
+            "opatrně a věcně, bez hodnocení. Tohle je dokument, který může "
+            "číst i druhá strana."
+        ),
+        target_count="4-10 bodů",
+    ),
+    SectionSpec(
+        title="Dohodnuté kroky",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = krok/opatření, hodnota = kdo ho udělá + do kdy. Rozlišuj, "
+            "co dělá škola, co rodič, co dítě."
+        ),
+        target_count="podle konzultace",
+    ),
+    SectionSpec(
+        title="Termín další konzultace nebo kontroly",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction="1 věta. Pokud nepadl, napiš „Termín nebyl dohodnut.“",
+        target_count="1 věta",
+    ),
+)
+
+
+_TEAM_MEETING_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Základní informace",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíče: Účastníci (jmenovitě, jak zazněli), Téma / účel porady, "
+            "Datum (jen pokud zaznělo)."
+        ),
+        target_count="2-3 řádky",
+    ),
+    SectionSpec(
+        title="Co kdo reportoval",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = osoba (jméno nebo „Mluvčí N“), hodnota = stručné shrnutí "
+            "jejího vstupu (1-2 věty). Jen členové, kteří něco reportovali."
+        ),
+        target_count="podle porady",
+    ),
+    SectionSpec(
+        title="Rozhodnutí",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Explicitní rozhodnutí a shody. Ne diskuze — jen to, na čem se tým "
+            "skutečně dohodl. Pokud nic, prázdný seznam."
+        ),
+        target_count="0-8 položek",
+    ),
+    SectionSpec(
+        title="Úkoly",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = úkol, hodnota = kdo + do kdy (nebo „neuvedeno“). "
+            "Každý úkol musí mít vlastníka, pokud z debaty plyne."
+        ),
+        target_count="podle porady",
+    ),
+    SectionSpec(
+        title="Odloženo na příště",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Témata, která se otevřela, ale nedořešila („parkoviště“). "
+            "Pokud nic, prázdný seznam."
+        ),
+        target_count="0-5 položek",
+    ),
+)
+
+
+_WORKSHOP_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="O čem školení bylo",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1-2 odstavce: téma, lektor (pokud zazněl), pro koho a s jakým cílem."
+        ),
+        target_count="1-2 odstavce",
+    ),
+    SectionSpec(
+        title="Hlavní poznatky",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Nejdůležitější věci, které si účastník má odnést. Konkrétně — "
+            "postupy, pravidla, čísla, doporučení lektora."
+        ),
+        target_count="6-12 bodů",
+    ),
+    SectionSpec(
+        title="Postupy krok za krokem",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Pokud lektor předváděl postup (nástroj, metodu, proces), rozepiš "
+            "ho do číslovaných kroků tak, aby ho šlo zopakovat. Pokud žádný "
+            "postup nezazněl, prázdný seznam."
+        ),
+        target_count="0-10 kroků",
+    ),
+    SectionSpec(
+        title="Otázky účastníků a odpovědi",
+        kind=SECTION_KIND_QA,
+        instruction=(
+            "Otázky z publika a odpovědi lektora — často nejcennější část "
+            "školení. Pokud žádné nepadly, prázdný seznam."
+        ),
+        target_count="0-8 dvojic",
+    ),
+    SectionSpec(
+        title="Zmíněné materiály a zdroje",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Knihy, weby, nástroje, šablony, kontakty, které lektor zmínil. "
+            "Přesně jak zazněly."
+        ),
+        target_count="0-8 položek",
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Podcast / rozhovory — role "podcast"
+# ---------------------------------------------------------------------------
+
+
+_PODCAST_SHOWNOTES_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Anotace epizody",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "2-3 věty, které prodají epizodu posluchači — co se dozví a proč "
+            "poslouchat. Žádné klišé („v dnešní epizodě se podíváme na…“), "
+            "začni od nejzajímavějšího."
+        ),
+        target_count="1 odstavec (2-3 věty)",
+    ),
+    SectionSpec(
+        title="O hostovi",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Krátké představení hosta — jen z toho, co v nahrávce skutečně "
+            "zaznělo (kdo je, co dělá, čím je zajímavý). Pokud epizoda hosta "
+            "nemá, napiš „Epizoda bez hosta.“"
+        ),
+        target_count="1 odstavec",
+    ),
+    SectionSpec(
+        title="Hlavní témata",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Témata epizody v pořadí, jak šla. Každý bod konkrétní — ne "
+            "„povídání o kariéře“, ale co konkrétně o ní zaznělo."
+        ),
+        target_count="5-10 bodů",
+    ),
+    SectionSpec(
+        title="Zmíněná jména, odkazy a zdroje",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Lidé, firmy, knihy, filmy, nástroje, weby — vše, co v epizodě "
+            "padlo a posluchač by to mohl chtít dohledat."
+        ),
+        target_count="0-12 položek",
+    ),
+    SectionSpec(
+        title="Popis pro platformy (copy-paste)",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Hotový popis epizody pro Spotify/Apple Podcasts: anotace + "
+            "odrážky témat + výzva k odběru. Připravené ke zkopírování."
+        ),
+        target_count="1 blok",
+    ),
+)
+
+
+_PODCAST_CHAPTERS_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Kapitoly",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = časová značka začátku kapitoly přesně ve formátu mm:ss "
+            "(nebo hh:mm:ss u delších nahrávek) podle značek v přepisu. "
+            "Hodnota = krátký název kapitoly (3-6 slov). Kapitola = tematický "
+            "blok, ne každá výměna. První kapitola vždy 00:00."
+        ),
+        target_count="6-15 kapitol",
+    ),
+    SectionSpec(
+        title="Nejsilnější momenty",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = časová značka, hodnota = co se v tom místě stalo a proč "
+            "stojí za pozornost (vtipný moment, silné tvrzení, zvrat). "
+            "Pro výběr klipů a teaserů."
+        ),
+        target_count="3-6 momentů",
+    ),
+)
+
+
+_PODCAST_QUOTES_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Citáty pro sociální sítě",
+        kind=SECTION_KIND_KEY_VALUE,
+        instruction=(
+            "Klíč = časová značka (mm:ss dle přepisu), hodnota = doslovný citát "
+            "(1-3 věty) + v závorce kdo ho řekl. Vybírej výroky, které fungují "
+            "samostatně bez kontextu — silné, vtipné, kontroverzní, citovatelné. "
+            "NEUPRAVUJ znění, jen očisti od „ehm“ a přeřeků."
+        ),
+        target_count="6-12 citátů",
+    ),
+    SectionSpec(
+        title="Návrhy textů k postům",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "Ke 3-5 nejlepším citátům napiš krátký doprovodný text postu "
+            "(1-2 věty + otázka pro engagement). Označ, ke kterému citátu patří."
+        ),
+        target_count="3-5 návrhů",
+    ),
+)
+
+
+_PODCAST_ARTICLE_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Titulek",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "1 řádek — novinářský titulek článku. Konkrétní, ne clickbait. "
+            "Ideálně s citátem nebo silným tvrzením z rozhovoru."
+        ),
+        target_count="1 řádek",
+    ),
+    SectionSpec(
+        title="Perex",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "2-3 věty — úvod článku, který vtáhne čtenáře. Kdo mluví, "
+            "o čem a co nejzajímavějšího řekl."
+        ),
+        target_count="1 odstavec",
+    ),
+    SectionSpec(
+        title="Tělo článku",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Souvislý článek z rozhovoru (4-8 odstavců). Parafráze prokládej "
+            "přímými citacemi v uvozovkách. Piš žurnalisticky — třetí osoba, "
+            "spád, fakta z rozhovoru. Nevymýšlej si nic, co nezaznělo."
+        ),
+        target_count="4-8 odstavců",
+    ),
+    SectionSpec(
+        title="Vybrané citáty (boxy)",
+        kind=SECTION_KIND_BULLETS,
+        instruction=(
+            "2-4 výrazné citáty vhodné jako zvýrazněné boxy v článku."
+        ),
+        target_count="2-4 citáty",
+    ),
+)
+
+
+_PODCAST_INTERVIEW_QA_SECTIONS: tuple[SectionSpec, ...] = (
+    SectionSpec(
+        title="Úvod",
+        kind=SECTION_KIND_PARAGRAPH,
+        instruction=(
+            "Krátký úvodní odstavec před rozhovorem — kdo je host a o čem se "
+            "mluvilo. Jen z informací v nahrávce."
+        ),
+        target_count="1 odstavec",
+    ),
+    SectionSpec(
+        title="Rozhovor",
+        kind=SECTION_KIND_QA,
+        instruction=(
+            "Celý rozhovor jako dvojice otázka → odpověď, jazykově učesaný "
+            "pro publikaci: pryč výplňová slova, přeřeky a opakování, ale "
+            "ZACHOVEJ hlas a styl mluvčích i pořadí. Odpovědi můžeš mírně "
+            "zkrátit, ne přepsat. Otázky zestručni na podstatu."
+        ),
+        target_count="10-25 dvojic",
+    ),
+)
+
+
 # Mapování klíče šablony → schéma sekcí
 SECTION_SCHEMAS: dict[str, tuple[SectionSpec, ...]] = {
     # Studentské
@@ -980,11 +1326,22 @@ SECTION_SCHEMAS: dict[str, tuple[SectionSpec, ...]] = {
     "sales_client_profile": _SALES_CLIENT_PROFILE_SECTIONS,
     "sales_followup_email": _SALES_FOLLOWUP_EMAIL_SECTIONS,
     "sales_objection_log": _SALES_OBJECTION_LOG_SECTIONS,
+    "sales_phone_call": _SALES_PHONE_CALL_SECTIONS,
+    # Učitelské přídavky
+    "teacher_parent_meeting": _TEACHER_PARENT_MEETING_SECTIONS,
+    # Podcast / rozhovory
+    "podcast_shownotes": _PODCAST_SHOWNOTES_SECTIONS,
+    "podcast_chapters": _PODCAST_CHAPTERS_SECTIONS,
+    "podcast_quotes": _PODCAST_QUOTES_SECTIONS,
+    "podcast_article": _PODCAST_ARTICLE_SECTIONS,
+    "podcast_interview_qa": _PODCAST_INTERVIEW_QA_SECTIONS,
     # Univerzální
     "quiz": _QUIZ_SECTIONS,
     "summary": _SUMMARY_SECTIONS,
     "meeting_minutes": _MEETING_MINUTES_SECTIONS,
     "brainstorm": _BRAINSTORM_SECTIONS,
+    "team_meeting": _TEAM_MEETING_SECTIONS,
+    "workshop_training": _WORKSHOP_SECTIONS,
 }
 
 
@@ -1395,6 +1752,82 @@ PROMPT_TEMPLATES: dict[str, dict[str, str]] = {
             "jestli ne, řekni to."
         ),
     },
+    "team_meeting": {
+        "label": "Porada týmu (kdo co reportoval + úkoly)",
+        "prompt": (
+            "Tohle je nahrávka týmové porady. Vyrob zápis: kdo co reportoval, "
+            "jaká padla rozhodnutí, úkoly s vlastníky a termíny, a co se "
+            "odložilo na příště."
+        ),
+    },
+    "workshop_training": {
+        "label": "Workshop / školení (poznatky + postupy)",
+        "prompt": (
+            "Tohle je nahrávka workshopu/školení. Vytáhni hlavní poznatky, "
+            "postupy krok za krokem (aby šly zopakovat), otázky účastníků "
+            "s odpověďmi lektora a zmíněné materiály."
+        ),
+    },
+    # --- Sales přídavky ---
+    "sales_phone_call": {
+        "label": "Telefonát s klientem (krátký zápis)",
+        "prompt": (
+            "Tohle je nahrávka telefonátu s klientem. Vyrob KRÁTKÝ zápis: "
+            "důvod a výsledek hovoru, co zaznělo, dohodnuté kroky s termíny "
+            "a kdy proběhne další kontakt."
+        ),
+    },
+    # --- Učitelské přídavky ---
+    "teacher_parent_meeting": {
+        "label": "Konzultace s rodičem (zápis)",
+        "prompt": (
+            "Tohle je nahrávka konzultace s rodičem žáka. Vyrob věcný, "
+            "neutrální zápis: účastníci a důvod, co bylo probráno, dohodnuté "
+            "kroky (kdo + do kdy) a termín další konzultace. Formuluj tak, "
+            "aby zápis mohla číst i druhá strana."
+        ),
+    },
+    # --- Podcast / rozhovory ---
+    "podcast_shownotes": {
+        "label": "Show notes — popis epizody",
+        "prompt": (
+            "Tohle je nahrávka epizody podcastu/rozhovoru. Vyrob show notes: "
+            "anotaci, představení hosta, hlavní témata, zmíněné odkazy a "
+            "hotový popis pro Spotify/Apple Podcasts."
+        ),
+    },
+    "podcast_chapters": {
+        "label": "Kapitoly s časovými značkami",
+        "prompt": (
+            "Z této nahrávky vyrob kapitoly s časovými značkami (pro YouTube/"
+            "Spotify) a vytipuj nejsilnější momenty pro klipy. Časy ber přesně "
+            "ze značek v přepisu."
+        ),
+    },
+    "podcast_quotes": {
+        "label": "Citáty pro sociální sítě",
+        "prompt": (
+            "Z této nahrávky vytáhni nejsilnější doslovné citáty s časovými "
+            "značkami (pro střih klipů) a navrhni texty k postům na sociální "
+            "sítě."
+        ),
+    },
+    "podcast_article": {
+        "label": "Článek z rozhovoru (blog)",
+        "prompt": (
+            "Z tohoto rozhovoru napiš publikovatelný článek: titulek, perex, "
+            "tělo s citacemi a vybrané citáty do boxů. Žurnalisticky, věrně "
+            "obsahu."
+        ),
+    },
+    "podcast_interview_qa": {
+        "label": "Rozhovor k publikaci (otázka–odpověď)",
+        "prompt": (
+            "Z této nahrávky vyrob rozhovor ve formátu otázka–odpověď "
+            "připravený k publikaci: jazykově učesaný (bez výplňových slov "
+            "a přeřeků), ale se zachovaným hlasem mluvčích."
+        ),
+    },
 }
 
 
@@ -1405,44 +1838,49 @@ def template_prompt(key: str) -> str:
 
 # Šablony bez prefixu, které dávají smysl všem rolím (zobrazí se v každém dropdown).
 # Pozn.: "student" je sice student-specifická, ale klíč nemá prefix `student_` —
-# proto je explicitně vyloučená z teacher/sales dropdownu níže.
+# proto je explicitně vyloučená z teacher/sales/podcast dropdownu níže.
 _UNIVERSAL_KEYS: frozenset[str] = frozenset(
-    {"quiz", "summary", "meeting_minutes", "brainstorm"}
+    {"quiz", "summary", "meeting_minutes", "brainstorm", "team_meeting", "workshop_training"}
 )
+
+# Prefixy rolových šablon — pro filtr "co NEpatří studentovi".
+_ROLE_PREFIXES = ("teacher_", "sales_", "podcast_")
 
 
 def templates_for_role(role: str) -> dict[str, dict[str, str]]:
     """Vrátí jen šablony relevantní pro danou roli aplikace.
 
-    - "student": šablony bez prefixu `teacher_` a `sales_` (= student + student_* + univerzální)
-    - "teacher": teacher_* + univerzální (bez sales_* a bez „student“)
-    - "sales":   sales_* + univerzální (bez teacher_* a bez „student“)
+    - "student": šablony bez rolových prefixů (= student + student_* + univerzální)
+    - "teacher": teacher_* + univerzální
+    - "sales":   sales_* + univerzální
+    - "podcast": podcast_* + univerzální
     """
-    if role == "teacher":
+    if role in ("teacher", "sales", "podcast"):
+        prefix = f"{role}_"
         return {
             k: v
             for k, v in PROMPT_TEMPLATES.items()
-            if k.startswith("teacher_") or k in _UNIVERSAL_KEYS
-        }
-    if role == "sales":
-        return {
-            k: v
-            for k, v in PROMPT_TEMPLATES.items()
-            if k.startswith("sales_") or k in _UNIVERSAL_KEYS
+            if k.startswith(prefix) or k in _UNIVERSAL_KEYS
         }
     # student (default)
     return {
         k: v
         for k, v in PROMPT_TEMPLATES.items()
-        if not k.startswith("teacher_") and not k.startswith("sales_")
+        if not any(k.startswith(p) for p in _ROLE_PREFIXES)
     }
 
 
 # Šablony s dialogem více osob — tam má smysl rozlišovat mluvčí (diarizace).
 # Přednáška/studijní materiál je monolog → diarizace by jen přidávala šum.
 CONVERSATION_TEMPLATE_KEYS: frozenset[str] = frozenset(
-    {k for k in PROMPT_TEMPLATES if k.startswith("sales_")}
-    | {"meeting_minutes", "brainstorm"}
+    {k for k in PROMPT_TEMPLATES if k.startswith(("sales_", "podcast_"))}
+    | {
+        "meeting_minutes",
+        "brainstorm",
+        "team_meeting",
+        "workshop_training",
+        "teacher_parent_meeting",
+    }
 )
 
 
@@ -1453,3 +1891,16 @@ def is_conversation_template(template_key: str) -> bool:
     má smysl jen u dialogu, ne u přednášky s jedním mluvčím.
     """
     return template_key in CONVERSATION_TEMPLATE_KEYS
+
+
+# Šablony, které potřebují ČASOVÉ ZNAČKY v textu přepisu pro AI — kapitoly
+# a citáty pro střih klipů bez časů nedávají smysl. Router pro ně vloží
+# [mm:ss] značky do textu poslaného AI.
+TIMESTAMPED_TEMPLATE_KEYS: frozenset[str] = frozenset(
+    {"podcast_chapters", "podcast_quotes"}
+)
+
+
+def needs_timestamps(template_key: str) -> bool:
+    """True pro šablony, jejichž výstup pracuje s časovými značkami."""
+    return template_key in TIMESTAMPED_TEMPLATE_KEYS

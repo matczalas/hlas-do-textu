@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDialogButtonBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -177,6 +176,11 @@ class SettingsDialog(QDialog):
         outer.addWidget(body, 1)
 
         # ----- Footer (Zrušit / Uložit) ----------------------------------
+        # Vlastní QPushButtony místo QDialogButtonBox: u button boxu se
+        # objectName("Primary") nastavoval až PO vytvoření (= po polish),
+        # takže QSS pravidlo #Primary se neaplikovalo — ve světlém režimu
+        # bylo "Uložit" bílé na bílém (neviditelné). U vlastních tlačítek
+        # je objectName nastavený před přidáním do layoutu → QSS sedí.
         footer = QWidget()
         footer.setStyleSheet(
             "background: palette(base); "
@@ -186,22 +190,33 @@ class SettingsDialog(QDialog):
         footer_lay = QHBoxLayout(footer)
         footer_lay.setContentsMargins(28, 14, 28, 14)
         footer_lay.addStretch(1)
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        ok_btn = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        ok_btn.setText("Uložit")
-        ok_btn.setObjectName("Primary")
+
+        cancel_btn = QPushButton("Zrušit")
+        cancel_btn.setMinimumHeight(38)
+        cancel_btn.setMinimumWidth(96)
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        cancel_btn.clicked.connect(self.reject)
+        footer_lay.addWidget(cancel_btn)
+
+        ok_btn = QPushButton("Uložit")
         ok_btn.setMinimumHeight(38)
         ok_btn.setMinimumWidth(120)
         ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        cancel_btn = buttons.button(QDialogButtonBox.StandardButton.Cancel)
-        cancel_btn.setText("Zrušit")
-        cancel_btn.setMinimumHeight(38)
-        cancel_btn.setMinimumWidth(96)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        footer_lay.addWidget(buttons)
+        ok_btn.setDefault(True)
+        # Inline accent styl (jako „Získat klíč") — globální QSS #Primary se
+        # v tomto dialogu na tlačítko nepropisovalo a „Uložit" bylo ve světlém
+        # režimu bílé na bílém. Inline styl je imunní vůči poradí polish.
+        accent = tokens.accent()
+        ok_btn.setStyleSheet(
+            "QPushButton { "
+            f"background: {accent}; color: #ffffff; "
+            f"border: 1px solid {accent}; border-radius: 8px; "
+            "padding: 7px 18px; font-size: 14px; font-weight: 600; }"
+            f"QPushButton:hover {{ background: {tokens.accent_strong()}; }}"
+            f"QPushButton:pressed {{ background: {tokens.accent_press()}; }}"
+        )
+        ok_btn.clicked.connect(self.accept)
+        footer_lay.addWidget(ok_btn)
         outer.addWidget(footer)
 
     # ====================================================================
@@ -282,20 +297,43 @@ class SettingsDialog(QDialog):
         lay.addLayout(api_row)
 
         # ----- Souhlas s odesíláním -----
-        self._consent_cb = QCheckBox(
-            "Souhlasím s odesíláním přepisu a audia do Gemini Free. "
-            "Free tier používá texty k tréninku modelů."
-        )
-        self._consent_cb.setObjectName("Consent")
-        self._consent_cb.setChecked(self._settings.ai_consent_gemini)
-        self._consent_cb.setStyleSheet(
-            "QCheckBox#Consent { padding: 11px 14px; "
+        # Žlutý rámeček s checkboxem + ZALAMOVACÍM popiskem. Dřív byl celý
+        # text v QCheckBoxu — QCheckBox text nezalamuje, takže dlouhá věta
+        # vnutila obsahu minimální šířku větší než dialog a celý AI tab se
+        # ořezával vpravo (utíkalo i tlačítko „Získat klíč").
+        consent_box = QFrame()
+        consent_box.setObjectName("ConsentBox")
+        consent_box.setStyleSheet(
+            "QFrame#ConsentBox { "
             "background: rgba(243, 196, 60, 0.16); "
             "border: 1px solid rgba(243, 196, 60, 0.55); "
-            "border-radius: 10px; color: palette(text); font-weight: 500; }"
-            "QCheckBox#Consent::indicator { width: 18px; height: 18px; }"
+            "border-radius: 10px; }"
         )
-        lay.addWidget(self._consent_cb)
+        consent_lay = QVBoxLayout(consent_box)
+        consent_lay.setContentsMargins(14, 11, 14, 11)
+        consent_lay.setSpacing(4)
+
+        self._consent_cb = QCheckBox("Souhlasím s odesíláním přepisu a audia do Gemini Free")
+        self._consent_cb.setChecked(self._settings.ai_consent_gemini)
+        self._consent_cb.setStyleSheet(
+            "QCheckBox { background: transparent; border: none; "
+            "color: palette(text); font-weight: 600; }"
+            "QCheckBox::indicator { width: 18px; height: 18px; }"
+        )
+        consent_lay.addWidget(self._consent_cb)
+
+        consent_hint = QLabel(
+            "Free tier používá odeslané texty k tréninku modelů Google. "
+            "Pro citlivé nahrávky použij lokální přepis (offline)."
+        )
+        consent_hint.setWordWrap(True)
+        consent_hint.setStyleSheet(
+            "background: transparent; border: none; "
+            "color: palette(text); font-size: 12px;"
+        )
+        consent_hint.setContentsMargins(26, 0, 0, 0)
+        consent_lay.addWidget(consent_hint)
+        lay.addWidget(consent_box)
 
         # ----- Offline Ollama -----
         self._offline_cb = QCheckBox("Používat offline Ollamu místo Gemini")
@@ -340,14 +378,15 @@ class SettingsDialog(QDialog):
         self._role_combo.addItem("Student / žák (Safe4Future modrá)", userData="student")
         self._role_combo.addItem("Učitel/ka (Original Teal)", userData="teacher")
         self._role_combo.addItem("Poradce / Sales (Burnt Orange)", userData="sales")
+        self._role_combo.addItem("Rozhovory & Podcasty (Violet)", userData="podcast")
         for i in range(self._role_combo.count()):
             if self._role_combo.itemData(i) == self._settings.app_role:
                 self._role_combo.setCurrentIndex(i)
                 break
         self._role_combo.setToolTip(
-            "Učitelský režim přidá visačku v hlavičce a teal barvu místo "
-            "Safe4Future modré. Změna se projeví hned po Uložit (drop zone "
-            "a flow ikony mohou vyžadovat restart pro plnou aktualizaci)."
+            "Role mění barvu aplikace a nabídku šablon v poli „Co vyrobit“. "
+            "Změna se projeví hned po Uložit (některé ikony mohou vyžadovat "
+            "restart pro plnou aktualizaci)."
         )
         lay.addWidget(self._role_combo)
 

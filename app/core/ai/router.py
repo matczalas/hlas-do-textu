@@ -27,6 +27,7 @@ from app.core.ai.prompts import (
     build_map_prompt,
     build_reduce_prompt,
     build_single_shot_prompt,
+    needs_timestamps,
     system_prompt_for_template,
 )
 from app.core.models import (
@@ -96,7 +97,11 @@ def generate_study_material(
     if not transcripts and not slides:
         raise ValueError("Nejsou k dispozici žádné zdroje")
 
-    full_transcript_text = _combine_transcripts(transcripts)
+    # Kapitoly/citáty potřebují časové značky v textu — jinak AI nemá z čeho
+    # časy vzít. Ostatní šablony dostávají čistý text (méně tokenů, míň šumu).
+    full_transcript_text = _combine_transcripts(
+        transcripts, with_timestamps=needs_timestamps(template_key)
+    )
     slides_text = _combine_slides(slides)
 
     total_tokens = count_tokens(full_transcript_text) + count_tokens(slides_text)
@@ -120,7 +125,9 @@ def generate_study_material(
         raw = router.generate_with_failover(prompt, system=system)
     else:
         logger.info("Map-reduce strategie (nad thresholdem)")
-        mapped = _map_phase(router, transcripts)
+        mapped = _map_phase(
+            router, transcripts, with_timestamps=needs_timestamps(template_key)
+        )
         prompt = build_reduce_prompt(
             user_prompt,
             mapped,
@@ -132,11 +139,25 @@ def generate_study_material(
     return _parse_study_material(raw)
 
 
-def _map_phase(router: AIRouter, transcripts: list[Transcript]) -> str:
-    """Vrátí konsolidovaný textový souhrn map fáze (pro vstup do reduce)."""
+def _map_phase(
+    router: AIRouter, transcripts: list[Transcript], *, with_timestamps: bool = False
+) -> str:
+    """Vrátí konsolidovaný textový souhrn map fáze (pro vstup do reduce).
+
+    `with_timestamps` → chunky nesou [mm:ss] značky (kapitoly/citáty u dlouhých
+    nahrávek by jinak ztratily časy v map fázi).
+    """
     tasks: list[tuple[str, str]] = []  # (label, chunk)
     for tr in transcripts:
-        chunks = split_into_chunks(tr.text)
+        if with_timestamps and tr.segments:
+            lines = []
+            for seg in tr.segments:
+                prefix = f"{seg.speaker}: " if seg.speaker else ""
+                lines.append(f"[{_format_ts(seg.start)}] {prefix}{seg.text}")
+            source_text = "\n".join(lines)
+        else:
+            source_text = tr.text
+        chunks = split_into_chunks(source_text)
         for chunk in chunks:
             tasks.append((tr.source_label, chunk))
 
@@ -184,11 +205,36 @@ def _map_phase(router: AIRouter, transcripts: list[Transcript]) -> str:
     return "\n\n".join(b for b in results if b)
 
 
-def _combine_transcripts(transcripts: list[Transcript]) -> str:
+def _combine_transcripts(
+    transcripts: list[Transcript], *, with_timestamps: bool = False
+) -> str:
+    """Spojí přepisy do jednoho textu pro AI.
+
+    `with_timestamps=True` → každý segment dostane prefix [mm:ss] (a případně
+    mluvčího). Používá se u šablon, které pracují s časem (kapitoly, citáty).
+    Bez segmentů se použije plain text (časy prostě nejsou k dispozici).
+    """
     parts: list[str] = []
     for tr in transcripts:
-        parts.append(f"=== [{tr.source_label}] ===\n{tr.text}")
+        if with_timestamps and tr.segments:
+            lines = []
+            for seg in tr.segments:
+                prefix = f"{seg.speaker}: " if seg.speaker else ""
+                lines.append(f"[{_format_ts(seg.start)}] {prefix}{seg.text}")
+            body = "\n".join(lines)
+        else:
+            body = tr.text
+        parts.append(f"=== [{tr.source_label}] ===\n{body}")
     return "\n\n".join(parts)
+
+
+def _format_ts(seconds: float) -> str:
+    total = max(int(seconds), 0)
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h:02d}:{m:02d}:{s:02d}"
+    return f"{m:02d}:{s:02d}"
 
 
 def _combine_slides(slides: list[SlideText]) -> str:

@@ -36,6 +36,10 @@ SALES_ACCENT = "#C2410C"            # Burnt orange — finanční poradce / sale
 SALES_ACCENT_STRONG = "#9A3412"     # business-warm, ne křiklavá
 SALES_ACCENT_PRESS = "#7C2D12"
 
+PODCAST_ACCENT = "#7C3AED"          # Violet — rozhovory & podcasty (kreativní obsah)
+PODCAST_ACCENT_STRONG = "#6D28D9"
+PODCAST_ACCENT_PRESS = "#5B21B6"
+
 # --- Sémantické stavové barvy (společné) ------------------------------------
 SUCCESS = "#2e7d32"   # AI připojena / hotovo
 WARNING = "#d68910"   # má alternativu (klíč chybí / Ollama neaktivní) — ne chyba
@@ -128,19 +132,22 @@ class RoleTokens:
 STUDENT = RoleTokens("student", STUDENT_ACCENT, STUDENT_ACCENT_STRONG, STUDENT_ACCENT_PRESS)
 TEACHER = RoleTokens("teacher", TEACHER_ACCENT, TEACHER_ACCENT_STRONG, TEACHER_ACCENT_PRESS)
 SALES = RoleTokens("sales", SALES_ACCENT, SALES_ACCENT_STRONG, SALES_ACCENT_PRESS)
+PODCAST = RoleTokens("podcast", PODCAST_ACCENT, PODCAST_ACCENT_STRONG, PODCAST_ACCENT_PRESS)
 
 # Globální aktivní role. Měň jen přes set_role().
 _active_role: RoleTokens = STUDENT
 
 
 def set_role(role: str) -> None:
-    """Přepne aktivní roli ('student' | 'teacher' | 'sales'). Po volání
-    znovu aplikuj paletu i stylesheet (viz apply_theme v theme.py)."""
+    """Přepne aktivní roli ('student' | 'teacher' | 'sales' | 'podcast').
+    Po volání znovu aplikuj paletu i stylesheet (viz apply_theme v theme.py)."""
     global _active_role
     if role == "teacher":
         _active_role = TEACHER
     elif role == "sales":
         _active_role = SALES
+    elif role == "podcast":
+        _active_role = PODCAST
     else:
         _active_role = STUDENT
 

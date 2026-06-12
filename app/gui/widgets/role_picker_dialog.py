@@ -102,10 +102,21 @@ class RolePickerDialog(QDialog):
                 "a termín další schůzky."
             ),
         )
+        podcast_card = self._build_card(
+            role="podcast",
+            icon_name="mic",
+            accent=tokens.PODCAST_ACCENT,
+            title_text="Točím rozhovory / podcast",
+            desc=(
+                "Z nahrávek chci show notes, kapitoly, citáty "
+                "pro sítě a článek z rozhovoru."
+            ),
+        )
 
         cards.addWidget(student_card, 1)
         cards.addWidget(teacher_card, 1)
         cards.addWidget(sales_card, 1)
+        cards.addWidget(podcast_card, 1)
         root.addLayout(cards)
 
     # ------ Public API ------

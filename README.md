@@ -25,13 +25,16 @@
   plán navazující hodiny nebo reflexi vlastního projevu.
 - **Finanční poradce / Sales** — ze schůzky vyrobí zápis (úkoly s deadliny,
   profil klienta, termín další schůzky), hotový follow-up e-mail klientovi,
-  nebo koučovací zápis s námitkami klienta.
+  zápis telefonátu, nebo koučovací zápis s námitkami klienta.
+- **Rozhovory & Podcasty** — z epizody vyrobí show notes, kapitoly s časovými
+  značkami, citáty pro sociální sítě, publikovatelný článek nebo rozhovor
+  ve formátu otázka–odpověď.
 
 ## Co umí
 
 - **Lokální přepis** mluveného slova v češtině (Whisper, offline)
 - **Rychlý cloud přepis** přes Gemini Audio (~1 min na 15 min audia) — volitelné
-- **AI strukturovaný výstup podle 18 šablon** — od studijního materiálu po
+- **AI strukturovaný výstup podle 29 šablon** — od studijního materiálu po
   follow-up e-mail. Každá šablona má vlastní strukturu sekcí (hlavní body,
   definice, otázky / odpovědi, klíč / hodnota, odstavce) a uživatel vidí
   v UI předem, co dostane.

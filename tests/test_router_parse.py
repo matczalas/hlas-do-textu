@@ -461,3 +461,102 @@ def test_brainstorm_is_universal_and_conversation():
         assert "brainstorm" in templates_for_role(role)
     # Konverzační → diarizace se u něj zapne
     assert is_conversation_template("brainstorm")
+
+
+# ---------------------------------------------------------------------------
+# Role podcast + šablony v1.12 (telefonát, rodič, porada, workshop, podcast_*)
+# ---------------------------------------------------------------------------
+
+
+def test_v112_templates_have_schemas():
+    from app.core.ai.prompts import PROMPT_TEMPLATES, SECTION_SCHEMAS
+
+    new_keys = (
+        "sales_phone_call",
+        "teacher_parent_meeting",
+        "team_meeting",
+        "workshop_training",
+        "podcast_shownotes",
+        "podcast_chapters",
+        "podcast_quotes",
+        "podcast_article",
+        "podcast_interview_qa",
+    )
+    for key in new_keys:
+        assert key in PROMPT_TEMPLATES, f"'{key}' chybí v PROMPT_TEMPLATES"
+        assert key in SECTION_SCHEMAS, f"schéma pro '{key}' chybí"
+        assert SECTION_SCHEMAS[key], f"schéma pro '{key}' je prázdné"
+
+
+def test_templates_for_role_podcast():
+    from app.core.ai.prompts import templates_for_role
+
+    tpl = templates_for_role("podcast")
+    # Podcast šablony + univerzální
+    for key in ("podcast_shownotes", "podcast_chapters", "podcast_quotes",
+                "podcast_article", "podcast_interview_qa",
+                "summary", "brainstorm", "meeting_minutes",
+                "team_meeting", "workshop_training"):
+        assert key in tpl, f"'{key}' chybí v podcast roli"
+    # Cizí rolové šablony ne
+    assert "sales_meeting" not in tpl
+    assert "teacher_lesson" not in tpl
+    assert "student" not in tpl
+
+
+def test_student_role_excludes_podcast_templates():
+    from app.core.ai.prompts import templates_for_role
+
+    tpl = templates_for_role("student")
+    assert "podcast_shownotes" not in tpl
+    assert "team_meeting" in tpl  # univerzální zůstávají
+
+
+def test_new_conversation_templates():
+    from app.core.ai.prompts import is_conversation_template
+
+    for key in ("podcast_shownotes", "podcast_interview_qa", "team_meeting",
+                "workshop_training", "teacher_parent_meeting", "sales_phone_call"):
+        assert is_conversation_template(key), f"'{key}' má být konverzační"
+
+
+def test_needs_timestamps_only_for_chapters_and_quotes():
+    from app.core.ai.prompts import needs_timestamps
+
+    assert needs_timestamps("podcast_chapters")
+    assert needs_timestamps("podcast_quotes")
+    assert not needs_timestamps("podcast_shownotes")
+    assert not needs_timestamps("student")
+
+
+def test_combine_transcripts_with_timestamps():
+    """Router vkládá [mm:ss] značky (+ mluvčí), když to šablona potřebuje."""
+    from app.core.ai.router import _combine_transcripts
+    from app.core.models import Transcript, TranscriptSegment
+
+    tr = Transcript(
+        source_label="Epizoda 1",
+        language="cs",
+        duration_sec=120.0,
+        text="Ahoj. Vítejte.",
+        segments=[
+            TranscriptSegment(start=0.0, end=4.0, text="Ahoj.", speaker="Mluvčí 1"),
+            TranscriptSegment(start=65.0, end=70.0, text="Vítejte.", speaker=""),
+        ],
+    )
+    with_ts = _combine_transcripts([tr], with_timestamps=True)
+    assert "[00:00] Mluvčí 1: Ahoj." in with_ts
+    assert "[01:05] Vítejte." in with_ts
+    # Bez timestamps → plain text
+    plain = _combine_transcripts([tr], with_timestamps=False)
+    assert "[00:00]" not in plain
+
+
+def test_tokens_set_role_podcast():
+    from app.gui.styles import tokens
+
+    tokens.set_role("podcast")
+    try:
+        assert tokens.accent() == tokens.PODCAST_ACCENT
+    finally:
+        tokens.set_role("student")  # úklid pro ostatní testy

@@ -389,6 +389,8 @@ class MainWindow(QMainWindow):
             return "Pedagogický nástroj"
         if self._settings.app_role == "sales":
             return "Poznámky ze schůzek s klienty"
+        if self._settings.app_role == "podcast":
+            return "Show notes, kapitoly a citáty z nahrávek"
         return "Studijní poznámky z přednášek"
 
     def _show_fact_card_during_pipeline(self, running: bool) -> None:
