@@ -336,12 +336,15 @@ class MainWindow(QMainWindow):
         )
         row.addWidget(self._wordmark)
 
-        # Role badge "Učitelský režim" — viditelný jen v teacher módu.
-        # Stylováno přes objectName="RoleBadge" v app.qss (role-aware).
-        self._role_badge = QLabel("Učitelský režim")
-        self._role_badge.setObjectName("RoleBadge")
-        self._role_badge.setVisible(self._settings.app_role == "teacher")
-        row.addWidget(self._role_badge)
+        # Přepínač role — klikatelný čip s aktuální rolí. Nahrazuje dřívější
+        # statický "Učitelský režim" badge: s rolemi (7) musí být změna role
+        # dohledatelná přímo z hlavního okna, ne zahrabaná v Nastavení.
+        self._role_btn = QPushButton()
+        self._role_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._role_btn.setToolTip("Přepnout roli aplikace (mění barvu a nabídku šablon)")
+        self._role_btn.clicked.connect(self._open_role_picker)
+        self._refresh_role_button()
+        row.addWidget(self._role_btn)
 
         row.addStretch(1)
 
@@ -368,12 +371,11 @@ class MainWindow(QMainWindow):
     def _refresh_role_badge(self) -> None:
         """Synchronizuje role-závislé UI prvky se settings.app_role.
 
-        Při přepnutí role v Settings projeví okamžitě: badge, section label
+        Při přepnutí role projeví okamžitě: role čip, section label
         nad drop zone, učitelské karty, prompt editor a action row.
         """
         is_teacher = self._settings.app_role == "teacher"
-        if hasattr(self, "_role_badge"):
-            self._role_badge.setVisible(is_teacher)
+        self._refresh_role_button()
         if hasattr(self, "_section_1_label"):
             self._section_1_label.setVisible(is_teacher)
         if hasattr(self, "_teacher_actions"):
@@ -382,6 +384,49 @@ class MainWindow(QMainWindow):
             self._prompt_editor.setVisible(not is_teacher)
         if hasattr(self, "_action_row_widget"):
             self._action_row_widget.setVisible(not is_teacher)
+
+    def _refresh_role_button(self) -> None:
+        """Aktualizuje text, ikonu a barvy přepínacího čipu role."""
+        if not hasattr(self, "_role_btn"):
+            return
+        from app.gui.widgets.role_picker_dialog import role_def
+
+        d = role_def(self._settings.app_role)
+        accent = tokens.accent()
+        # "&" je v QPushButton mnemonic — "HR & nábor" by se zobrazilo bez "&"
+        self._role_btn.setText(d["short"].replace("&", "&&"))
+        self._role_btn.setIcon(icon(d["icon"], size=14, color=accent))
+        self._role_btn.setIconSize(icon_size(14))
+        self._role_btn.setStyleSheet(
+            "QPushButton { "
+            f"background: {tokens.accent_soft(0.10)}; color: {accent}; "
+            f"border: 1px solid {tokens.accent_soft(0.35)}; "
+            "border-radius: 999px; padding: 5px 14px; "
+            "font-size: 12px; font-weight: 700; }"
+            f"QPushButton:hover {{ background: {tokens.accent_soft(0.18)}; "
+            f"border-color: {accent}; }}"
+        )
+
+    def _open_role_picker(self) -> None:
+        """Otevře výběr role z hlavičky a aplikuje změnu okamžitě."""
+        from PySide6.QtWidgets import QApplication
+
+        from app.gui.styles import theme
+        from app.gui.widgets.role_picker_dialog import RolePickerDialog
+
+        picker = RolePickerDialog(self)
+        if picker.exec() != picker.DialogCode.Accepted:
+            return
+        new_role = picker.chosen_role()
+        if new_role == self._settings.app_role:
+            return
+        self._settings.app_role = new_role
+        save_settings(self._settings)
+        qapp = QApplication.instance()
+        if qapp is not None:
+            theme.apply_theme(qapp, role=new_role, dark=self._settings.dark_mode)
+        self._refresh_role_visuals()
+        logger.info("Role přepnuta z hlavičky na '{}'", new_role)
 
     def _wordmark_subtitle_for_role(self) -> str:
         """Vrátí subtitle pro Wordmark dle aktuální role."""

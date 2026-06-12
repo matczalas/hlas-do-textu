@@ -27,6 +27,40 @@ from PySide6.QtWidgets import (
 from app.gui.styles import tokens
 from app.gui.widgets.icons import pixmap
 
+# Centrální definice rolí — sdílí ji picker (karty) i hlavička MainWindow
+# (přepínací čip). Pořadí = pořadí karet v mřížce.
+ROLE_DEFS: list[dict[str, str]] = [
+    {"role": "student", "icon": "graduation", "accent": tokens.STUDENT_ACCENT,
+     "short": "Student", "title": "Jsem žák / student",
+     "desc": "Z přednášek chci studijní body, definice a otázky ke zkoušení."},
+    {"role": "teacher", "icon": "school", "accent": tokens.TEACHER_ACCENT,
+     "short": "Učitel/ka", "title": "Jsem učitel/ka",
+     "desc": "Z hodin chci testové otázky pro žáky a reflexi projevu."},
+    {"role": "sales", "icon": "clipboard", "accent": tokens.SALES_ACCENT,
+     "short": "Sales / poradce", "title": "Jsem poradce / sales",
+     "desc": "Ze schůzek chci úkoly, data o klientovi a další termín."},
+    {"role": "podcast", "icon": "mic", "accent": tokens.PODCAST_ACCENT,
+     "short": "Podcasty", "title": "Točím rozhovory / podcast",
+     "desc": "Chci show notes, kapitoly, citáty a článek z rozhovoru."},
+    {"role": "hr", "icon": "users", "accent": tokens.HR_ACCENT,
+     "short": "HR & nábor", "title": "Dělám HR / nábor",
+     "desc": "Z pohovorů chci zápisy, hodnocení a dohodnuté kroky."},
+    {"role": "coach", "icon": "target", "accent": tokens.COACH_ACCENT,
+     "short": "Kouč", "title": "Jsem kouč",
+     "desc": "Ze sezení chci poznámky, kroky klienta a přípravu na další."},
+    {"role": "spolek", "icon": "building", "accent": tokens.SPOLEK_ACCENT,
+     "short": "Spolky & SVJ", "title": "Vedu spolek / SVJ",
+     "desc": "Ze schůzí chci zápisy s usneseními, hlasováním a úkoly."},
+]
+
+
+def role_def(role: str) -> dict[str, str]:
+    """Vrátí definici role podle klíče (fallback = student)."""
+    for d in ROLE_DEFS:
+        if d["role"] == role:
+            return d
+    return ROLE_DEFS[0]
+
 
 class RolePickerDialog(QDialog):
     """Dialog pro výběr role. Vrací klíč role přes chosen_role()."""
@@ -69,29 +103,13 @@ class RolePickerDialog(QDialog):
         cards = QGridLayout()
         cards.setSpacing(14)
 
-        card_defs = [
-            ("student", "graduation", tokens.STUDENT_ACCENT, "Jsem žák / student",
-             "Z přednášek chci studijní body, definice a otázky ke zkoušení."),
-            ("teacher", "school", tokens.TEACHER_ACCENT, "Jsem učitel/ka",
-             "Z hodin chci testové otázky pro žáky a reflexi projevu."),
-            ("sales", "clipboard", tokens.SALES_ACCENT, "Jsem poradce / sales",
-             "Ze schůzek chci úkoly, data o klientovi a další termín."),
-            ("podcast", "mic", tokens.PODCAST_ACCENT, "Točím rozhovory / podcast",
-             "Chci show notes, kapitoly, citáty a článek z rozhovoru."),
-            ("hr", "users", tokens.HR_ACCENT, "Dělám HR / nábor",
-             "Z pohovorů chci zápisy, hodnocení a dohodnuté kroky."),
-            ("coach", "target", tokens.COACH_ACCENT, "Jsem kouč",
-             "Ze sezení chci poznámky, kroky klienta a přípravu na další."),
-            ("spolek", "building", tokens.SPOLEK_ACCENT, "Vedu spolek / SVJ",
-             "Ze schůzí chci zápisy s usneseními, hlasováním a úkoly."),
-        ]
-        for i, (role, icon_name, accent, title_text, desc) in enumerate(card_defs):
+        for i, d in enumerate(ROLE_DEFS):
             card = self._build_card(
-                role=role,
-                icon_name=icon_name,
-                accent=accent,
-                title_text=title_text,
-                desc=desc,
+                role=d["role"],
+                icon_name=d["icon"],
+                accent=d["accent"],
+                title_text=d["title"],
+                desc=d["desc"],
             )
             cards.addWidget(card, i // 4, i % 4)
         # Sloupce roztahovat rovnoměrně

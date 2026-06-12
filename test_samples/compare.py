@@ -11,7 +11,7 @@ def normalize(text: str) -> list[str]:
     """Lower-case, odstranit interpunkci, rozdělit na slova. Zachovat diakritiku."""
     text = text.lower()
     # Odstranit interpunkci
-    text = re.sub(r"[-.,!?;:„""'\"—()\[\]…]", " ", text)
+    text = re.sub(r"[-.,!?;:„""'\"—()\\[\\]…]", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text.split()
 

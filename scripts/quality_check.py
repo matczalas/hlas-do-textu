@@ -27,9 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.ai.gemini import GeminiProvider  # noqa: E402
 from app.core.ai.router import AIRouter, generate_study_material  # noqa: E402
 from app.core.models import (  # noqa: E402
-    SECTION_KIND_BULLETS,
     SECTION_KIND_DEFINITIONS,
-    SECTION_KIND_KEY_VALUE,
     SECTION_KIND_PARAGRAPH,
     SECTION_KIND_QA,
     StudyMaterial,
@@ -206,13 +204,205 @@ on Mutual Funds od Johna Bogla, zakladatele Vanguardu. Děkuji.
 """
 
 
+# --- Podcast: segmenty s časem (kapitoly/citáty potřebují [mm:ss]) ----------
+PODCAST_SEGMENTS: list[tuple[float, str, str]] = [
+    (0, "Mluvčí 1", "Vítejte u podcastu Hlavou napřed. Dneska je mým hostem Petra Línková, která vede neziskovku Druhý břeh a deset let pracovala v korporátu."),
+    (18, "Mluvčí 2", "Díky za pozvání. Jo, deset let v bance, pak jsem to celé otočila."),
+    (35, "Mluvčí 1", "Pojďme rovnou k tomu zlomu. Co se stalo?"),
+    (48, "Mluvčí 2", "Vyhořela jsem. A nejhorší na tom bylo, že jsem to půl roku nikomu neřekla. Dneska vím, že mlčení je u vyhoření to nejdražší rozhodnutí."),
+    (95, "Mluvčí 1", "Mlčení je nejdražší rozhodnutí — to je silná věta."),
+    (110, "Mluvčí 2", "Je to tak. Spočítala jsem si pak, že mě těch šest měsíců stálo víc než celá terapie potom."),
+    (150, "Mluvčí 1", "Jak ses dostala k neziskovce?"),
+    (165, "Mluvčí 2", "Přes dobrovolničení. Začala jsem o sobotách doučovat děti z dětského domova matematiku. A poprvé po letech jsem v neděli večer neměla úzkost."),
+    (230, "Mluvčí 1", "Druhý břeh dneska pomáhá dětem z dětských domovů s přechodem do dospělosti. Kolik vás je?"),
+    (245, "Mluvčí 2", "Šest zaměstnanců, čtyřicet dobrovolníků. A letos jsme doprovodili sto dvacet dětí."),
+    (290, "Mluvčí 1", "Co bys poradila lidem, kteří cítí, že jsou tam, kde jsi byla ty v té bance?"),
+    (310, "Mluvčí 2", "Neskákejte hned. Začněte malým krokem vedle práce — dobrovolničení je nejlevnější způsob, jak si vyzkoušet jiný život. A řekněte to nahlas někomu blízkému."),
+    (370, "Mluvčí 1", "Kde vás lidi najdou?"),
+    (380, "Mluvčí 2", "Druhybreh.cz, a hledáme teď dobrovolníky v Brně a Ostravě."),
+    (400, "Mluvčí 1", "Petro, díky moc. A vám díky za poslech, odebírejte nás kdekoli posloucháte podcasty."),
+]
+
+TEAM_TRANSCRIPT = """\
+Mluvčí 1: Tak, pondělní porada. Lukáši, začni ty — jak vypadá web?
+Mluvčí 2: Nová verze je na testu. Zbývá opravit formulář, mám to do středy. Ale potřebuju od Báry finální texty.
+Mluvčí 3: Texty pošlu zítra dopoledne, zbývá mi poslední stránka. Jinak hlásím, že newsletter měl otevíranost třicet dva procent, nejvíc letos.
+Mluvčí 1: Super. Já jsem včera mluvil s tiskárnou — letáky budou o týden později, až dvacátého. Musíme posunout rozvoz.
+Mluvčí 2: To je problém, dvacátého je akce v Plzni.
+Mluvčí 1: Dobře, tak rozhodneme: na Plzeň vytiskneme sto kusů nouzově na naší tiskárně a zbytek počká na zásilku. Souhlas?
+Mluvčí 3: Souhlas.
+Mluvčí 2: Jo.
+Mluvčí 1: Bára zařídí nouzový tisk do pátku. A poslední věc — rozpočet na příští rok. To dneska nestihneme, dáme si na to samostatnou schůzku příští úterý ve dvě.
+Mluvčí 3: Ještě rychle — ozvala se ta firma ohledně sponzoringu, chtějí schůzku. Pošlu vám termíny.
+Mluvčí 1: Dobře, to si vezmu já. Díky, končíme.
+"""
+
+WORKSHOP_TRANSCRIPT = """\
+Lektor: Dobrý den, vítejte na školení Canva pro neziskovky. Dnes se naučíte tři věci: šablony, brand kit a plánování příspěvků.
+Lektor: Začneme šablonami. Krok jedna — v levém menu kliknete na Šablony. Krok dva — do vyhledávání napište třeba „instagram post nonprofit". Krok tři — vyberete šablonu a kliknete Přizpůsobit.
+Lektor: Důležité pravidlo: nikdy neměňte víc než dvě věci najednou — barvu a text. Když změníte i font a rozložení, ztratí to konzistenci.
+Účastník 1: A co když nám šablona nesedí barevně k logu?
+Lektor: Skvělá otázka — na to je brand kit. V nastavení nahrajete logo a definujete dvě hlavní barvy a jeden font. Canva pak šablony automaticky přebarvuje. Pozor, brand kit je v placené verzi, ale neziskovky mají Canva Pro zdarma — žádost se podává přes canva.com/canva-for-nonprofits, schválení trvá asi týden.
+Účastník 2: Jak dlouho dopředu plánovat příspěvky?
+Lektor: Doporučuji dva týdny. V Canvě je na to Content Planner — tlačítko kalendáře vlevo. Nastavíte datum, čas a síť. A poslední tip: exportujte vždycky v PNG, ne JPG, texty jsou pak ostřejší.
+Lektor: Domácí úkol: založte brand kit a naplánujte tři příspěvky. Materiály vám pošlu mailem, je tam i odkaz na můj návod na YouTube — kanál Grafika pro dobro.
+"""
+
+PHONE_TRANSCRIPT = """\
+Mluvčí 1: Dobrý den, pane Dvořáku, tady Novotná z pojišťovny. Volám kvůli té nabídce životního pojištění, co jsem vám posílala minulý týden.
+Mluvčí 2: Dobrý den. Jo, koukal jsem na to. Ta varianta za dvanáct set měsíčně vypadá rozumně, ale chtěl bych vědět, co přesně kryje ta invalidita.
+Mluvčí 1: Invalidita je krytá od druhého stupně, plnění milion dvě stě. Můžu vám poslat tabulku s detaily.
+Mluvčí 2: Pošlete. A ještě — kdybych to podepsal, od kdy by to platilo?
+Mluvčí 1: Od prvního dne dalšího měsíce, takže od prvního července. Pošlu vám tabulku dnes a zavolám v pátek dopoledne, jestli vám to bude dávat smysl?
+Mluvčí 2: Pátek dopoledne je dobrý, ale až po desáté.
+Mluvčí 1: Domluveno, v pátek po desáté. Děkuju, mějte se hezky.
+"""
+
+PARENT_TRANSCRIPT = """\
+Mluvčí 1: Dobrý den, paní Horáková, děkuju, že jste přišla. Chtěla jsem s vámi probrat Matěje — poslední dva měsíce se zhoršil v matematice a párkrát nepřinesl úkol.
+Mluvčí 2: Dobrý den. Já vím, doma je to teď složitější, s manželem jsme se rozešli a Matěj to nese špatně.
+Mluvčí 1: To mě mrzí, děkuju za otevřenost. Ve škole je jinak v pohodě, s dětmi vychází. Jen ta matematika — navrhuju doučování, máme ho ve čtvrtek po vyučování zdarma.
+Mluvčí 2: To by mohl zvládnout, čtvrtky má volné. Promluvím s ním.
+Mluvčí 1: Skvělé. Já dám vědět kolegyni, která doučování vede, že Matěj přijde. A domluvme se, že si zavoláme za měsíc, jak to jde — kolem patnáctého ledna?
+Mluvčí 2: Ano, klidně. A kdyby něco, můžu napsat přes Bakaláře?
+Mluvčí 1: Určitě, odpovídám do druhého dne. A Matějovi prosím zatím neříkejte, že jsme řešily i tu situaci doma — řekla jsem mu jen, že jde o matematiku.
+"""
+
+HR_INTERVIEW_TRANSCRIPT = """\
+Mluvčí 1: Dobrý den, Tomáši, posaďte se. Já jsem Lenka z HR a tohle je pohovor na pozici provozního koordinátora.
+Mluvčí 2: Dobrý den, děkuju za pozvání.
+Mluvčí 1: Začneme zkušenostmi. Co jste dělal poslední tři roky?
+Mluvčí 2: Koordinoval jsem logistiku v e-shopu Zelená bedýnka. Měl jsem na starost sklad, tři kurýry a plánování rozvozů. Když jsem nastoupil, rozvozy nabíraly hodinová zpoždění, zavedl jsem nové plánování tras a do půl roku jsme jeli na devadesát osm procent včasnosti.
+Mluvčí 1: Jak jste to konkrétně udělal?
+Mluvčí 2: Přešli jsme z ručního plánování na Routigo a změnil jsem rozvozová okna z hodinových na dvouhodinová. Kurýrům se uvolnily ruce a zákazníkům to nevadilo, měřili jsme spokojenost.
+Mluvčí 1: Proč odcházíte?
+Mluvčí 2: Firma se stěhuje do Kolína a to už nedojedu. Jinak bych zůstal.
+Mluvčí 1: U nás byste měl na starost i rozpočet, asi dva miliony ročně. Máte zkušenost s penězi?
+Mluvčí 2: Přiznám se, že rozpočet jsem nikdy celý nedržel, jen jsem schvaloval faktury do dvaceti tisíc. Tam bych se potřeboval zaučit.
+Mluvčí 1: Dobře, to je fér. Jaká je vaše představa o nástupu a penězích?
+Mluvčí 2: Nástup můžu od září, výpovědní lhůta mi končí v srpnu. Představa je čtyřicet pět tisíc hrubého.
+Mluvčí 1: Rozumím. Další kolo by bylo s provozním ředitelem, ozveme se do týdne. Připravte si prosím krátkou ukázku, jak byste naplánoval rozvozový den u nás.
+"""
+
+HR_REVIEW_TRANSCRIPT = """\
+Mluvčí 1: Aničko, pojďme na roční hodnocení. Jak bys sama zhodnotila letošek?
+Mluvčí 2: Povedl se mi web — nová verze byla včas a návštěvnost vzrostla o čtvrtinu. Co se nepovedlo, je dokumentace, tu jsem flákala, přiznávám.
+Mluvčí 1: Souhlasím s obojím. Web hodnotím jako tvůj největší úspěch, klient byl nadšený. K dokumentaci — vadí mi to hlavně proto, že po tobě nikdo nemůže převzít projekt. Příští rok chci, aby každý projekt měl aspoň základní readme do týdne od předání.
+Mluvčí 2: To je fér. Já bych za sebe chtěla víc designové práce, baví mě to víc než kódování.
+Mluvčí 1: Dobře, domluvme se: od ledna ti dám design menších zakázek, začneme jednou za měsíc. A pošlu tě na kurz UX, ten dvoudenní od Czechitas, zaplatíme.
+Mluvčí 2: Super, díky. A plat?
+Mluvčí 1: Od ledna ti zvedám o tři tisíce. A když dotáhneš tu dokumentaci za první kvartál, v dubnu se pobavíme znovu.
+"""
+
+HR_EXIT_TRANSCRIPT = """\
+Mluvčí 1: Marku, díky, že sis udělal čas na exit pohovor. Proč odcházíš?
+Mluvčí 2: Hlavní důvod jsou peníze — dostal jsem nabídku o patnáct tisíc vyšší. Ale upřímně, kdyby to bylo jen o penězích, asi bych vyjednával. Druhá věc je, že jsem se rok nikam neposunul. Sliboval se mi seniorní projekt a pořád jsem dělal údržbu.
+Mluvčí 1: Co u nás fungovalo?
+Mluvčí 2: Tým je skvělý, atmosféra taky. A oceňuju flexibilitu, když syn marodil, nikdy s tím nebyl problém.
+Mluvčí 1: A co bys změnil?
+Mluvčí 2: Plánování. Priority se mění každý týden a člověk nikdy nedodělá věc do konce. A jak říkám — kariérní růst. Po dvou letech nevím, co mám udělat, abych se posunul. To bych na vašem místě řešil první.
+Mluvčí 1: Co předáváš a komu?
+Mluvčí 2: Server módu předám Filipovi, máme sraz ve čtvrtek. Dokumentaci k API jsem dopsal minulý týden. Zbývá přístupová hesla — předám je IT poslední den.
+"""
+
+HR_ONE_ON_ONE_TRANSCRIPT = """\
+Mluvčí 1: Tak co, Katko, jak bylo tenhle měsíc?
+Mluvčí 2: Celkem dobře, kampaň jsme stihli. Ale potřebuju si postěžovat na schvalování — čekám na tebe někdy i tři dny a pak hořím.
+Mluvčí 1: Fér. Domluvme se, že věci do pěti tisíc schvaluješ sama a já jen velké věci, do druhého dne. Zkusíme měsíc?
+Mluvčí 2: To by hodně pomohlo. A ještě — chtěla bych na konferenci Marketing Festival, je v listopadu, lístek stojí osm tisíc.
+Mluvčí 1: Schvaluju, objednej si. Já mám jednu věc — příští týden přebíráš stážistku, provedeš ji prvním týdnem. Připrav jí prosím plán na první tři dny.
+Mluvčí 2: Dobře, připravím do pátku.
+"""
+
+COACH_TRANSCRIPT = """\
+Mluvčí 1: Dobrý den, Jano. Tohle je naše první sezení, tak mi řekněte — s čím přicházíte?
+Mluvčí 2: Potřebuju se rozhodnout, jestli vzít nabídku na vedoucí pozici. Mám z toho strach, ale zároveň cítím, že když ji nevezmu, budu litovat.
+Mluvčí 1: Co konkrétně vás na té pozici láká?
+Mluvčí 2: Možnost věci měnit. Šest let koukám, jak se rozhoduje špatně, a říkám si, že bych to uměla líp. A taky peníze, samozřejmě.
+Mluvčí 1: A ten strach — z čeho přesně je?
+Mluvčí 2: Že zklamu. Že na to nemám. Hlavně vedení lidí — nikdy jsem nikoho nevedla a teď bych měla osm lidí, včetně dvou kolegů, co jsou starší než já... Vlastně když to říkám nahlas, tak ten strach není z práce, ale z toho, co si o mně pomyslí ostatní.
+Mluvčí 1: To je důležité rozlišení. Kdybyste si měla představit sebe za rok v té roli a daří se vám — jak to vypadá?
+Mluvčí 2: Tým funguje, lidi za mnou chodí pro radu, a já večer nemyslím na práci. To poslední je vlastně podmínka.
+Mluvčí 1: Dobře. Co byste potřebovala vědět nebo udělat, abyste se rozhodla do konce měsíce?
+Mluvčí 2: Promluvit si s těmi dvěma staršími kolegy. Jejich reakce je můj největší strašák. A zeptat se šéfa, jestli můžu dostat mentora na vedení lidí.
+Mluvčí 1: Takže dva kroky do příštího sezení — rozhovor s kolegy a otázka na mentoring. Souhlasí?
+Mluvčí 2: Souhlasí. Sejdeme se za čtrnáct dní.
+Mluvčí 1: A budeme pokračovat každé dva týdny, online, padesát minut, jak jsme se domluvili v mailu.
+"""
+
+SPOLEK_TRANSCRIPT = """\
+Mluvčí 1: Zahajuji výroční členskou schůzi spolku Zelený vnitroblok. Přítomno je čtrnáct členů z dvaceti dvou, schůze je usnášeníschopná. Zapisovatelkou navrhujeme Moniku. Kdo je pro? Čtrnáct pro, nikdo proti. Schváleno.
+Mluvčí 1: Bod jedna — zpráva o činnosti. Letos jsme uspořádali šest brigád, vysadili dvanáct stromů a obnovili dětské hřiště. Sousedské slavnosti se zúčastnilo asi dvě stě lidí.
+Mluvčí 2: K hřišti — dostali jsme dotaci od městské části sedmdesát tisíc, celkové náklady byly devadesát pět tisíc, zbytek šel z členských příspěvků.
+Mluvčí 1: Děkuji. Bod dva — hospodaření. Příjmy letos sto čtyřicet tisíc, výdaje sto dvacet tisíc, zůstatek na účtu osmdesát tři tisíce.
+Mluvčí 3: Mám dotaz — kolik z výdajů byla ta slavnost?
+Mluvčí 2: Osmnáct tisíc, z toho deset pokrylo vstupné z bazaru.
+Mluvčí 1: Hlasujeme o schválení hospodaření. Pro třináct, proti nikdo, zdržel se jeden. Usnesení přijato.
+Mluvčí 1: Bod tři — plán na příští rok. Navrhujeme: jarní výsadbu květinových záhonů, opravu laviček a žádost o grant na komunitní kompostér. Hlasujeme. Pro čtrnáct, jednohlasně přijato.
+Mluvčí 3: Ještě navrhuju zvýšit členský příspěvek z tří set na čtyři sta korun.
+Mluvčí 1: Hlasujeme o zvýšení příspěvku. Pro osm, proti pět, zdržel se jeden. Usnesení přijato těsnou většinou.
+Mluvčí 1: Úkoly: Monika podá žádost o grant na kompostér do konce ledna. Pavel zajistí cenové nabídky na opravu laviček do příští schůze. Příští schůze bude v březnu, termín upřesníme mailem. Děkuji, končím schůzi.
+"""
+
+REALTY_VIEWING_TRANSCRIPT = """\
+Mluvčí 1: Dobrý den, vítejte. Tak tohle je ten byt tři plus jedna na Vinohradech, čtvrté patro s výtahem, sedmdesát osm metrů.
+Mluvčí 2: Dobrý den. Hezky vysoké stropy. Manželka se ptala — okna jsou do ulice, nebo do dvora?
+Mluvčí 1: Ložnice a dětský pokoj do dvora, obývák do ulice. Ulice je ale klidná, jednosměrka.
+Mluvčí 2: Kuchyň je menší, než vypadala na fotkách. A koupelna — to je původní jádro?
+Mluvčí 1: Ano, jádro je původní, s tím počítá i cena. Rekonstrukce jádra vyjde zhruba na čtyři sta tisíc.
+Mluvčí 2: Hm. A jak je to s vytápěním? Viděl jsem v inzerátu dálkové.
+Mluvčí 1: Ano, dálkové, náklady asi dva a půl tisíce měsíčně i s ohřevem vody. Fond oprav je třináct set.
+Mluvčí 2: Cena je devět dvě stě? Při tom stavu jádra bych čekal devět rovných... Jinak se mi byt líbí, dispozice je super a lokalita přesně ta, co hledáme.
+Mluvčí 1: Rozumím. Majitel je na jednání o ceně připravený, ale spíš v řádu nižších desítek tisíc. Doporučuju: přijďte se podívat ještě jednou s manželkou, klidně tento týden, a pak se pobavíme o nabídce.
+Mluvčí 2: Dobře, zkusím čtvrtek odpoledne. A poslal byste mi prohlášení vlastníka a poslední vyúčtování?
+Mluvčí 1: Pošlu dnes večer mailem. Čtvrtek v pět by šel?
+Mluvčí 2: Platí.
+"""
+
+REALTY_LISTING_TRANSCRIPT = """\
+Mluvčí 1: Tak, paní Beránková, projdeme si byt kvůli inzerátu. Diktuju si: dva plus kk, Brno-Žabovřesky, ulice Minská, třetí patro bez výtahu, padesát čtyři metrů, balkon tři metry, sklep.
+Mluvčí 2: Ano. A loni jsme měnili okna, to tam napište, plastová s trojsklem.
+Mluvčí 1: Píšu. Kuchyň je z roku dvacet dvacet, vestavěné spotřebiče. Koupelna po rekonstrukci?
+Mluvčí 2: Koupelna před pěti lety, sprchový kout. Topení je plynový kotel, vlastní, tři roky starý.
+Mluvčí 1: Vlastnictví osobní, bez hypotéky?
+Mluvčí 2: Osobní. Hypotéka tam je, zbývá osm set tisíc, ale chceme ji doplatit z prodeje.
+Mluvčí 1: To je běžné, vyřešíme přes úschovu. Cenu jsme říkali šest milionů čtyři sta. Já doporučuju nasadit šest pět a nechat prostor na jednání.
+Mluvčí 2: Dobře, věřím vám. Ale nechci to prodávat déle než do léta.
+Mluvčí 1: Rozumím, do léta je realistické. Exkluzivitu podepíšeme na tři měsíce, provize tři procenta včetně právního servisu, jak jsme se bavili po telefonu.
+Mluvčí 2: Ano, s tím počítám.
+Mluvčí 1: Budu potřebovat: průkaz energetické náročnosti — zařídím já, vyúčtování energií za loňský rok a od vás dvě hodiny na focení, ideálně příští týden dopoledne. A ukliďte prosím balkon, fotí se i ten.
+"""
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def make_transcript(label: str, text: str) -> Transcript:
-    """Vyrobí Transcript ze statického textu (s jediným segmentem na 0s)."""
+def make_transcript(
+    label: str,
+    text: str,
+    segments: list[tuple[float, str, str]] | None = None,
+) -> Transcript:
+    """Vyrobí Transcript ze statického textu.
+
+    `segments` = list (start_sec, speaker, text) — nutné pro šablony s časovými
+    značkami (podcast_chapters/quotes), kde router vkládá [mm:ss] z segmentů.
+    Bez segmentů vznikne jediný segment na 0 s.
+    """
+    if segments:
+        segs = [
+            TranscriptSegment(start=s, end=s + 5.0, text=t, speaker=sp)
+            for s, sp, t in segments
+        ]
+        duration = max(s for s, _, _ in segments) + 30.0
+        full_text = "\n".join(
+            (f"{sp}: {t}" if sp else t) for _, sp, t in segments
+        )
+        return Transcript(
+            source_label=label, language="cs", duration_sec=duration,
+            text=full_text, segments=segs,
+        )
     return Transcript(
         source_label=label,
         language="cs",
@@ -372,7 +562,12 @@ def _format_item_preview(item) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--only", choices=("sales", "teacher", "student", "all"), default="all")
+    parser.add_argument(
+        "--only",
+        choices=("sales", "teacher", "student", "v112", "v113", "all", "new"),
+        default="all",
+        help="'new' = v112+v113 (šablony zatím neověřené živým testem)",
+    )
     parser.add_argument("--out", type=Path, default=None, help="Výstupní složka (default = tmp)")
     args = parser.parse_args()
 
@@ -413,6 +608,50 @@ def main() -> int:
     # takže meeting_minutes by ji měl umět.
     if args.only == "all":
         jobs.append(("sales-as-meeting", sales_tr, "meeting_minutes"))
+
+    # --- v1.12: podcast + univerzální/rolové přídavky ---
+    if args.only in ("v112", "new", "all"):
+        podcast_tr = make_transcript("Podcast — Petra Línková", "", segments=PODCAST_SEGMENTS)
+        team_tr = make_transcript("Pondělní porada", TEAM_TRANSCRIPT)
+        workshop_tr = make_transcript("Školení Canva", WORKSHOP_TRANSCRIPT)
+        phone_tr = make_transcript("Telefonát — pojištění", PHONE_TRANSCRIPT)
+        parent_tr = make_transcript("Konzultace — Matěj", PARENT_TRANSCRIPT)
+        jobs += [
+            ("podcast", podcast_tr, "podcast_shownotes"),
+            ("podcast", podcast_tr, "podcast_chapters"),
+            ("podcast", podcast_tr, "podcast_quotes"),
+            ("podcast", podcast_tr, "podcast_article"),
+            ("podcast", podcast_tr, "podcast_interview_qa"),
+            ("team", team_tr, "team_meeting"),
+            ("workshop", workshop_tr, "workshop_training"),
+            ("phone", phone_tr, "sales_phone_call"),
+            ("parent", parent_tr, "teacher_parent_meeting"),
+        ]
+
+    # --- v1.13: HR, kouč, spolky, realitky ---
+    if args.only in ("v113", "new", "all"):
+        hr_int_tr = make_transcript("Pohovor — koordinátor", HR_INTERVIEW_TRANSCRIPT)
+        hr_rev_tr = make_transcript("Roční hodnocení — Anička", HR_REVIEW_TRANSCRIPT)
+        hr_exit_tr = make_transcript("Exit — Marek", HR_EXIT_TRANSCRIPT)
+        hr_oo_tr = make_transcript("1:1 — Katka", HR_ONE_ON_ONE_TRANSCRIPT)
+        coach_tr = make_transcript("Koučink — Jana, vstupní", COACH_TRANSCRIPT)
+        spolek_tr = make_transcript("Výroční schůze — Zelený vnitroblok", SPOLEK_TRANSCRIPT)
+        view_tr = make_transcript("Prohlídka — Vinohrady 3+1", REALTY_VIEWING_TRANSCRIPT)
+        list_tr = make_transcript("Náběr — Žabovřesky 2+kk", REALTY_LISTING_TRANSCRIPT)
+        jobs += [
+            ("hr", hr_int_tr, "hr_interview"),
+            ("hr", hr_rev_tr, "hr_performance_review"),
+            ("hr", hr_exit_tr, "hr_exit_interview"),
+            ("hr", hr_oo_tr, "hr_one_on_one"),
+            ("coach", coach_tr, "coach_session"),
+            ("coach", coach_tr, "coach_first_session"),
+            ("coach", coach_tr, "coach_next_prep"),
+            ("spolek", spolek_tr, "spolek_meeting"),
+            ("spolek", spolek_tr, "spolek_agenda"),
+            ("spolek", spolek_tr, "spolek_annual_report"),
+            ("realty", view_tr, "sales_property_viewing"),
+            ("realty", list_tr, "sales_property_listing"),
+        ]
 
     # Gemini Free Tier má limit 5 req/min/model. Dávkujeme po 4, pauza 65 s.
     BATCH_SIZE = 4
