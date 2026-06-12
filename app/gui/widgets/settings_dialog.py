@@ -483,8 +483,65 @@ class SettingsDialog(QDialog):
         hint.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
         lay.addWidget(hint)
 
+        lay.addWidget(_section_divider())
+
+        # ----- Sledovaná složka (automatické zpracování) -----
+        lay.addWidget(_field_label("Automatické zpracování"))
+        self._watch_cb = QCheckBox(
+            "Sledovat složku a nové nahrávky zpracovat automaticky"
+        )
+        self._watch_cb.setChecked(self._settings.watch_enabled)
+        self._watch_cb.setToolTip(
+            "Když do sledované složky přibude nahrávka (např. ze záznamníku nebo "
+            "telefonu), aplikace ji sama zpracuje vybranou šablonou. Funguje, "
+            "jen když zrovna nic jiného neběží."
+        )
+        lay.addWidget(self._watch_cb)
+
+        watch_row = QHBoxLayout()
+        watch_row.setSpacing(8)
+        self._watch_edit = QLineEdit(self._settings.watch_folder)
+        self._watch_edit.setMinimumHeight(34)
+        self._watch_edit.setPlaceholderText("Složka, kterou hlídat (např. ~/Nahrávky)")
+        watch_row.addWidget(self._watch_edit, 1)
+        watch_browse = QPushButton("Procházet")
+        watch_browse.setMinimumHeight(34)
+        watch_browse.clicked.connect(self._pick_watch_dir)
+        watch_row.addWidget(watch_browse)
+        lay.addLayout(watch_row)
+
+        tpl_row = QHBoxLayout()
+        tpl_row.setSpacing(8)
+        tpl_row.addWidget(_field_label("Vyrobit:"))
+        self._watch_template_combo = QComboBox()
+        self._watch_template_combo.setMinimumHeight(32)
+        from app.core.ai.prompts import templates_for_role
+
+        for key, tpl in templates_for_role(self._settings.app_role).items():
+            self._watch_template_combo.addItem(tpl["label"], userData=key)
+        for i in range(self._watch_template_combo.count()):
+            if self._watch_template_combo.itemData(i) == self._settings.watch_template_key:
+                self._watch_template_combo.setCurrentIndex(i)
+                break
+        tpl_row.addWidget(self._watch_template_combo, 1)
+        lay.addLayout(tpl_row)
+
+        watch_hint = QLabel(
+            "Tip: ukazuj sem složku, kam ti padají nahrávky (sync z telefonu, "
+            "diktafon). Hotové dokumenty najdeš jako vždy ve výstupní složce nahoře."
+        )
+        watch_hint.setWordWrap(True)
+        watch_hint.setStyleSheet("color: palette(placeholder-text); font-size: 11.5px;")
+        lay.addWidget(watch_hint)
+
         lay.addStretch(1)
         return page
+
+    def _pick_watch_dir(self) -> None:
+        start = self._watch_edit.text().strip() or self._settings.output_dir
+        chosen = QFileDialog.getExistingDirectory(self, "Vyber sledovanou složku", start)
+        if chosen:
+            self._watch_edit.setText(chosen)
 
     # ---- Licence tab ----------------------------------------------------
 
@@ -617,6 +674,12 @@ class SettingsDialog(QDialog):
         self._settings.user_ai_service = self._ai_service_combo.currentData() or "none"
         self._settings.transcribe_backend = (
             self._backend_combo.currentData() or "local_whisper"
+        )
+        # Sledovaná složka
+        self._settings.watch_enabled = self._watch_cb.isChecked()
+        self._settings.watch_folder = self._watch_edit.text().strip()
+        self._settings.watch_template_key = (
+            self._watch_template_combo.currentData() or "student"
         )
 
         # Role + dark mode — pokud se změnily, aplikuj theme znovu (live switch).

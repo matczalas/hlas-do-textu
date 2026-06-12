@@ -89,6 +89,7 @@ jobs:
             --hidden-import=tiktoken_ext.openai_public \
             --hidden-import=tiktoken_ext \
             --collect-all yt_dlp \
+            --collect-all genanki \
             --collect-data certifi \
             app/__main__.py
 

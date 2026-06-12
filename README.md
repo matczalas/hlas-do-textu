@@ -56,6 +56,12 @@ a náběr s hotovým návrhem inzerátu.
 - **Rozlišování mluvčích** (cloud přepis) — u dialogu (sales schůzka, zápis ze
   schůzky) přepis označí „Mluvčí 1 / Mluvčí 2" a AI v dokumentu sama přiřadí
   role/jména, pokud je z kontextu pozná (Poradce, Klient Novák…).
+- **Návazné akce z výstupu** — po vyrobení dokumentu jedním klikem:
+  📅 pozvánka do kalendáře (.ics) z termínu schůzky, ✉️ otevřít hotový
+  follow-up e-mail v poště (mailto), 🗂 export karet do Anki (.apkg).
+  Nabídnou se jen když z obsahu vyplývají.
+- **Sledovaná složka** — nové nahrávky ve zvolené složce (sync z telefonu,
+  diktafon) se zpracují automaticky vybranou šablonou, bez ručního klikání.
 - **Chat o dokumentu** — po vyrobení AI požádáš o úpravy („stručněji",
   „přidej otázky", „rozšiř kapitolu o příklady")
 - **Dávka více nahrávek** — spojit do jednoho, nebo každou zvlášť

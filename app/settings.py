@@ -60,6 +60,11 @@ class AppSettings:
     app_role: str = "student"
     # Tmavý režim UI (paleta + accent přes role); pokud false, světlý.
     dark_mode: bool = False
+    # Sledovaná složka — nové nahrávky v ní se zpracují automaticky
+    # (šablona watch_template_key). Viz app/core/watch_folder.py.
+    watch_enabled: bool = False
+    watch_folder: str = ""
+    watch_template_key: str = "student"
 
 
 def load_settings() -> AppSettings:

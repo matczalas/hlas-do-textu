@@ -24,6 +24,7 @@ dependencies = [
     "pydantic>=2.6",
     "tiktoken>=0.7",
     "yt-dlp>=2024.8",
+    "genanki>=0.13",
 ]
 
 [project.optional-dependencies]

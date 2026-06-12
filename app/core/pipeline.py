@@ -57,6 +57,9 @@ class PipelineResult:
     material: StudyMaterial
     transcripts: list[Transcript]
     slides: list[SlideText]
+    # Klíč šablony, kterou job běžel — GUI podle něj nabízí post-akce
+    # (pozvánka do kalendáře, otevřít e-mail, Anki export).
+    template_key: str = ""
 
 
 @dataclass(slots=True)
@@ -316,7 +319,7 @@ def run_pipeline(
                 logger.warning(".md export selhal (ne-fatal): {}", exc)
 
         report("Hotovo", 1.0)
-        return PipelineResult(output_path=out_path, material=material, transcripts=transcripts, slides=slides)
+        return PipelineResult(output_path=out_path, material=material, transcripts=transcripts, slides=slides, template_key=job.prompt_template_key if not transcribe_only else "")
 
     finally:
         try:
@@ -768,7 +771,7 @@ def regenerate_from_transcript(
         user_prompt=user_prompt,
     )
     report("Hotovo", 1.0)
-    return PipelineResult(output_path=out_path, material=material, transcripts=transcripts, slides=slides)
+    return PipelineResult(output_path=out_path, material=material, transcripts=transcripts, slides=slides, template_key=template_key)
 
 
 def humanize_error(exc: BaseException) -> str:

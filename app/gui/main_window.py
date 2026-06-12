@@ -132,6 +132,18 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._wire_signals()
 
+        # Sledovaná složka — scanner se stavem + periodický timer (každých 12 s).
+        # Scan i spuštění jobu řeší _watch_tick; timer běží pořád, ale tick si
+        # sám hlídá, jestli je watch zapnutý a jestli zrovna nic neběží.
+        from app.core.watch_folder import WatchScanner
+
+        self._watch_scanner = WatchScanner()
+        self._watch_scanner.load()
+        self._watch_timer = QTimer(self)
+        self._watch_timer.setInterval(12_000)
+        self._watch_timer.timeout.connect(self._watch_tick)
+        self._watch_timer.start()
+
         QTimer.singleShot(50, self._post_show_init)
 
     # ------ System tray ------
@@ -768,6 +780,12 @@ class MainWindow(QMainWindow):
 
     def _stop_all_workers(self) -> None:
         """Bezpečně ukončí všechny QThread workery v aplikaci."""
+        # Watch timer zastavit, ať se po zavření okna nespustí další sken.
+        if hasattr(self, "_watch_timer"):
+            try:
+                self._watch_timer.stop()
+            except Exception:  # noqa: BLE001
+                pass
         for worker_attr in (
             "_pipeline_worker",
             "_model_worker",
@@ -1145,24 +1163,20 @@ class MainWindow(QMainWindow):
             return "separate"
         return None
 
-    def _build_job_queue(self, sources, mode: JobMode, batch_mode: str) -> None:
-        """Naplní self._job_queue podle batch módu + paralelně controller IDs."""
-        # Klíč šablony rozhoduje, jaké sekce AI vyrobí. Když si uživatel vybral
-        # konkrétní šablonu ("sales_meeting", "teacher_reflection", …), schéma
-        # výstupu sedne na to, co zadání slibuje. "" = vlastní zadání → student.
-        template_key = self._prompt_editor.current_template_key() or "student"
+    def _job_common(self, mode: JobMode, template_key: str, user_prompt: str) -> dict:
+        """Společný JobConfig kwargs dict pro interaktivní běh i sledovanou složku.
+
+        Diarizace se zapne automaticky u konverzačních šablon na cloud přepisu.
+        """
         backend = _parse_backend(self._settings.transcribe_backend)
-        # Rozlišování mluvčích (diarizace) zapneme automaticky u konverzačních
-        # šablon (sales, zápis ze schůzky) — ale jen u cloud Gemini přepisu,
-        # lokální Whisper to neumí. U přednášky (monolog) zůstává vypnuté.
         from app.core.ai.prompts import is_conversation_template
 
         diarize = (
             backend == TranscribeBackend.CLOUD_GEMINI
             and is_conversation_template(template_key)
         )
-        common = dict(
-            user_prompt=self._prompt_editor.text(),
+        return dict(
+            user_prompt=user_prompt,
             output_dir=Path(self._settings.output_dir),
             mode=mode,
             whisper_model=self._settings.whisper_model,
@@ -1175,6 +1189,14 @@ class MainWindow(QMainWindow):
             prompt_template_key=template_key,
             diarize=diarize,
         )
+
+    def _build_job_queue(self, sources, mode: JobMode, batch_mode: str) -> None:
+        """Naplní self._job_queue podle batch módu + paralelně controller IDs."""
+        # Klíč šablony rozhoduje, jaké sekce AI vyrobí. Když si uživatel vybral
+        # konkrétní šablonu ("sales_meeting", "teacher_reflection", …), schéma
+        # výstupu sedne na to, co zadání slibuje. "" = vlastní zadání → student.
+        template_key = self._prompt_editor.current_template_key() or "student"
+        common = self._job_common(mode, template_key, self._prompt_editor.text())
         from app.core.pipeline import split_sources_for_batch
 
         groups = split_sources_for_batch(list(sources), batch_mode)
@@ -1245,6 +1267,70 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self, "Chyba", f"Nepodařilo se spustit zpracování: {exc}"
             )
+
+    # ------ Sledovaná složka (vlna 1) ------
+
+    def _watch_tick(self) -> None:
+        """Periodický sken sledované složky. Tichý — žádné dialogy."""
+        if not self._settings.watch_enabled or not self._settings.watch_folder:
+            return
+        # Spustíme jen když je appka v klidu — žádný běžící worker ani fronta.
+        if (
+            self._pipeline_worker.is_running()
+            or self._regenerate_worker.is_running()
+            or self._job_queue
+        ):
+            return
+        # FULL režim potřebuje AI: bez klíče a bez offline preference nemá
+        # smysl scanovat (soubory necháme nezpracované — vezmou se, až bude klíč).
+        if not self._settings.prefer_offline and not get_gemini_api_key():
+            return
+        if not model_is_cached(self._settings.whisper_model):
+            return
+
+        try:
+            ready = self._watch_scanner.scan(Path(self._settings.watch_folder))
+        except Exception as exc:  # noqa: BLE001 — sken nesmí položit UI
+            logger.warning("Watch scan selhal: {}", exc)
+            return
+        if ready:
+            self._run_watch_job(ready)
+
+    def _run_watch_job(self, files: list[Path]) -> None:
+        """Postaví frontu jobů ze sledovaných souborů (každý zvlášť) a spustí."""
+        template_key = self._settings.watch_template_key or "student"
+        from app.core.ai.prompts import template_prompt
+
+        common = self._job_common(JobMode.FULL, template_key, template_prompt(template_key))
+        self._job_queue = []
+        self._job_queue_ids = []
+        for f in files:
+            job = JobConfig(
+                sources=[SourceFile(path=f, kind=SourceKind.AUDIO_VIDEO, label=f.stem)],
+                **common,
+            )
+            self._job_queue.append(job)
+            # Označit jako zpracovaný HNED při zařazení — vadná nahrávka tak
+            # nezpůsobí nekonečné opakování pokusů.
+            self._watch_scanner.mark_processed(f)
+        self._queue_total = len(self._job_queue)
+        self._queue_index = 0
+        self._queue_results = []
+        self._job_controller.clear_done()
+        for job in self._job_queue:
+            jid = self._job_controller.add_job(
+                job.sources[0].label, job.sources[0].path, cached=False
+            )
+            self._job_queue_ids.append(jid)
+        self._queue_api_key = get_gemini_api_key()
+        self._progress.append_message(
+            f"👁 Sledovaná složka: našel jsem {len(files)} nahrávek, zpracovávám…"
+        )
+        self._notify(
+            "Hlas do textu",
+            f"Sledovaná složka: zpracovávám {len(files)} nových nahrávek.",
+        )
+        self._start_next_job()
 
     def _on_cancel_clicked(self) -> None:
         """Uživatel klikl Zrušit. Nastavíme cancel_event a HNED dáme vizuální
@@ -1374,6 +1460,20 @@ class MainWindow(QMainWindow):
         open_doc_btn = msg.addButton("Otevřít dokument", QMessageBox.ButtonRole.AcceptRole)
         open_folder_btn = msg.addButton("Otevřít složku", QMessageBox.ButtonRole.ActionRole)
         chat_btn = msg.addButton("Chatovat o dokumentu", QMessageBox.ButtonRole.ActionRole)
+
+        # Integrační akce — nabídnou se jen když z výstupu vyplývají
+        # (termín schůzky → pozvánka, e-mail šablona → mailto, karty → Anki).
+        invite_btn = email_btn = anki_btn = None
+        from app.core.integrations import anki_export, calendar_export, email_export
+
+        material = result.material
+        if calendar_export.find_meeting_text(material):
+            invite_btn = msg.addButton("📅 Přidat do kalendáře", QMessageBox.ButtonRole.ActionRole)
+        if email_export.extract_email(material):
+            email_btn = msg.addButton("✉️ Otevřít e-mail", QMessageBox.ButtonRole.ActionRole)
+        if anki_export.has_cards(material):
+            anki_btn = msg.addButton("🗂 Export do Anki", QMessageBox.ButtonRole.ActionRole)
+
         msg.addButton("Zavřít", QMessageBox.ButtonRole.RejectRole)
         msg.setDefaultButton(open_doc_btn)
         msg.exec()
@@ -1385,6 +1485,81 @@ class MainWindow(QMainWindow):
             self._open_file(result.output_path.parent)
         elif clicked is chat_btn:
             self._open_chat_dialog(result)
+        elif clicked is invite_btn:
+            self._action_create_invite(result)
+        elif clicked is email_btn:
+            self._action_open_email(result)
+        elif clicked is anki_btn:
+            self._action_export_anki(result)
+
+    # ------ Integrační akce (vlna 1) ------
+
+    def _action_create_invite(self, result) -> None:
+        """Otevře dialog na potvrzení termínu → vytvoří .ics a otevře ho."""
+        from app.core.integrations import calendar_export
+        from app.gui.widgets.calendar_dialog import CalendarDialog
+
+        hint = calendar_export.find_meeting_text(result.material) or ""
+        summary = result.material.title or "Schůzka"
+        dlg = CalendarDialog(
+            default_summary=summary,
+            meeting_hint=hint,
+            output_dir=result.output_path.parent,
+            parent=self,
+        )
+        if dlg.exec() and dlg.result_path() is not None:
+            self._progress.append_message(f"📅 Pozvánka vytvořena: {dlg.result_path().name}")
+            self._open_file(dlg.result_path())
+
+    def _action_open_email(self, result) -> None:
+        """Sestaví mailto: a otevře poštovního klienta. Tělo dá i do schránky."""
+        from PySide6.QtGui import QGuiApplication
+
+        from app.core.integrations import email_export
+
+        extracted = email_export.extract_email(result.material)
+        if not extracted:
+            return
+        subject, body = extracted
+        # Outlook na Windows mailto tělo ořezává → záloha do schránky.
+        clip = QGuiApplication.clipboard()
+        if clip is not None:
+            clip.setText(body)
+        url = email_export.build_mailto(subject, body)
+        self._open_url(url)
+        self._progress.append_message(
+            "✉️ Otevírám e-mail (text je i ve schránce, kdyby ho klient ořízl)."
+        )
+
+    def _action_export_anki(self, result) -> None:
+        """Vyexportuje karty do .apkg vedle dokumentu."""
+        from app.core.integrations import anki_export
+
+        out_path = result.output_path.with_suffix(".apkg")
+        try:
+            count = anki_export.export_apkg(result.material, out_path)
+        except ValueError as exc:
+            QMessageBox.information(self, "Žádné karty", str(exc))
+            return
+        except ImportError:
+            QMessageBox.warning(
+                self, "Chybí komponenta",
+                "Export do Anki vyžaduje knihovnu genanki, která chybí v této verzi.",
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Anki export selhal")
+            QMessageBox.warning(self, "Export selhal", f"Nepodařilo se vytvořit balíček: {exc}")
+            return
+        self._progress.append_message(f"🗂 Anki balíček ({count} karet): {out_path.name}")
+        self._open_file(out_path.parent)
+
+    def _open_url(self, url: str) -> None:
+        """Otevře URL (mailto:, http:) přes OS handler."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        QDesktopServices.openUrl(QUrl(url))
 
     def _show_batch_summary(self) -> None:
         """Souhrnný dialog po dokončení celé dávky."""
