@@ -91,6 +91,9 @@ a `HlasDoTextu.license`.
   `installer/HlasDoTextu.iss` (`MyAppVersion`). Při bumpu měň obě.
 - **`.env` s `HDT_HMAC_SECRET` musí být v rootu repa.** Při práci v git worktree tam chybí →
   licenční klíče se vyhodnotí jako neplatné. Řešení: `ln -sf <hlavní-repo>/.env <worktree>/.env`.
+- **Worktree + venv: skripty importují `app` z HLAVNÍHO repa** (venv je editable-install).
+  Každé `python …` z worktree (GUI, screenshoty, quality_check) spouštět s `PYTHONPATH="$PWD"`,
+  jinak tiše běží starý kód. Pytest je v pořádku (vlastní sys.path).
 - **PyInstaller bundling** (oba `.github/workflows/build-*.yml`): nový balík s lazy plugin
   loadingem nebo data soubory musí mít explicit `--collect-all` / `--hidden-import` / `--add-data`.
   Už takto řešené: `tiktoken_ext.openai_public`, `app/gui/styles` (qss), `yt_dlp`. Bez toho
